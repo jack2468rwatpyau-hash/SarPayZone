@@ -1,0 +1,259 @@
+# ============================================
+# SAR PAY ZONE - .gitignore
+# ============================================
+
+# ============================================
+# 1. DEPENDENCIES
+# ============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ============================================
+# 2. ENVIRONMENT VARIABLES (အရေးကြီးဆုံး)
+# ============================================
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+.env.staging
+
+# ============================================
+# 3. DATABASE FILES
+# ============================================
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+.turso/
+turso.db
+*.turso
+
+# ============================================
+# 4. LOGS
+# ============================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pm2/
+
+# ============================================
+# 5. OS FILES
+# ============================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+*.swp
+*.swo
+*.swn
+
+# ============================================
+# 6. IDE / EDITOR
+# ============================================
+# VS Code
+.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# IntelliJ / WebStorm
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.idea_modules/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Atom
+.atom/
+
+# Vim
+*.swp
+*.swo
+*.swn
+*~
+
+# ============================================
+# 7. BUILD / DIST
+# ============================================
+dist/
+build/
+out/
+*.min.js
+*.min.css
+*.bundle.js
+*.bundle.css
+*.map
+
+# ============================================
+# 8. CACHE FILES
+# ============================================
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+.nx/
+.eslintcache
+*.tsbuildinfo
+*.tgz
+
+# ============================================
+# 9. TESTING
+# ============================================
+coverage/
+.nyc_output/
+.coveralls.yml
+*.test.js
+*.spec.js
+__tests__/
+__mocks__/
+
+# ============================================
+# 10. TEMPORARY FILES
+# ============================================
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# ============================================
+# 11. SECURITY FILES
+# ============================================
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.csr
+*.jks
+*.keystore
+*.truststore
+
+# ============================================
+# 12. CLOUDINARY LOCAL
+# ============================================
+cloudinary/
+.cloudinary/
+uploaded/
+
+# ============================================
+# 13. TELEGRAM BOT LOCAL
+# ============================================
+telegram/
+.bot/
+session.json
+
+# ============================================
+# 14. MISC
+# ============================================
+*.zip
+*.rar
+*.7z
+*.tar.gz
+*.tgz
+.DS_Store
+.directory
+Thumbs.db
+*.log
+*.pid
+*.seed
+*.pid.lock
+*.lock
+.sass-cache/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.svg
+*.mp4
+*.mp3
+*.wav
+
+# ============================================
+# 15. DEPLOYMENT FILES
+# ============================================
+*.deploy
+*.deploy.*
+.vercel/
+.railway/
+.heroku/
+.netlify/
+
+# ============================================
+# 16. TURSO LOCAL
+# ============================================
+*.db
+*.db-wal
+*.db-shm
+.turso/
+*.turso
+
+# ============================================
+# 17. BACKUP FILES
+# ============================================
+*.backup
+*.bak
+*.old
+*.orig
+
+# ============================================
+# 18. SECRETS
+# ============================================
+*.secret
+*.secrets
+secrets.json
+secrets.yml
+
+# ============================================
+# 19. PACKAGE MANAGER
+# ============================================
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+npm-shrinkwrap.json
+
+# ============================================
+# 20. TYPESCRIPT
+# ============================================
+*.tsbuildinfo
+*.d.ts.map
+*.js.map
+*.ts.map
