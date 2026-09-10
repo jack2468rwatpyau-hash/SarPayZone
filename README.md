@@ -34,7 +34,7 @@ The frontend currently uses the deployed API URL in each static page. If the bac
 
 ## Database
 
-Apply `database/schema.sql` to a new configured Turso database before starting the service. For an existing database created from an earlier revision, apply `database/migrations/001_fix_resell_buyer_owner.sql` and then `database/migrations/002_corrected_prompt_alignment.sql`. The second migration adds product images, admin/agent seller roles and seeds, seller order retention, and C2C markup fields. Change the seeded admin and agent credentials after first deployment. The application uses a small database adapter in `db.js` that normalizes empty query arguments for the current `@libsql/client` behavior.
+Apply the complete `database/schema.sql` to a new configured Turso database before starting the service. For an existing database created from an earlier revision, apply `database/migrations/001_fix_resell_buyer_owner.sql` and then `database/migrations/002_corrected_prompt_alignment.sql`. The second migration adds product images, admin/agent seller roles and seeds, seller order retention, C2C markup fields, C2C order references, and district-level shipping. Change the seeded admin and agent credentials after first deployment. The application uses a small database adapter in `db.js` that normalizes empty query arguments for the current `@libsql/client` behavior.
 
 ## Verification
 

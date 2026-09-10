@@ -38,3 +38,7 @@ PRAGMA foreign_keys = ON;
 
 ALTER TABLE resell_listings ADD COLUMN markup_percentage REAL DEFAULT 10;
 ALTER TABLE resell_listings ADD COLUMN final_price REAL;
+
+ALTER TABLE orders ADD COLUMN resell_listing_id INTEGER;
+ALTER TABLE orders ADD COLUMN resell_seller_id INTEGER;
+ALTER TABLE shipping_rates ADD COLUMN district TEXT;
