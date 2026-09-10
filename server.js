@@ -28,6 +28,10 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
+app.get('/health', (req, res) => {
+    res.json({ ok: true, service: 'sar-pay-zone-api' });
+});
+
 // Security middleware
 app.use(helmet());
 app.use(cors());
@@ -124,4 +128,3 @@ server.listen(PORT, () => {
     console.log(`Sar Pay Zone server running on port ${PORT}`);
     initCronJobs();
 });
-

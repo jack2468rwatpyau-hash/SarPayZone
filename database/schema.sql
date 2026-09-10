@@ -99,14 +99,13 @@ CREATE TABLE product_variations (
 CREATE TABLE resell_listings (
     listing_id INTEGER PRIMARY KEY AUTOINCREMENT,
     public_id TEXT UNIQUE NOT NULL,
-    seller_id INTEGER NOT NULL, -- original seller
+    seller_id INTEGER NOT NULL, -- buyer/user who owns the resell listing
     product_id INTEGER NOT NULL,
     condition_images TEXT, -- JSON array
     asking_price REAL NOT NULL,
     status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'sold')),
     approved_by INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (seller_id) REFERENCES sellers(seller_id),
     FOREIGN KEY (product_id) REFERENCES products(book_id),
     FOREIGN KEY (approved_by) REFERENCES sellers(seller_id)
 );
@@ -321,4 +320,3 @@ CREATE INDEX idx_messages_conversation ON messages(conversation_id);
 CREATE INDEX idx_messages_created ON messages(created_at);
 CREATE INDEX idx_product_views_book ON product_views(book_id);
 CREATE INDEX idx_shipping_rates_seller ON shipping_rates(seller_id);
-

@@ -245,7 +245,7 @@
 
         async function showProductList() {
             try {
-                const res = await fetch(`${API_URL}/products?seller_id=${storeUser.seller_id}`, {
+                const res = await fetch(`${API_URL}/products/mine`, {
                     headers: { 'Authorization': `Bearer ${storeToken}` }
                 });
                 const products = await res.json();

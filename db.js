@@ -6,5 +6,12 @@ const client = createClient({
     authToken: config.TURSO_AUTH_TOKEN
 });
 
-module.exports = client;
+// @libsql/client requires an explicit args array for object-form queries.
+// The route code intentionally omits args for static SQL, so normalize here
+// instead of changing every query site and making future routes error-prone.
+const execute = (statement) => {
+    if (typeof statement === 'string') return client.execute(statement);
+    return client.execute({ ...statement, args: statement.args || [] });
+};
 
+module.exports = { execute };

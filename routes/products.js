@@ -9,7 +9,7 @@ const { uploadToCloudinary } = require('../utils/cloudinary');
 // Get products with filters
 router.get('/', async (req, res) => {
     try {
-        const { category, search, sort = 'newest', page = 1, limit = 20, type } = req.query;
+        const { category, search, sort = 'newest', page = 1, limit = 20, type, seller_id } = req.query;
         let sql = `SELECT p.*, s.store_name, s.public_id as seller_public_id, c.name as category_name 
                    FROM products p 
                    LEFT JOIN sellers s ON p.seller_id = s.seller_id 
@@ -24,6 +24,10 @@ router.get('/', async (req, res) => {
         if (type) {
             sql += ' AND p.product_type = ?';
             args.push(type);
+        }
+        if (seller_id) {
+            sql += ' AND p.seller_id = ?';
+            args.push(seller_id);
         }
         if (search) {
             sql += ' AND (p.title LIKE ? OR p.author_name LIKE ?)';
@@ -63,6 +67,23 @@ router.get('/categories/all', async (req, res) => {
     try {
         const cats = await db.execute({ sql: 'SELECT * FROM categories ORDER BY sort_order' });
         res.json(cats.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Seller catalog, including pending products (seller dashboard only)
+router.get('/mine', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
+    try {
+        const products = await db.execute({
+            sql: `SELECT p.*, s.store_name, c.name as category_name
+                  FROM products p
+                  LEFT JOIN sellers s ON p.seller_id = s.seller_id
+                  LEFT JOIN categories c ON p.category_id = c.category_id
+                  WHERE p.seller_id = ? ORDER BY p.created_at DESC`,
+            args: [req.user.seller_id]
+        });
+        res.json(products.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

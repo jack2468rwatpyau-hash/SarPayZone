@@ -763,7 +763,7 @@
             if (!cart.length) { alert('Your cart is empty'); return; }
             const shipping_address = prompt('Enter delivery address');
             if (!shipping_address) return;
-            const payment_method = prompt('Payment method: wallet or cash_on_delivery', 'wallet') || 'wallet';
+            const payment_method = prompt('Payment method: wallet, cod, or agent', 'wallet') || 'wallet';
             for (const item of cart) {
                 const res = await fetch(`${API_URL}/orders`, {
                     method: 'POST',
@@ -843,15 +843,42 @@
             }).then(r => r.json().then(data => alert(r.ok ? 'Transfer completed' : (data.error || 'Transfer failed'))));
         }
 
-        function showResellForm() {
+        async function showResellForm() {
             const product_id = prompt('Book ID to resell');
             const asking_price = prompt('Asking price (Ks)');
             if (!product_id || !asking_price) return;
-            alert('Resell listing requires image upload. Use the seller form or API multipart upload to submit images.');
+            const form = new FormData();
+            form.append('product_id', product_id);
+            form.append('asking_price', asking_price);
+            form.append('condition_note', 'Submitted from buyer marketplace');
+            const res = await fetch(`${API_URL}/resell/list`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${authToken}` },
+                body: form
+            });
+            const data = await res.json();
+            alert(res.ok ? 'Resell listing submitted for review' : (data.error || 'Unable to create resell listing'));
         }
 
-        function openChat(conversationId) { alert(`Chat ${conversationId} is ready. Real-time messaging uses Socket.IO.`); }
-        function startChat(sellerId, bookId) { alert('Chat with this shop will open after the conversation endpoint is connected.'); }
+        function openChat(conversationId) {
+            navigateTo('chat');
+            setTimeout(() => alert(`Conversation ${conversationId} loaded. Real-time messaging uses Socket.IO.`), 0);
+        }
+        async function startChat(sellerId, bookId) {
+            if (!currentUser) { showAuthModal(); return; }
+            try {
+                const res = await fetch(`${API_URL}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ conversation_type: 'buyer_shop', participants: [`U${currentUser.user_id || currentUser.id}`, `S${sellerId}`] })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Unable to start chat');
+                navigateTo('chat');
+            } catch (err) {
+                alert(err.message || 'Unable to start chat');
+            }
+        }
         function shareProduct(publicId) { navigator.clipboard?.writeText(`${location.origin}${location.pathname}?product=${publicId}`); alert('Product link copied'); }
         function openReviewForm(orderId) {
             const rating = Number(prompt('Rating from 1 to 5', '5'));
