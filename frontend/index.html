@@ -909,12 +909,14 @@
         async function viewFestivalBooks(festivalId) {
             const res = await fetch(`${API_URL}/voting/festival/${festivalId}/books`);
             const books = await res.json();
-            const choice = prompt(books.map(b => `${b.book_id}: ${b.title}`).join('\n') + '\n\nEnter book ID to vote');
+            const choice = prompt(books.map((b, i) => `${i + 1}: ${b.title}${b.book_source === 'external' ? ' (External)' : ''}`).join('\n') + '\n\nမဲပေးမည့် စာအုပ်နံပါတ်ကို ထည့်ပါ');
             if (!choice) return;
+            const selected = books[Number(choice) - 1];
+            if (!selected) return alert('စာအုပ်နံပါတ် မမှန်ပါ');
             const voteRes = await fetch(`${API_URL}/voting/vote`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify({ festival_id: festivalId, book_id: Number(choice) })
+                body: JSON.stringify({ festival_id: festivalId, book_id: selected.book_id || null, external_book_id: selected.external_book_id || null })
             });
             const data = await voteRes.json();
             alert(voteRes.ok ? 'Vote submitted' : (data.error || 'Unable to vote'));
