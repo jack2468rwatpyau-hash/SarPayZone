@@ -10,7 +10,6 @@ CREATE TABLE system_config (
 );
 
 INSERT INTO system_config (config_key, config_value) VALUES
-('server_url', 'https://sarpayzone.site'),
 ('current_password_code', 'SPZ2024'),
 ('markup_percentage', '10'),
 ('agent_cash_in_limit', '500000');
@@ -34,7 +33,7 @@ CREATE TABLE users (
 CREATE TABLE sellers (
     seller_id INTEGER PRIMARY KEY AUTOINCREMENT,
     public_id TEXT UNIQUE NOT NULL,
-    role TEXT NOT NULL CHECK(role IN ('publisher', 'bookstore', 'commission_store', 'agent')),
+    role TEXT NOT NULL CHECK(role IN ('admin', 'publisher', 'bookstore', 'commission_store', 'agent')),
     name TEXT NOT NULL,
     phone TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
@@ -47,6 +46,12 @@ CREATE TABLE sellers (
     is_visible INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Categories
+-- Default platform accounts. Replace the seeded password after first deployment.
+INSERT INTO sellers (public_id, role, name, phone, password_hash, store_name, is_visible) VALUES
+('ADMIN#0001', 'admin', 'Admin User', '09987654321', '$2a$12$0WuiX4N.eUCLhepOqC7EqeZAFDNlTFP1iisHmYdyfq9aVDS/z1jAu', 'Sar Pay Zone Admin', 1),
+('AGENT#0001', 'agent', 'Agent User', '09765432109', '$2a$12$0WuiX4N.eUCLhepOqC7EqeZAFDNlTFP1iisHmYdyfq9aVDS/z1jAu', 'Sar Pay Zone Agent', 1);
 
 -- Categories
 CREATE TABLE categories (
@@ -72,12 +77,13 @@ CREATE TABLE products (
     category_id INTEGER,
     original_price REAL NOT NULL,
     discounted_price REAL,
+    images TEXT, -- JSON array max 5
     page_count INTEGER,
     size TEXT,
     description TEXT,
     stock_quantity INTEGER DEFAULT 0,
     is_active INTEGER DEFAULT 1,
-    approved INTEGER DEFAULT 1,
+    approved INTEGER DEFAULT 0,
     view_count INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (seller_id) REFERENCES sellers(seller_id),
@@ -103,6 +109,8 @@ CREATE TABLE resell_listings (
     product_id INTEGER NOT NULL,
     condition_images TEXT, -- JSON array
     asking_price REAL NOT NULL,
+    markup_percentage REAL DEFAULT 10,
+    final_price REAL,
     status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'sold')),
     approved_by INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -144,6 +152,15 @@ BEGIN
     DELETE FROM orders 
     WHERE buyer_id = NEW.buyer_id 
     AND order_id = (SELECT order_id FROM orders WHERE buyer_id = NEW.buyer_id ORDER BY created_at ASC LIMIT 1);
+END;
+
+CREATE TRIGGER enforce_seller_order_limit
+AFTER INSERT ON orders
+WHEN NEW.seller_id IS NOT NULL AND (SELECT COUNT(*) FROM orders WHERE seller_id = NEW.seller_id) > 100
+BEGIN
+    DELETE FROM orders
+    WHERE seller_id = NEW.seller_id
+    AND order_id = (SELECT order_id FROM orders WHERE seller_id = NEW.seller_id ORDER BY created_at ASC LIMIT 1);
 END;
 
 -- Conversations

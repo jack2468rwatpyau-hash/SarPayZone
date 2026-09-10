@@ -11,6 +11,8 @@ const { sendPushNotification } = require('../utils/webpush');
 router.post('/', authenticate, async (req, res) => {
     try {
         const { product_id, variation_id, quantity, shipping_address, payment_method, p2p_friend_id } = req.body;
+        const parsedQuantity = Math.max(1, parseInt(quantity, 10) || 1);
+        if (!['wallet', 'cod', 'agent'].includes(payment_method)) return res.status(400).json({ error: 'Invalid payment method' });
         
         const product = await db.execute({
             sql: 'SELECT p.*, s.role, s.telegram_user_id, s.seller_id FROM products p JOIN sellers s ON p.seller_id = s.seller_id WHERE p.book_id = ?',
@@ -20,7 +22,8 @@ router.post('/', authenticate, async (req, res) => {
 
         const prod = product.rows[0];
         const unitPrice = prod.discounted_price || prod.original_price;
-        const total = unitPrice * quantity;
+        if (Number(prod.stock_quantity || 0) < parsedQuantity) return res.status(400).json({ error: 'Insufficient stock' });
+        const total = unitPrice * parsedQuantity;
 
         // Get shipping fee
         let shippingFee = 5000;
@@ -53,8 +56,13 @@ router.post('/', authenticate, async (req, res) => {
             sql: `INSERT INTO orders (order_number, buyer_id, seller_id, product_id, variation_id, quantity, 
                   total_amount, shipping_fee, commission_amount, payment_method, payment_status, shipping_address, p2p_friend_id)
                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            args: [orderNumber, req.user.user_id || req.user.id, prod.seller_id, product_id, variation_id, quantity, 
+            args: [orderNumber, req.user.user_id || req.user.id, prod.seller_id, product_id, variation_id, parsedQuantity,
                    total, shippingFee, commission, payment_method, payment_method === 'wallet' ? 'paid' : 'pending', shipping_address, p2p_friend_id || null]
+        });
+
+        await db.execute({
+            sql: 'UPDATE products SET stock_quantity = stock_quantity - ? WHERE book_id = ? AND stock_quantity >= ?',
+            args: [parsedQuantity, product_id, parsedQuantity]
         });
 
         // Deduct wallet if wallet payment
@@ -66,7 +74,7 @@ router.post('/', authenticate, async (req, res) => {
             await db.execute({
                 sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id) 
                       VALUES ('user', ?, 'purchase', ?, 0, (SELECT wallet_balance FROM users WHERE user_id = ?), ?)`,
-                args: [req.user.user_id || req.user.id, finalTotal, req.user.user_id || req.user.id, orderNumber]
+                args: [req.user.user_id || req.user.id, -finalTotal, req.user.user_id || req.user.id, orderNumber]
             });
         }
 
@@ -75,7 +83,7 @@ router.post('/', authenticate, async (req, res) => {
             order_number: orderNumber,
             product_name: prod.title,
             total_amount: finalTotal,
-            quantity,
+            quantity: parsedQuantity,
             buyer_name: req.user.name,
             shipping_address
         });
@@ -116,6 +124,7 @@ router.post('/bulk', authenticate, async (req, res) => {
             });
             if (product.rows.length === 0) return res.status(404).json({ error: `Product ${item.product_id} not found` });
             const prod = product.rows[0];
+            if (Number(prod.stock_quantity || 0) < quantity) return res.status(400).json({ error: `${prod.title} has insufficient stock` });
             const unitPrice = Number(prod.discounted_price || prod.original_price);
             const subtotal = unitPrice * quantity;
             const rate = await db.execute({
@@ -152,6 +161,10 @@ router.post('/bulk', authenticate, async (req, res) => {
                     subtotal, shippingFee, commission, payment_method, payment_method === 'wallet' ? 'paid' : 'pending', shipping_address, p2p_friend_id || null]
             });
             orderIds.push(result.lastInsertRowid);
+            await db.execute({
+                sql: 'UPDATE products SET stock_quantity = stock_quantity - ? WHERE book_id = ? AND stock_quantity >= ?',
+                args: [quantity, item.product_id, quantity]
+            });
             await sendInstantOrder(prod.telegram_user_id, {
                 order_number: orderNumber, product_name: prod.title,
                 total_amount: subtotal + shippingFee, quantity,

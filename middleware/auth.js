@@ -37,7 +37,7 @@ const requirePasswordCode = async (req, res, next) => {
         const result = await db.execute({
             sql: 'SELECT config_value FROM system_config WHERE config_key = "current_password_code"'
         });
-        if (result.rows[0].config_value !== password_code) {
+        if (!password_code || !result.rows[0] || result.rows[0].config_value !== password_code) {
             return res.status(403).json({ error: 'Invalid password code' });
         }
         next();
@@ -47,4 +47,3 @@ const requirePasswordCode = async (req, res, next) => {
 };
 
 module.exports = { authenticate, requirePasswordCode };
-

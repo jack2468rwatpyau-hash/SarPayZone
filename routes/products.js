@@ -96,8 +96,8 @@ router.get('/:id', async (req, res) => {
             sql: `SELECT p.*, s.store_name, s.logo, c.name as category_name 
                   FROM products p 
                   LEFT JOIN sellers s ON p.seller_id = s.seller_id 
-                  LEFT JOIN categories c ON p.category_id = c.category_id 
-                  WHERE p.book_id = ?`,
+                  LEFT JOIN categories c ON p.category_id = c.category_id
+                  WHERE p.book_id = ? AND p.is_active = 1 AND p.approved = 1`,
             args: [req.params.id]
         });
 
@@ -150,10 +150,10 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
         }
 
         const result = await db.execute({
-            sql: `INSERT INTO products (public_id, seller_id, product_type, title, author_name, category_id, 
-                  original_price, discounted_price, description, stock_quantity) 
-                  VALUES (?, ?, 'store_book', ?, ?, ?, ?, ?, ?, ?)`,
-            args: [publicId, req.user.seller_id, title, author_name, category_id, original_price, discounted_price || original_price, description, stock_quantity || 0]
+            sql: `INSERT INTO products (public_id, seller_id, product_type, title, author_name, category_id,
+                  original_price, discounted_price, description, stock_quantity, images)
+                  VALUES (?, ?, 'store_book', ?, ?, ?, ?, ?, ?, ?, ?)`,
+            args: [publicId, req.user.seller_id, title, author_name, category_id, original_price, discounted_price || original_price, description, stock_quantity || 0, JSON.stringify(imageUrls)]
         });
 
         const bookId = result.lastInsertRowid;

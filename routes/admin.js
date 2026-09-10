@@ -171,14 +171,15 @@ router.get('/orders', authenticate, requireRole('admin'), async (req, res) => {
 router.get('/config', authenticate, requireRole('admin'), async (req, res) => {
     try {
         const rows = await db.execute({
-            sql: `SELECT config_key, config_value FROM system_config 
-                  WHERE config_key IN ('current_password_code', 'server_url')`
+            sql: `SELECT config_key, config_value FROM system_config
+                  WHERE config_key IN ('current_password_code', 'markup_percentage', 'agent_cash_in_limit')`
         });
         const config = {};
         rows.rows.forEach(r => { config[r.config_key] = r.config_value; });
         res.json({
             current_password_code: config.current_password_code || '',
-            server_url: config.server_url || ''
+            markup_percentage: config.markup_percentage || '10',
+            agent_cash_in_limit: config.agent_cash_in_limit || '500000'
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -207,20 +208,6 @@ router.post('/password-code', authenticate, requireRole('admin'), async (req, re
         await db.execute({
             sql: 'UPDATE system_config SET config_value = ? WHERE config_key = "current_password_code"',
             args: [new_code]
-        });
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Server URL config
-router.post('/server-url', authenticate, requireRole('admin'), async (req, res) => {
-    try {
-        const { server_url } = req.body;
-        await db.execute({
-            sql: 'UPDATE system_config SET config_value = ? WHERE config_key = "server_url"',
-            args: [server_url]
         });
         res.json({ success: true });
     } catch (err) {

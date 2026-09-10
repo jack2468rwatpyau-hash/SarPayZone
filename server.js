@@ -46,21 +46,6 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Server URL check middleware
-app.use(async (req, res, next) => {
-    try {
-        const serverUrl = await db.execute({
-            sql: 'SELECT config_value FROM system_config WHERE config_key = "server_url"'
-        });
-        if (!serverUrl.rows[0]?.config_value) {
-            return res.status(403).json({ error: 'Platform under maintenance' });
-        }
-        next();
-    } catch (err) {
-        next();
-    }
-});
-
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);

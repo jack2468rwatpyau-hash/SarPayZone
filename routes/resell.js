@@ -56,12 +56,23 @@ router.patch('/:id/approve', authenticate, requireRole('admin'), async (req, res
         const { status, markup_percentage } = req.body; // status: approved/rejected
         const adminId = req.user.seller_id || req.user.id;
 
+        const listing = await db.execute({
+            sql: 'SELECT asking_price FROM resell_listings WHERE listing_id = ?',
+            args: [req.params.id]
+        });
+        if (listing.rows.length === 0) return res.status(404).json({ error: 'Resell listing not found' });
+        const configured = await db.execute({
+            sql: 'SELECT config_value FROM system_config WHERE config_key = "markup_percentage"'
+        });
+        const markup = Number(markup_percentage ?? configured.rows[0]?.config_value ?? 10);
+        const finalPrice = Number(listing.rows[0].asking_price) * (1 + markup / 100);
+
         await db.execute({
-            sql: 'UPDATE resell_listings SET status = ?, approved_by = ? WHERE listing_id = ?',
-            args: [status, adminId, req.params.id]
+            sql: 'UPDATE resell_listings SET status = ?, approved_by = ?, markup_percentage = ?, final_price = ? WHERE listing_id = ?',
+            args: [status, adminId, status === 'approved' ? markup : 0, status === 'approved' ? finalPrice : null, req.params.id]
         });
 
-        if (status === 'approved' && markup_percentage) {
+        if (status === 'approved' && markup_percentage !== undefined) {
             await db.execute({
                 sql: 'UPDATE system_config SET config_value = ? WHERE config_key = "markup_percentage"',
                 args: [markup_percentage]
@@ -91,4 +102,3 @@ router.get('/listings', async (req, res) => {
 });
 
 module.exports = router;
-

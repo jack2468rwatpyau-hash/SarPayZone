@@ -14,7 +14,7 @@
         <div class="gate-box">
             <div class="logo-slot">
                 <img src="/assets/logo.png" alt="Sar Pay Zone" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" width="200">
-                <div class="logo-fallback" style="display:none;">🌐</div>
+                <div class="logo-fallback" style="display:none;"><i class="fas fa-book-open"></i></div>
             </div>
             <h2>Welcome to Sar Pay Zone</h2>
             <p class="gate-subtitle">Myanmar's Premier Literature Marketplace</p>
@@ -133,7 +133,7 @@
 
         function switchAuthTab(tab) {
             document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
+            document.querySelector(`.auth-tab:nth-child(${tab === 'login' ? 1 : 2})`)?.classList.add('active');
             document.getElementById('auth-login').classList.toggle('hidden', tab !== 'login');
             document.getElementById('auth-register').classList.toggle('hidden', tab !== 'register');
         }
@@ -638,7 +638,8 @@
                         <h4>${l.title}</h4>
                         <p class="condition">Condition: Resell</p>
                         <div class="product-price-row">
-                            <span class="price">${l.asking_price} Ks</span>
+                            <span class="price">${Number(l.final_price || l.asking_price).toLocaleString()} Ks</span>
+                            ${l.final_price ? `<small class="resell-markup">Seller price ${Number(l.asking_price).toLocaleString()} Ks + platform markup</small>` : ''}
                         </div>
                         <p class="seller-info"><i class="fas fa-user"></i> ${l.seller_name} (${l.city || 'N/A'})</p>
                     </div>

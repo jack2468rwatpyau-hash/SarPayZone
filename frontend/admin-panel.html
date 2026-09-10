@@ -184,13 +184,8 @@
                 <button onclick="changePasswordCode()" class="btn-primary">Update Password Code</button>
 
                 <div style="margin-top: 32px;">
-                    <h3>Server Configuration</h3>
-                    <div class="form-group">
-                        <label>Server URL</label>
-                        <input type="url" id="server-url">
-                    </div>
-                    <button onclick="updateServerUrl()" class="btn-primary">Update Server URL</button>
-                    <p class="small text-secondary" style="margin-top: 8px;">Warning: Clearing this will put the platform in maintenance mode (403/404).</p>
+                    <h3>Platform Controls</h3>
+                    <p class="small text-secondary" style="margin-top: 8px;">Password Code access is managed here. Commission and Agent limits are controlled by the platform configuration.</p>
                 </div>
             </div>
         </main>
@@ -591,7 +586,6 @@
             });
             const config = await res.json();
             document.getElementById('current-code-display').value = config.current_password_code || '';
-            document.getElementById('server-url').value = config.server_url || '';
         }
 
         async function changePasswordCode() {
@@ -605,20 +599,6 @@
                 body: JSON.stringify({ new_code: newCode })
             });
             alert('Password code updated');
-            loadSecuritySettings();
-        }
-
-        async function updateServerUrl() {
-            const url = document.getElementById('server-url').value;
-            await fetch(`${API_URL}/admin/server-url`, {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${adminToken}`
-                },
-                body: JSON.stringify({ server_url: url })
-            });
-            alert('Server URL updated. Platform will use new URL.');
             loadSecuritySettings();
         }
 
