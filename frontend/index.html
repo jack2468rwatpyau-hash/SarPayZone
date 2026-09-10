@@ -696,11 +696,15 @@
         function renderCart(container) {
             container.innerHTML = `
                 <div class="cart-page">
-                    <h2>Shopping Cart (${cart.length})</h2>
+                    <div class="page-heading-row">
+                        <div><span class="eyebrow">BUYER SPACE</span><h2>My Cart / ခြင်းတောင်း</h2></div>
+                        <span class="cart-count-pill">${cart.reduce((sum, item) => sum + item.qty, 0)} items</span>
+                    </div>
+                    <div class="cart-shipping-note"><i class="fas fa-truck"></i><span>ဆိုင်တစ်ဆိုင်တည်းမှ စာအုပ်များကို ပို့ခတစ်ကြိမ်သာတွက်ပါမယ်။ ဆိုင်များပါက ဆိုင်တစ်ဆိုင်စီ၏ ပို့ခကို ပေါင်းတွက်ပါမယ်။</span></div>
                     <div id="cart-items" class="cart-list"></div>
                     <div class="cart-footer">
-                        <div class="cart-total">Total: <span id="cart-total">0</span> Ks</div>
-                        <button onclick="checkout()" class="btn-primary">Checkout</button>
+                        <div><small>စာအုပ်ဖိုး + ဆိုင်အလိုက် ပို့ခ</small><div class="cart-total"><span id="cart-total">0</span> Ks</div></div>
+                        <button onclick="checkout()" class="btn-primary"><i class="fas fa-lock"></i> Checkout</button>
                     </div>
                 </div>
             `;
@@ -711,23 +715,48 @@
             const container = document.getElementById('cart-items');
             if (!container) return;
             
+            const groups = cart.reduce((map, item, index) => {
+                const key = item.seller_id || `unknown-${index}`;
+                if (!map[key]) map[key] = { seller_id: key, store_name: item.store_name || 'စာပေဇုန်ဆိုင်', items: [] };
+                map[key].items.push({ ...item, index });
+                return map;
+            }, {});
             let total = 0;
-            container.innerHTML = cart.map((item, i) => {
-                total += item.price * item.qty;
+            container.innerHTML = Object.values(groups).map(group => {
+                const shopTotal = group.items.reduce((sum, item) => sum + item.price * item.qty, 0);
+                total += shopTotal;
                 return `
-                    <div class="cart-item">
-                        <img src="${item.image}" alt="${item.title}">
-                        <div class="cart-item-info">
-                            <h4>${item.title}</h4>
-                            <p>${item.price.toLocaleString()} Ks x ${item.qty}</p>
-                        </div>
-                        <button onclick="removeFromCart(${i})" class="btn-icon danger"><i class="fas fa-trash"></i></button>
-                    </div>
+                    <section class="cart-shop-group">
+                        <div class="cart-shop-heading"><span><i class="fas fa-store"></i> ${group.store_name}</span><small>${group.items.length} မျိုး</small></div>
+                        ${group.items.map(item => `
+                            <div class="cart-item">
+                                <img src="${item.image}" alt="${item.title}">
+                                <div class="cart-item-info">
+                                    <h4>${item.title}</h4>
+                                    <p class="cart-item-price">${item.price.toLocaleString()} Ks</p>
+                                    <div class="quantity-control">
+                                        <button onclick="changeCartQty(${item.index}, -1)" aria-label="Decrease quantity">−</button>
+                                        <strong>${item.qty}</strong>
+                                        <button onclick="changeCartQty(${item.index}, 1)" aria-label="Increase quantity">+</button>
+                                    </div>
+                                </div>
+                                <div class="cart-item-end"><strong>${(item.price * item.qty).toLocaleString()} Ks</strong><button onclick="removeFromCart(${item.index})" class="btn-icon danger" aria-label="Remove item"><i class="fas fa-trash"></i></button></div>
+                            </div>
+                        `).join('')}
+                        <div class="cart-shop-shipping"><i class="fas fa-route"></i> ဒီဆိုင်အတွက် ပို့ခတစ်ကြိမ် — checkout တွင် မြို့နယ်အလိုက်တွက်ပါမယ်</div>
+                    </section>
                 `;
             }).join('') || '<p class="empty-text">Your cart is empty</p>';
             
             const totalEl = document.getElementById('cart-total');
             if (totalEl) totalEl.textContent = total.toLocaleString();
+        }
+
+        function changeCartQty(index, delta) {
+            if (!cart[index]) return;
+            cart[index].qty = Math.max(1, cart[index].qty + delta);
+            localStorage.setItem('spz_cart', JSON.stringify(cart));
+            renderCartItems();
         }
 
         async function addToCart(bookId) {
@@ -739,7 +768,7 @@
                 const price = Number(p.discounted_price || p.original_price || 0);
                 const existing = cart.find(item => item.book_id === bookId);
                 if (existing) existing.qty += 1;
-                else cart.push({ book_id: bookId, title: p.title, price, qty: 1, image: images[0] || '/assets/logo.png' });
+                else cart.push({ book_id: bookId, title: p.title, price, qty: 1, image: images[0] || '/assets/logo.png', seller_id: p.seller_id, store_name: p.store_name || 'စာပေဇုန်ဆိုင်' });
                 localStorage.setItem('spz_cart', JSON.stringify(cart));
                 alert('Added to cart');
             } catch (err) {
@@ -764,15 +793,16 @@
             const shipping_address = prompt('Enter delivery address');
             if (!shipping_address) return;
             const payment_method = prompt('Payment method: wallet, cod, or agent', 'wallet') || 'wallet';
-            for (const item of cart) {
-                const res = await fetch(`${API_URL}/orders`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                    body: JSON.stringify({ product_id: item.book_id, quantity: item.qty, shipping_address, payment_method })
-                });
-                const data = await res.json();
-                if (!res.ok) { alert(data.error || 'Checkout failed'); return; }
-            }
+            if (!['wallet', 'cod', 'agent'].includes(payment_method)) { alert('Payment method must be wallet, cod, or agent'); return; }
+            if (!confirm('ခြင်းတောင်းထဲရှိ ပစ္စည်းများကို ဆိုင်အလိုက်စုစည်းပြီး အော်ဒါတင်မလား? ပို့ခကို ဆိုင်တစ်ဆိုင်စီအတွက် တစ်ကြိမ်သာတွက်ပါမယ်။')) return;
+            const res = await fetch(`${API_URL}/orders/bulk`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                body: JSON.stringify({ items: cart.map(item => ({ product_id: item.book_id, quantity: item.qty })), shipping_address, payment_method })
+            });
+            const data = await res.json();
+            if (!res.ok) { alert(data.error || 'Checkout failed'); return; }
+            alert(`အော်ဒါတင်ပြီးပါပြီ\nစာအုပ်ဖိုး ${Number(data.merchandise_total).toLocaleString()} Ks\nပို့ခ ${Number(data.shipping_total).toLocaleString()} Ks\nစုစုပေါင်း ${Number(data.total).toLocaleString()} Ks`);
             cart = [];
             localStorage.setItem('spz_cart', JSON.stringify(cart));
             alert('Order placed successfully');

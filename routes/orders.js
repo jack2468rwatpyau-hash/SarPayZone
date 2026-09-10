@@ -51,10 +51,10 @@ router.post('/', authenticate, async (req, res) => {
 
         const result = await db.execute({
             sql: `INSERT INTO orders (order_number, buyer_id, seller_id, product_id, variation_id, quantity, 
-                  total_amount, shipping_fee, commission_amount, payment_method, shipping_address, p2p_friend_id) 
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  total_amount, shipping_fee, commission_amount, payment_method, payment_status, shipping_address, p2p_friend_id)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             args: [orderNumber, req.user.user_id || req.user.id, prod.seller_id, product_id, variation_id, quantity, 
-                   total, shippingFee, commission, payment_method, shipping_address, p2p_friend_id || null]
+                   total, shippingFee, commission, payment_method, payment_method === 'wallet' ? 'paid' : 'pending', shipping_address, p2p_friend_id || null]
         });
 
         // Deduct wallet if wallet payment
@@ -88,6 +88,87 @@ router.post('/', authenticate, async (req, res) => {
         });
 
         res.json({ success: true, order_id: result.lastInsertRowid, order_number: orderNumber });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Create a cart checkout with one shipping charge per shop
+router.post('/bulk', authenticate, async (req, res) => {
+    try {
+        const { items, shipping_address, payment_method = 'wallet', p2p_friend_id } = req.body;
+        const buyerId = req.user.user_id || req.user.id;
+        if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
+        if (!['wallet', 'cod', 'agent'].includes(payment_method)) return res.status(400).json({ error: 'Invalid payment method' });
+        if (!shipping_address) return res.status(400).json({ error: 'Shipping address is required' });
+
+        const prepared = [];
+        const shippingBySeller = new Map();
+        let merchandiseTotal = 0;
+
+        for (const item of items) {
+            const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
+            const product = await db.execute({
+                sql: `SELECT p.*, s.role, s.telegram_user_id, s.seller_id
+                      FROM products p JOIN sellers s ON p.seller_id = s.seller_id
+                      WHERE p.book_id = ? AND p.is_active = 1 AND p.approved = 1`,
+                args: [item.product_id]
+            });
+            if (product.rows.length === 0) return res.status(404).json({ error: `Product ${item.product_id} not found` });
+            const prod = product.rows[0];
+            const unitPrice = Number(prod.discounted_price || prod.original_price);
+            const subtotal = unitPrice * quantity;
+            const rate = await db.execute({
+                sql: `SELECT is_no_shipping, prepay_shipping_fee FROM shipping_rates
+                      WHERE seller_id = ? LIMIT 1`,
+                args: [prod.seller_id]
+            });
+            const sellerShipping = rate.rows[0]?.is_no_shipping ? 0 : Number(rate.rows[0]?.prepay_shipping_fee || 5000);
+            if (!shippingBySeller.has(prod.seller_id)) shippingBySeller.set(prod.seller_id, sellerShipping);
+            merchandiseTotal += subtotal;
+            prepared.push({ item, prod, quantity, subtotal, commission: subtotal * calculateCommission(prod.role, subtotal) });
+        }
+
+        const shippingTotal = [...shippingBySeller.values()].reduce((sum, fee) => sum + fee, 0);
+        const finalTotal = merchandiseTotal + shippingTotal;
+        if (payment_method === 'wallet') {
+            const buyer = await db.execute({ sql: 'SELECT wallet_balance FROM users WHERE user_id = ?', args: [buyerId] });
+            if (Number(buyer.rows[0]?.wallet_balance || 0) < finalTotal) return res.status(400).json({ error: 'Insufficient wallet balance' });
+        }
+
+        const orderIds = [];
+        const chargedSellers = new Set();
+        for (const entry of prepared) {
+            const { item, prod, quantity, subtotal, commission } = entry;
+            const shippingFee = chargedSellers.has(prod.seller_id) ? 0 : shippingBySeller.get(prod.seller_id);
+            chargedSellers.add(prod.seller_id);
+            const orderCount = await db.execute({ sql: 'SELECT COUNT(*) as c FROM orders' });
+            const orderNumber = `SPZ-${Date.now()}-${String(Number(orderCount.rows[0].c) + orderIds.length + 1).padStart(4, '0')}`;
+            const result = await db.execute({
+                sql: `INSERT INTO orders (order_number, buyer_id, seller_id, product_id, variation_id, quantity,
+                      total_amount, shipping_fee, commission_amount, payment_method, payment_status, shipping_address, p2p_friend_id)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                args: [orderNumber, buyerId, prod.seller_id, item.product_id, item.variation_id || null, quantity,
+                    subtotal, shippingFee, commission, payment_method, payment_method === 'wallet' ? 'paid' : 'pending', shipping_address, p2p_friend_id || null]
+            });
+            orderIds.push(result.lastInsertRowid);
+            await sendInstantOrder(prod.telegram_user_id, {
+                order_number: orderNumber, product_name: prod.title,
+                total_amount: subtotal + shippingFee, quantity,
+                buyer_name: req.user.name, shipping_address
+            });
+        }
+
+        if (payment_method === 'wallet') {
+            await db.execute({ sql: 'UPDATE users SET wallet_balance = wallet_balance - ? WHERE user_id = ?', args: [finalTotal, buyerId] });
+            await db.execute({
+                sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id)
+                      VALUES ('user', ?, 'purchase', ?, 0, (SELECT wallet_balance FROM users WHERE user_id = ?), ?)`,
+                args: [buyerId, -finalTotal, buyerId, orderIds.join(',')]
+            });
+        }
+
+        res.json({ success: true, order_ids: orderIds, merchandise_total: merchandiseTotal, shipping_total: shippingTotal, total: finalTotal });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -228,4 +309,3 @@ router.post('/:id/review', authenticate, async (req, res) => {
 });
 
 module.exports = router;
-
