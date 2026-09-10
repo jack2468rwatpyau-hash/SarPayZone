@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sar Pay Zone - စာပေဇုန်</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Myanmar:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <!-- Password Code Gate -->
+    <div id="password-gate" class="gate-overlay">
+        <div class="gate-box">
+            <div class="logo-slot">
+                <img src="/assets/logo.png" alt="Sar Pay Zone" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" width="200">
+                <div class="logo-fallback" style="display:none;">🌐</div>
+            </div>
+            <h2>Welcome to Sar Pay Zone</h2>
+            <p class="gate-subtitle">Myanmar's Premier Literature Marketplace</p>
+            <input type="password" id="password-code" placeholder="Enter Access Code" maxlength="20">
+            <button onclick="checkPasswordCode()" class="btn-primary">Enter Platform</button>
+            <p id="gate-error" class="error-text"></p>
+        </div>
+    </div>
+
+    <!-- Auth Modal -->
+    <div id="auth-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="auth-tabs">
+                <button class="auth-tab active" onclick="switchAuthTab('login')">Login</button>
+                <button class="auth-tab" onclick="switchAuthTab('register')">Register</button>
+            </div>
+            <div id="auth-login">
+                <input type="tel" id="login-phone" placeholder="Phone Number" maxlength="15">
+                <input type="password" id="login-password" placeholder="Password" minlength="8">
+                <button onclick="login()" class="btn-primary">Login</button>
+            </div>
+            <div id="auth-register" class="hidden">
+                <input type="text" id="reg-name" placeholder="Full Name" maxlength="100">
+                <input type="tel" id="reg-phone" placeholder="Phone Number" maxlength="15">
+                <input type="password" id="reg-password" placeholder="Password (min 8 chars)" minlength="8">
+                <input type="text" id="reg-city" placeholder="City (optional)">
+                <button onclick="register()" class="btn-primary">Create Account</button>
+            </div>
+            <p id="auth-error" class="error-text"></p>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app" class="hidden">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-slot-header">
+                <img src="/assets/logo.png" alt="SPZ" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
+                <div class="logo-fallback" style="display:none;"><i class="fas fa-book-open"></i></div>
+            </div>
+            <div class="header-actions">
+                <button onclick="navigateTo('search')" class="icon-btn"><i class="fas fa-search"></i></button>
+                <button onclick="navigateTo('cart')" class="icon-btn"><i class="fas fa-shopping-bag"></i></button>
+            </div>
+        </header>
+
+        <!-- Content Area -->
+        <main id="main-content" class="main-content"></main>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button onclick="navigateTo('home')" class="nav-item active" data-page="home">
+                <i class="fas fa-home"></i>
+                <span>Home</span>
+            </button>
+            <button onclick="navigateTo('categories')" class="nav-item" data-page="categories">
+                <i class="fas fa-th-large"></i>
+                <span>Categories</span>
+            </button>
+            <button onclick="navigateTo('chat')" class="nav-item" data-page="chat">
+                <i class="fas fa-comment-dots"></i>
+                <span>Chat</span>
+            </button>
+            <button onclick="navigateTo('profile')" class="nav-item" data-page="profile">
+                <i class="fas fa-user"></i>
+                <span>Profile</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Product Detail Modal -->
+    <div id="product-modal" class="modal hidden">
+        <div class="modal-content product-modal-content">
+            <button onclick="closeModal('product-modal')" class="close-btn"><i class="fas fa-times"></i></button>
+            <div id="product-detail-content"></div>
+        </div>
+    </div>
+
+    <script>
+        // ===== STATE MANAGEMENT =====
+        const API_URL = 'https://sarpayzone-production.up.railway.app/api';
+        let currentUser = null;
+        let authToken = localStorage.getItem('spz_token');
+        let currentPage = 'home';
+        let cart = JSON.parse(localStorage.getItem('spz_cart') || '[]');
+
+        // ===== PASSWORD GATE =====
+        async function checkPasswordCode() {
+            const code = document.getElementById('password-code').value;
+            try {
+                const res = await fetch(`${API_URL}/auth/buyer/check-code`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password_code: code })
+                });
+                if (res.ok) {
+                    document.getElementById('password-gate').classList.add('hidden');
+                    if (authToken) {
+                        await loadUser();
+                        showApp();
+                    } else {
+                        showAuthModal();
+                    }
+                } else {
+                    document.getElementById('gate-error').textContent = 'Invalid access code';
+                }
+            } catch (err) {
+                document.getElementById('gate-error').textContent = 'Connection error';
+            }
+        }
+
+        // ===== AUTH =====
+        function showAuthModal() {
+            document.getElementById('auth-modal').classList.remove('hidden');
+        }
+
+        function switchAuthTab(tab) {
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('auth-login').classList.toggle('hidden', tab !== 'login');
+            document.getElementById('auth-register').classList.toggle('hidden', tab !== 'register');
+        }
+
+        async function login() {
+            const phone = document.getElementById('login-phone').value;
+            const password = document.getElementById('login-password').value;
+            try {
+                const res = await fetch(`${API_URL}/auth/buyer/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone, password })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    authToken = data.token;
+                    localStorage.setItem('spz_token', authToken);
+                    currentUser = data.user;
+                    showApp();
+                } else {
+                    document.getElementById('auth-error').textContent = data.error;
+                }
+            } catch (err) {
+                document.getElementById('auth-error').textContent = 'Login failed';
+            }
+        }
+
+        async function register() {
+            const name = document.getElementById('reg-name').value;
+            const phone = document.getElementById('reg-phone').value;
+            const password = document.getElementById('reg-password').value;
+            const city = document.getElementById('reg-city').value;
+            try {
+                const res = await fetch(`${API_URL}/auth/buyer/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, phone, password, city })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    alert('Registration successful! Please login.');
+                    switchAuthTab('login');
+                } else {
+                    document.getElementById('auth-error').textContent = data.error;
+                }
+            } catch (err) {
+                document.getElementById('auth-error').textContent = 'Registration failed';
+            }
+        }
+
+        async function loadUser() {
+            const res = await fetch(`${API_URL}/auth/me`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                currentUser = data.user;
+            } else {
+                localStorage.removeItem('spz_token');
+                authToken = null;
+            }
+        }
+
+        function showApp() {
+            document.getElementById('auth-modal').classList.add('hidden');
+            document.getElementById('app').classList.remove('hidden');
+            requestPushPermission();
+            navigateTo('home');
+        }
+
+        // ===== ROUTING =====
+        function navigateTo(page, params = {}) {
+            currentPage = page;
+            window.location.hash = page;
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
+            
+            const main = document.getElementById('main-content');
+            main.innerHTML = '';
+            
+            switch(page) {
+                case 'home': renderHome(main); break;
+                case 'categories': renderCategories(main); break;
+                case 'chat': renderChat(main); break;
+                case 'profile': renderProfile(main); break;
+                case 'search': renderSearch(main); break;
+                case 'cart': renderCart(main); break;
+                case 'voting': renderVoting(main); break;
+                case 'wallet': renderWallet(main); break;
+                case 'orders': renderOrders(main); break;
+                case 'resell': renderResell(main); break;
+                case 'wishlist': renderWishlist(main); break;
+            }
+        }
+
+        // ===== HOME =====
+        async function renderHome(container) {
+            container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+            
+            const [bannersRes, popularRes, categoriesRes] = await Promise.all([
+                fetch(`${API_URL}/products/banners`),
+                fetch(`${API_URL}/products?sort=popular&limit=10`),
+                fetch(`${API_URL}/products/categories/all`)
+            ]);
+            
+            const banners = await bannersRes.json().catch(() => []);
+            const popular = await popularRes.json().catch(() => []);
+            const categories = await categoriesRes.json().catch(() => []);
+
+            container.innerHTML = `
+                <div class="home-page">
+                    <div class="banner-slider">
+                        ${banners.map(b => `
+                            <div class="banner-slide" onclick="window.open('${b.target_link}', '_blank')">
+                                <img src="${b.image_url}" alt="${b.title}">
+                                <div class="banner-text">
+                                    <h3>${b.title}</h3>
+                                    <p>${b.subtitle}</p>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    <div class="section-header">
+                        <h3>Most Viewed</h3>
+                        <button onclick="navigateTo('search', {sort: 'popular'})" class="link-btn">See All</button>
+                    </div>
+                    <div class="product-grid">
+                        ${popular.map(p => renderProductCard(p)).join('')}
+                    </div>
+
+                    <div class="section-header">
+                        <h3>Browse Categories</h3>
+                    </div>
+                    <div class="category-grid">
+                        ${categories.map(c => `
+                            <div class="category-card" onclick="navigateTo('search', {category: '${c.slug}'})">
+                                <div class="category-icon"><i class="fas fa-book"></i></div>
+                                <span>${c.name}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            
+            initBannerSlider();
+        }
+
+        function renderProductCard(p) {
+            return `
+                <div class="product-card" onclick="openProductDetail(${p.book_id})">
+                    <div class="product-image">
+                        <img src="${p.images ? JSON.parse(p.images)[0] : '/assets/logo.png'}" alt="${p.title}">
+                    </div>
+                    <div class="product-info">
+                        <h4 class="product-title">${p.title}</h4>
+                        <p class="product-author">${p.author_name || ''}</p>
+                        <div class="product-price-row">
+                            <span class="price">${p.discounted_price || p.original_price} Ks</span>
+                            ${p.discounted_price ? `<span class="original-price">${p.original_price} Ks</span>` : ''}
+                        </div>
+                        <div class="product-meta">
+                            <span><i class="fas fa-eye"></i> ${p.view_count}</span>
+                            <span><i class="fas fa-store"></i> ${p.store_name || 'SPZ'}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ===== PRODUCT DETAIL =====
+        async function openProductDetail(bookId) {
+            const modal = document.getElementById('product-modal');
+            const content = document.getElementById('product-detail-content');
+            content.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i></div>';
+            modal.classList.remove('hidden');
+            
+            const res = await fetch(`${API_URL}/products/${bookId}`);
+            const p = await res.json();
+            
+            const images = p.images ? JSON.parse(p.images) : [];
+            const variations = p.variations || [];
+            
+            content.innerHTML = `
+                <div class="product-detail">
+                    <div class="image-gallery">
+                        <div class="main-image">
+                            <img id="main-product-img" src="${images[0] || '/assets/logo.png'}" alt="${p.title}">
+                        </div>
+                        <div class="thumbnail-row">
+                            ${images.map((img, i) => `
+                                <img src="${img}" onclick="document.getElementById('main-product-img').src='${img}'" class="${i===0?'active':''}">
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="detail-info">
+                        <h2>${p.title}</h2>
+                        <p class="author">${p.author_name || 'Unknown Author'}</p>
+                        <div class="price-block">
+                            <span class="current-price">${p.discounted_price || p.original_price} Ks</span>
+                            ${p.discounted_price ? `<span class="original-price">${p.original_price} Ks</span>` : ''}
+                        </div>
+                        
+                        <div class="variation-selector">
+                            <label>Variation</label>
+                            <select id="variation-select" onchange="updateVariationPrice(this)">
+                                ${variations.map(v => `<option value="${v.variation_id}" data-price="${v.price}" data-stock="${v.stock_quantity}">${v.variation_name}</option>`).join('')}
+                                ${variations.length === 0 ? `<option value="0" data-price="${p.discounted_price || p.original_price}" data-stock="${p.stock_quantity}">Standard</option>` : ''}
+                            </select>
+                        </div>
+
+                        <div class="detail-meta">
+                            <span><i class="fas fa-file-alt"></i> ${p.page_count || 'N/A'} pages</span>
+                            <span><i class="fas fa-ruler"></i> ${p.size || 'N/A'}</span>
+                            <span><i class="fas fa-boxes"></i> Stock: <span id="stock-display">${p.stock_quantity}</span></span>
+                        </div>
+
+                        <div class="description">
+                            <h4>Description</h4>
+                            <p>${p.description || 'No description available.'}</p>
+                        </div>
+
+                        <div class="detail-actions">
+                            <button onclick="addToCart(${p.book_id})" class="btn-secondary"><i class="fas fa-cart-plus"></i> Add to Cart</button>
+                            <button onclick="buyNow(${p.book_id})" class="btn-primary"><i class="fas fa-bolt"></i> Buy Now</button>
+                            <button onclick="toggleWishlist(${p.book_id})" class="btn-icon"><i class="far fa-heart"></i></button>
+                        </div>
+
+                        <div class="share-row">
+                            <button onclick="shareProduct('${p.public_id}')" class="btn-text"><i class="fas fa-share-alt"></i> Share</button>
+                            <button onclick="startChat(${p.seller_id}, ${p.book_id})" class="btn-text"><i class="fas fa-comment"></i> Contact Shop</button>
+                        </div>
+                    </div>
+
+                    <div class="reviews-section">
+                        <h4>Reviews (${p.reviews?.length || 0})</h4>
+                        ${p.reviews?.length ? p.reviews.map(r => `
+                            <div class="review-card">
+                                <div class="review-header">
+                                    <span class="reviewer">${r.user_name}</span>
+                                    <div class="stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
+                                </div>
+                                <p>${r.comment}</p>
+                            </div>
+                        `).join('') : '<p class="empty-text">No reviews yet. Purchase and review this book!</p>'}
+                    </div>
+                </div>
+            `;
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        
+        // ===== CATEGORIES =====
+        function renderCategories(container) {
+            container.innerHTML = `
+                <div class="categories-page">
+                    <h2>Categories</h2>
+                    <div class="category-list" id="category-list"></div>
+                </div>
+            `;
+            fetch(`${API_URL}/products/categories/all`)
+                .then(r => r.json())
+                .then(cats => {
+                    document.getElementById('category-list').innerHTML = cats.map(c => `
+                        <div class="category-list-item" onclick="navigateTo('search', {category: '${c.slug}'})">
+                            <div class="cat-icon"><i class="fas fa-bookmark"></i></div>
+                            <div class="cat-info">
+                                <h4>${c.name}</h4>
+                                <span>Explore books</span>
+                            </div>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                    `).join('');
+                });
+        }
+
+        // ===== CHAT =====
+        async function renderChat(container) {
+            if (!currentUser) { showAuthModal(); return; }
+            
+            container.innerHTML = `
+                <div class="chat-page">
+                    <h2>Messages</h2>
+                    <div class="chat-tabs">
+                        <button class="chat-tab active" onclick="loadConversations('all')">All</button>
+                        <button class="chat-tab" onclick="loadConversations('buyer_shop')">Shops</button>
+                        <button class="chat-tab" onclick="loadConversations('group')">Groups</button>
+                    </div>
+                    <div id="conversation-list" class="conversation-list"></div>
+                </div>
+            `;
+            loadConversations('all');
+        }
+
+        async function loadConversations(type) {
+            const res = await fetch(`${API_URL}/chat/conversations`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            const convs = await res.json();
+            const filtered = type === 'all' ? convs : convs.filter(c => c.conversation_type === type);
+            
+            document.getElementById('conversation-list').innerHTML = filtered.map(c => `
+                <div class="conversation-item" onclick="openChat(${c.conversation_id})">
+                    <div class="conv-avatar"><i class="fas fa-user-circle"></i></div>
+                    <div class="conv-info">
+                        <h4>Conversation #${c.conversation_id}</h4>
+                        <p class="conv-preview">${c.last_message || 'No messages yet'}</p>
+                        <span class="conv-time">${c.last_message_time ? new Date(c.last_message_time).toLocaleDateString() : ''}</span>
+                    </div>
+                </div>
+            `).join('') || '<p class="empty-text">No conversations yet</p>';
+        }
+
+        // ===== PROFILE =====
+        function renderProfile(container) {
+            if (!currentUser) { showAuthModal(); return; }
+            
+            container.innerHTML = `
+                <div class="profile-page">
+                    <div class="profile-header">
+                        <div class="profile-avatar">
+                            <img src="${currentUser.profile_image_id || '/assets/logo.png'}" alt="Profile">
+                        </div>
+                        <h3>${currentUser.name}</h3>
+                        <p class="public-id">${currentUser.public_id}</p>
+                    </div>
+                    
+                    <div class="profile-menu">
+                        <div class="menu-item" onclick="navigateTo('orders')">
+                            <i class="fas fa-shopping-bag"></i>
+                            <span>My Orders</span>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                        <div class="menu-item" onclick="navigateTo('wallet')">
+                            <i class="fas fa-wallet"></i>
+                            <span>Wallet</span>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                        <div class="menu-item" onclick="navigateTo('wishlist')">
+                            <i class="fas fa-heart"></i>
+                            <span>Wishlist</span>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                        <div class="menu-item" onclick="navigateTo('resell')">
+                            <i class="fas fa-exchange-alt"></i>
+                            <span>Resell Books</span>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                        <div class="menu-item" onclick="navigateTo('voting')">
+                            <i class="fas fa-vote-yea"></i>
+                            <span>Voting Festival</span>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                        <div class="menu-item" onclick="toggleNightMode()">
+                            <i class="fas fa-moon"></i>
+                            <span>Night Mode</span>
+                            <div class="toggle-switch" id="night-toggle"></div>
+                        </div>
+                        <div class="menu-item" onclick="logout()">
+                            <i class="fas fa-sign-out-alt"></i>
+                            <span>Logout</span>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ===== WALLET =====
+        async function renderWallet(container) {
+            const res = await fetch(`${API_URL}/wallet`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            const data = await res.json();
+            
+            container.innerHTML = `
+                <div class="wallet-page">
+                    <h2>My Wallet</h2>
+                    <div class="balance-card">
+                        <div class="balance-label">General Balance</div>
+                        <div class="balance-amount">${data.balance.toLocaleString()} Ks</div>
+                        ${data.resell_balance !== undefined ? `<div class="resell-balance">Resell Balance: ${data.resell_balance.toLocaleString()} Ks</div>` : ''}
+                    </div>
+                    
+                    <div class="wallet-actions">
+                        <button onclick="showWithdrawForm()" class="btn-primary">Withdraw</button>
+                        <button onclick="showP2PForm()" class="btn-secondary">Pay a Friend</button>
+                    </div>
+
+                    <h3>Recent Transactions</h3>
+                    <div class="transaction-list">
+                        ${data.transactions.map(t => `
+                            <div class="transaction-item">
+                                <div class="trans-icon ${t.type}">
+                                    <i class="fas fa-${t.type === 'purchase' ? 'shopping-cart' : t.type === 'cash_in' ? 'arrow-down' : t.type === 'withdrawal' ? 'arrow-up' : 'exchange-alt'}"></i>
+                                </div>
+                                <div class="trans-info">
+                                    <span class="trans-type">${t.type.replace('_', ' ').toUpperCase()}</span>
+                                    <span class="trans-date">${new Date(t.created_at).toLocaleDateString()}</span>
+                                </div>
+                                <div class="trans-amount ${t.amount < 0 ? 'negative' : 'positive'}">
+                                    ${t.amount < 0 ? '' : '+'}${t.amount.toLocaleString()} Ks
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // ===== ORDERS =====
+        async function renderOrders(container) {
+            const res = await fetch(`${API_URL}/orders/buyer`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            const orders = await res.json();
+            
+            container.innerHTML = `
+                <div class="orders-page">
+                    <h2>My Orders</h2>
+                    <div class="order-filters">
+                        <button onclick="filterOrders('all')" class="filter-btn active">All</button>
+                        <button onclick="filterOrders('new')" class="filter-btn">New</button>
+                        <button onclick="filterOrders('shipping')" class="filter-btn">Shipping</button>
+                        <button onclick="filterOrders('delivered')" class="filter-btn">Delivered</button>
+                    </div>
+                    <div id="orders-list" class="orders-list">
+                        ${orders.map(o => renderOrderCard(o)).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderOrderCard(o) {
+            return `
+                <div class="order-card">
+                    <div class="order-header">
+                        <span class="order-number">${o.order_number}</span>
+                        <span class="order-status status-${o.order_status}">${o.order_status.toUpperCase()}</span>
+                    </div>
+                    <div class="order-body">
+                        <img src="${o.images ? JSON.parse(o.images)[0] : '/assets/logo.png'}" alt="${o.title}">
+                        <div class="order-info">
+                            <h4>${o.title}</h4>
+                            <p>Qty: ${o.quantity}</p>
+                            <p class="order-total">${o.total_amount.toLocaleString()} Ks</p>
+                        </div>
+                    </div>
+                    <div class="order-actions">
+                        ${o.order_status === 'new' ? `<button onclick="cancelOrder(${o.order_id})" class="btn-text danger">Cancel</button>` : ''}
+                        ${o.order_status === 'delivered' ? `<button onclick="openReviewForm(${o.order_id})" class="btn-text">Review</button>` : ''}
+                        <button onclick="navigateTo('chat')" class="btn-text">Contact</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ===== VOTING =====
+        async function renderVoting(container) {
+            const res = await fetch(`${API_URL}/voting/festivals`);
+            const festivals = await res.json();
+            
+            container.innerHTML = `
+                <div class="voting-page">
+                    <h2>Voting Festival</h2>
+                    ${festivals.length === 0 ? '<p class="empty-text">No active festivals</p>' : ''}
+                    ${festivals.map(f => `
+                        <div class="festival-card">
+                            <h3>${f.festival_name}</h3>
+                            <p class="festival-date">${new Date(f.start_date).toLocaleDateString()} - ${new Date(f.end_date).toLocaleDateString()}</p>
+                            <p class="festival-votes"><i class="fas fa-vote-yea"></i> ${f.total_votes} votes</p>
+                            <button onclick="viewFestivalBooks(${f.festival_id})" class="btn-primary">Vote Now</button>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // ===== RESELL =====
+        async function renderResell(container) {
+            container.innerHTML = `
+                <div class="resell-page">
+                    <h2>Resell Center</h2>
+                    <button onclick="showResellForm()" class="btn-primary"><i class="fas fa-plus"></i> List Book for Resell</button>
+                    <h3>Marketplace</h3>
+                    <div id="resell-listings" class="product-grid"></div>
+                </div>
+            `;
+            
+            const res = await fetch(`${API_URL}/resell/listings`);
+            const listings = await res.json();
+            document.getElementById('resell-listings').innerHTML = listings.map(l => `
+                <div class="product-card">
+                    <div class="product-image">
+                        <img src="${l.condition_images ? JSON.parse(l.condition_images)[0] : '/assets/logo.png'}" alt="${l.title}">
+                    </div>
+                    <div class="product-info">
+                        <h4>${l.title}</h4>
+                        <p class="condition">Condition: Resell</p>
+                        <div class="product-price-row">
+                            <span class="price">${l.asking_price} Ks</span>
+                        </div>
+                        <p class="seller-info"><i class="fas fa-user"></i> ${l.seller_name} (${l.city || 'N/A'})</p>
+                    </div>
+                </div>
+            `).join('') || '<p class="empty-text">No resell listings available</p>';
+        }
+
+        // ===== SEARCH =====
+        function renderSearch(container) {
+            container.innerHTML = `
+                <div class="search-page">
+                    <div class="search-bar">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="search-input" placeholder="Search books, authors..." onkeyup="performSearch(event)">
+                    </div>
+                    <div class="search-filters">
+                        <select id="search-category" onchange="performSearch()">
+                            <option value="">All Categories</option>
+                        </select>
+                        <select id="search-sort" onchange="performSearch()">
+                            <option value="newest">Newest</option>
+                            <option value="price_low">Price: Low to High</option>
+                            <option value="price_high">Price: High to Low</option>
+                            <option value="popular">Most Popular</option>
+                        </select>
+                    </div>
+                    <div id="search-results" class="product-grid"></div>
+                </div>
+            `;
+            
+            fetch(`${API_URL}/products/categories/all`)
+                .then(r => r.json())
+                .then(cats => {
+                    document.getElementById('search-category').innerHTML += cats.map(c => 
+                        `<option value="${c.slug}">${c.name}</option>`
+                    ).join('');
+                });
+        }
+
+        async function performSearch(e) {
+            if (e && e.key !== 'Enter') return;
+            const query = document.getElementById('search-input').value;
+            const category = document.getElementById('search-category').value;
+            const sort = document.getElementById('search-sort').value;
+            
+            const params = new URLSearchParams({ search: query, category, sort });
+            const res = await fetch(`${API_URL}/products?${params}`);
+            const products = await res.json();
+            
+            document.getElementById('search-results').innerHTML = products.map(p => renderProductCard(p)).join('') 
+                || '<p class="empty-text">No books found</p>';
+        }
+
+        // ===== CART =====
+        function renderCart(container) {
+            container.innerHTML = `
+                <div class="cart-page">
+                    <h2>Shopping Cart (${cart.length})</h2>
+                    <div id="cart-items" class="cart-list"></div>
+                    <div class="cart-footer">
+                        <div class="cart-total">Total: <span id="cart-total">0</span> Ks</div>
+                        <button onclick="checkout()" class="btn-primary">Checkout</button>
+                    </div>
+                </div>
+            `;
+            renderCartItems();
+        }
+
+        function renderCartItems() {
+            const container = document.getElementById('cart-items');
+            if (!container) return;
+            
+            let total = 0;
+            container.innerHTML = cart.map((item, i) => {
+                total += item.price * item.qty;
+                return `
+                    <div class="cart-item">
+                        <img src="${item.image}" alt="${item.title}">
+                        <div class="cart-item-info">
+                            <h4>${item.title}</h4>
+                            <p>${item.price.toLocaleString()} Ks x ${item.qty}</p>
+                        </div>
+                        <button onclick="removeFromCart(${i})" class="btn-icon danger"><i class="fas fa-trash"></i></button>
+                    </div>
+                `;
+            }).join('') || '<p class="empty-text">Your cart is empty</p>';
+            
+            const totalEl = document.getElementById('cart-total');
+            if (totalEl) totalEl.textContent = total.toLocaleString();
+        }
+
+        function addToCart(bookId) {
+            // Simplified - would fetch product details
+            alert('Added to cart!');
+        }
+
+        function removeFromCart(index) {
+            cart.splice(index, 1);
+            localStorage.setItem('spz_cart', JSON.stringify(cart));
+            renderCartItems();
+        }
+
+        // ===== UTILITIES =====
+        function logout() {
+            localStorage.removeItem('spz_token');
+            authToken = null;
+            currentUser = null;
+            location.reload();
+        }
+
+        function toggleNightMode() {
+            document.body.classList.toggle('night-mode');
+            localStorage.setItem('spz_night', document.body.classList.contains('night-mode'));
+        }
+
+        function initBannerSlider() {
+            // Simple auto-slide
+            const slides = document.querySelectorAll('.banner-slide');
+            let current = 0;
+            if (slides.length <= 1) return;
+            
+            setInterval(() => {
+                slides.forEach((s, i) => s.style.display = i === current ? 'block' : 'none');
+                current = (current + 1) % slides.length;
+            }, 5000);
+            slides.forEach((s, i) => s.style.display = i === 0 ? 'block' : 'none');
+        }
+
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+
+        async function requestPushPermission() {
+            if ('serviceWorker' in navigator && 'PushManager' in window) {
+                try {
+                    const reg = await navigator.serviceWorker.register('/service-worker.js');
+                    const sub = await reg.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array('BB4adKD_jrSODVxxlh9R4-OOm0Bu8NIAfv507H6ZC0_12nvjVyQO0yjkRwIJnzUHhuQ8YV9W6ZLhdZNVS2dsmx0')
+                    });
+                    await fetch(`${API_URL}/push/subscribe`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${authToken}`
+                        },
+                        body: JSON.stringify({
+                            endpoint: sub.endpoint,
+                            keys: { p256dh: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))), auth: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth')))) }
+                        })
+                    });
+                } catch (err) {
+                    console.log('Push notification permission denied');
+                }
+            }
+        }
+
+        // Init
+        if (localStorage.getItem('spz_night') === 'true') document.body.classList.add('night-mode');
+        
+        // Check if returning from shared link
+        const urlParams = new URLSearchParams(window.location.search);
+        const sharedProduct = urlParams.get('product');
+        if (sharedProduct) {
+            // Would redirect to product after login
+            localStorage.setItem('spz_redirect', sharedProduct);
+        }
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Store Dashboard - Sar Pay Zone</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        .store-header { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; padding: 24px 16px; margin: -16px -16px 16px; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+        .store-header h2, .store-header h3 { color: white; }
+        .store-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+        .store-tab { flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 600; cursor: pointer; }
+        .store-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .order-filter-bar { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; }
+        .metric-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+        .metric-card { background: var(--card); border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); text-align: center; }
+        .metric-value { font-size: 24px; font-weight: 700; font-family: var(--font-mono); color: var(--primary); }
+        .metric-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+        .excel-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .excel-table th, .excel-table td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
+        .excel-table th { background: var(--surface); font-weight: 600; }
+        .product-form { display: flex; flex-direction: column; gap: 16px; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group label { font-size: 14px; font-weight: 600; }
+        .form-group input, .form-group select, .form-group textarea { padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; background: var(--bg); color: var(--text); }
+        .image-upload-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 40px; text-align: center; cursor: pointer; }
+        .shipping-tree { margin-left: 16px; border-left: 2px solid var(--border); padding-left: 16px; }
+        .shipping-node { margin-bottom: 12px; }
+        .shipping-node-header { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
+        .commission-display { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius); margin-bottom: 16px; }
+        .commission-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-family: var(--font-mono); }
+        .settings-section { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius); margin-bottom: 16px; }
+        .settings-section h3 { margin-bottom: 12px; }
+        .small { font-size: 12px; }
+        .text-secondary { color: var(--text-secondary); }
+        .btn-text.success { color: var(--success); }
+        .btn-text.danger { color: var(--danger); }
+        .btn-text { background: none; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .status-new { background: hsl(210, 60%, 92%); color: hsl(212, 70%, 38%); }
+        .status-approved { background: hsl(38, 85%, 92%); color: hsl(30, 75%, 38%); }
+        .status-shipping { background: hsl(154, 40%, 90%); color: hsl(154, 40%, 30%); }
+        .status-delivered { background: hsl(154, 40%, 90%); color: hsl(154, 45%, 24%); }
+        .status-cancelled { background: hsl(3, 55%, 93%); color: hsl(3, 60%, 40%); }
+        .order-status { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); text-transform: uppercase; }
+        .order-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+        .order-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .order-number { font-weight: 600; font-size: 14px; }
+        .order-body { display: flex; gap: 12px; }
+        .order-body img { width: 60px; height: 80px; object-fit: cover; border-radius: var(--radius-sm); }
+        .order-info { flex: 1; }
+        .order-info h4 { font-size: 14px; margin-bottom: 4px; }
+        .order-info p { font-size: 13px; color: var(--text-secondary); margin: 2px 0; }
+        .order-actions { display: flex; gap: 16px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+        .order-actions .btn-text { font-size: 13px; }
+        .image-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; margin-top: 8px; }
+        .image-preview-grid img { width: 100%; height: 80px; object-fit: cover; border-radius: var(--radius-sm); border: 2px solid var(--border); }
+    </style>
+</head>
+<body>
+    <div id="store-app">
+        <header class="app-header">
+            <div class="logo-slot-header"><i class="fas fa-store"></i> Store Portal</div>
+            <button onclick="logout()" class="icon-btn"><i class="fas fa-sign-out-alt"></i></button>
+        </header>
+
+        <main id="store-content" class="main-content"></main>
+
+        <nav class="bottom-nav">
+            <button onclick="navigateStore('orders')" class="nav-item active" data-store="orders">
+                <i class="fas fa-clipboard-list"></i><span>Orders</span>
+            </button>
+            <button onclick="navigateStore('products')" class="nav-item" data-store="products">
+                <i class="fas fa-book"></i><span>Products</span>
+            </button>
+            <button onclick="navigateStore('settings')" class="nav-item" data-store="settings">
+                <i class="fas fa-cog"></i><span>Settings</span>
+            </button>
+            <button onclick="navigateStore('store')" class="nav-item" data-store="store">
+                <i class="fas fa-shop"></i><span>Store</span>
+            </button>
+        </nav>
+    </div>
+
+    <script>
+        const API_URL = 'https://sarpayzone-production.up.railway.app/api';
+        let storeToken = localStorage.getItem('spz_store_token');
+        let storeUser = null;
+        let selectedImages = [];
+
+        async function initStore() {
+            if (!storeToken) { window.location.href = '/publisherlogin.html'; return; }
+            try {
+                const res = await fetch(`${API_URL}/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${storeToken}` }
+                });
+                if (!res.ok) { logout(); return; }
+                storeUser = (await res.json()).user;
+                navigateStore('orders');
+            } catch (err) {
+                console.error('Init error:', err);
+                logout();
+            }
+        }
+
+        function navigateStore(page) {
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.querySelector(`[data-store="${page}"]`)?.classList.add('active');
+            const content = document.getElementById('store-content');
+            content.innerHTML = '';
+
+            switch(page) {
+                case 'orders': renderStoreOrders(content); break;
+                case 'products': renderStoreProducts(content); break;
+                case 'settings': renderStoreSettings(content); break;
+                case 'store': renderStoreProfile(content); break;
+                default: content.innerHTML = '<p>Page not found</p>';
+            }
+        }
+
+        // ===== ORDERS TAB =====
+        async function renderStoreOrders(container) {
+            container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading orders...</div>';
+            
+            try {
+                const res = await fetch(`${API_URL}/orders/seller`, {
+                    headers: { 'Authorization': `Bearer ${storeToken}` }
+                });
+                const orders = await res.json();
+
+                const metrics = {
+                    total: orders.length,
+                    new: orders.filter(o => o.order_status === 'new').length,
+                    revenue: orders.reduce((a, o) => a + (o.payment_status === 'paid' ? o.total_amount : 0), 0)
+                };
+
+                container.innerHTML = `
+                    <div class="store-header">
+                        <h2>${storeUser.store_name || storeUser.name}</h2>
+                        <p>${storeUser.public_id}</p>
+                    </div>
+                    <div class="metric-cards">
+                        <div class="metric-card"><div class="metric-value">${metrics.total}</div><div class="metric-label">Total Orders</div></div>
+                        <div class="metric-card"><div class="metric-value">${metrics.new}</div><div class="metric-label">New Orders</div></div>
+                        <div class="metric-card"><div class="metric-value">${metrics.revenue.toLocaleString()}</div><div class="metric-label">Revenue (Ks)</div></div>
+                        <div class="metric-card"><div class="metric-value">${(storeUser.monthly_commission_due || 0).toLocaleString()}</div><div class="metric-label">Commission Due</div></div>
+                    </div>
+                    <div class="order-filter-bar">
+                        <button onclick="filterStoreOrders('all')" class="filter-btn active" data-filter="all">All</button>
+                        <button onclick="filterStoreOrders('new')" class="filter-btn" data-filter="new">New</button>
+                        <button onclick="filterStoreOrders('approved')" class="filter-btn" data-filter="approved">Accepted</button>
+                        <button onclick="filterStoreOrders('shipping')" class="filter-btn" data-filter="shipping">Shipping</button>
+                        <button onclick="filterStoreOrders('delivered')" class="filter-btn" data-filter="delivered">Delivered</button>
+                        <button onclick="filterStoreOrders('cancelled')" class="filter-btn" data-filter="cancelled">Cancelled</button>
+                    </div>
+                    <div id="store-orders-list">
+                        ${orders.map(o => renderOrderCard(o)).join('') || '<p class="empty-text">No orders yet</p>'}
+                    </div>
+                `;
+                
+                // Store orders data for filtering
+                window._allOrders = orders;
+            } catch (err) {
+                container.innerHTML = `<p class="error-text">Error loading orders: ${err.message}</p>`;
+            }
+        }
+
+        function renderOrderCard(o) {
+            const statusClass = o.order_status || 'new';
+            return `
+                <div class="order-card" data-status="${statusClass}">
+                    <div class="order-header">
+                        <span class="order-number">${o.order_number}</span>
+                        <span class="order-status status-${statusClass}">${statusClass.toUpperCase()}</span>
+                    </div>
+                    <div class="order-body">
+                        <div class="order-info">
+                            <h4>${o.title || 'Product'}</h4>
+                            <p>Buyer: ${o.buyer_name || 'N/A'} | ${o.buyer_phone || ''}</p>
+                            <p>Qty: ${o.quantity || 1} | Total: ${(o.total_amount || 0).toLocaleString()} Ks</p>
+                            <p class="small text-secondary">Commission: ${(o.commission_amount || 0).toLocaleString()} Ks</p>
+                            ${o.shipping_address ? `<p class="small text-secondary">Address: ${o.shipping_address}</p>` : ''}
+                        </div>
+                    </div>
+                    <div class="order-actions">
+                        ${statusClass === 'new' ? `<button onclick="updateOrderStatus(${o.order_id}, 'approved')" class="btn-text success">Accept</button>` : ''}
+                        ${statusClass === 'approved' ? `<button onclick="updateOrderStatus(${o.order_id}, 'shipping')" class="btn-text">Ship</button>` : ''}
+                        ${statusClass === 'shipping' ? `<button onclick="updateOrderStatus(${o.order_id}, 'delivered')" class="btn-text success">Deliver</button>` : ''}
+                        ${statusClass === 'new' ? `<button onclick="updateOrderStatus(${o.order_id}, 'cancelled')" class="btn-text danger">Cancel</button>` : ''}
+                        <button onclick="startChat(${o.buyer_id}, ${o.order_id})" class="btn-text"><i class="fas fa-comment"></i> Chat</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function filterStoreOrders(status) {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector(`[data-filter="${status}"]`)?.classList.add('active');
+            
+            const orders = window._allOrders || [];
+            const container = document.getElementById('store-orders-list');
+            if (!container) return;
+            
+            const filtered = status === 'all' ? orders : orders.filter(o => (o.order_status || 'new') === status);
+            container.innerHTML = filtered.map(o => renderOrderCard(o)).join('') || '<p class="empty-text">No orders found</p>';
+        }
+
+        async function updateOrderStatus(orderId, status) {
+            if (!confirm(`Update order status to "${status}"?`)) return;
+            
+            try {
+                const res = await fetch(`${API_URL}/orders/${orderId}/status`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${storeToken}`
+                    },
+                    body: JSON.stringify({ status })
+                });
+                
+                if (res.ok) {
+                    alert('Order status updated successfully!');
+                    navigateStore('orders');
+                } else {
+                    const data = await res.json();
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        // ===== PRODUCTS TAB =====
+        async function renderStoreProducts(container) {
+            container.innerHTML = `
+                <div class="store-tabs">
+                    <button class="store-tab active" onclick="showProductList()">Product List</button>
+                    <button class="store-tab" onclick="showAddProduct()">Add New</button>
+                </div>
+                <div id="product-section"></div>
+            `;
+            await showProductList();
+        }
+
+        async function showProductList() {
+            try {
+                const res = await fetch(`${API_URL}/products?seller_id=${storeUser.seller_id}`, {
+                    headers: { 'Authorization': `Bearer ${storeToken}` }
+                });
+                const products = await res.json();
+
+                document.getElementById('product-section').innerHTML = `
+                    <table class="excel-table">
+                        <thead><tr><th>ID</th><th>Title</th><th>Price</th><th>Stock</th><th>Status</th></tr></thead>
+                        <tbody>
+                            ${products.map(p => `
+                                <tr>
+                                    <td>${p.public_id}</td>
+                                    <td>${p.title}</td>
+                                    <td>${(p.discounted_price || p.original_price || 0).toLocaleString()}</td>
+                                    <td>${p.stock_quantity || 0}</td>
+                                    <td>${p.is_active ? 'Active' : 'Inactive'}</td>
+                                </tr>
+                            `).join('') || '<tr><td colspan="5" class="empty-text">No products added yet</td></tr>'}
+                        </tbody>
+                    </table>
+                `;
+                
+                // Update tab styles
+                document.querySelectorAll('.store-tab').forEach(t => t.classList.remove('active'));
+                document.querySelector('.store-tab:first-child')?.classList.add('active');
+            } catch (err) {
+                document.getElementById('product-section').innerHTML = `<p class="error-text">Error: ${err.message}</p>`;
+            }
+        }
+
+        function showAddProduct() {
+            document.querySelectorAll('.store-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector('.store-tab:last-child')?.classList.add('active');
+            
+            document.getElementById('product-section').innerHTML = `
+                <form id="add-product-form" class="product-form" onsubmit="submitProduct(event)">
+                    <div class="form-group">
+                        <label>Title *</label>
+                        <input type="text" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Author</label>
+                        <input type="text" name="author_name">
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select name="category_id" id="cat-select"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Original Price (Ks) *</label>
+                        <input type="number" name="original_price" required step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>Discounted Price (Ks)</label>
+                        <input type="number" name="discounted_price" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>Stock Quantity</label>
+                        <input type="number" name="stock_quantity" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea name="description" rows="4"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Product Images (Max 5)</label>
+                        <div class="image-upload-zone" onclick="document.getElementById('prod-images').click()">
+                            <i class="fas fa-cloud-upload-alt fa-2x"></i>
+                            <p>Click to upload images</p>
+                        </div>
+                        <input type="file" id="prod-images" multiple accept="image/*" style="display:none" onchange="handleImageSelect(this)">
+                        <div id="image-preview" class="image-preview-grid"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Variations (JSON format)</label>
+                        <textarea name="variations" rows="3" placeholder='[{"name":"Box Set","price":15000,"stock":5}]'></textarea>
+                        <small>Format: [{"name":"Variation Name","price":15000,"stock":5}]</small>
+                    </div>
+                    <button type="submit" class="btn-primary">Publish Product</button>
+                </form>
+            `;
+
+            // Load categories
+            fetch(`${API_URL}/products/categories/all`)
+                .then(r => r.json())
+                .then(cats => {
+                    document.getElementById('cat-select').innerHTML = cats.map(c => 
+                        `<option value="${c.category_id}">${c.name}</option>`
+                    ).join('');
+                })
+                .catch(err => console.error('Error loading categories:', err));
+        }
+
+                function handleImageSelect(input) {
+            selectedImages = Array.from(input.files);
+            const preview = document.getElementById('image-preview');
+            preview.innerHTML = selectedImages.map((file, i) => `
+                <div style="position:relative;">
+                    <img src="${URL.createObjectURL(file)}" alt="Preview ${i+1}">
+                    <button type="button" onclick="removeImage(${i})" style="position:absolute;top:-8px;right:-8px;background:#dc3545;color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;">×</button>
+                </div>
+            `).join('');
+        }
+
+        function removeImage(index) {
+            selectedImages.splice(index, 1);
+            const input = document.getElementById('prod-images');
+            const dt = new DataTransfer();
+            selectedImages.forEach(f => dt.items.add(f));
+            input.files = dt.files;
+            handleImageSelect(input);
+        }
+
+        async function submitProduct(e) {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+            const files = document.getElementById('prod-images').files;
+            
+            for (let f of files) {
+                formData.append('images', f);
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/products`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${storeToken}` },
+                    body: formData
+                });
+
+                if (res.ok) {
+                    alert('Product added successfully!');
+                    selectedImages = [];
+                    showProductList();
+                } else {
+                    const data = await res.json();
+                    alert('Error: ' + (data.error || 'Failed to add product'));
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        // ===== SETTINGS TAB =====
+        async function renderStoreSettings(container) {
+            container.innerHTML = `
+                <h2>Store Settings</h2>
+                <div class="settings-section">
+                    <h3>Shipping Rates</h3>
+                    <p class="small text-secondary">Default: 5,000 Ks for all Myanmar</p>
+                    <div id="shipping-config"></div>
+                </div>
+                <div class="settings-section">
+                    <h3>Telegram Notifications</h3>
+                    <div class="form-group">
+                        <label>Telegram User ID (for notifications)</label>
+                        <input type="text" id="telegram-id" value="${storeUser.telegram_user_id || ''}" placeholder="e.g. 123456789">
+                        <button onclick="updateTelegramId()" class="btn-primary" style="margin-top:8px;width:auto;padding:10px 20px;">Update Telegram ID</button>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h3>Prepay Percentage</h3>
+                    <div class="form-group">
+                        <label>Prepay Percentage</label>
+                        <input type="number" id="prepay-percent" placeholder="e.g. 50 for 50%" value="100">
+                        <small>Default: 100% (full prepay)</small>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <button onclick="toggleNightMode()" class="btn-secondary"><i class="fas fa-moon"></i> Night Mode</button>
+                </div>
+            `;
+            await loadShippingConfig();
+        }
+
+        async function loadShippingConfig() {
+            try {
+                const res = await fetch(`${API_URL}/shipping`, {
+                    headers: { 'Authorization': `Bearer ${storeToken}` }
+                });
+                const rates = await res.json();
+
+                document.getElementById('shipping-config').innerHTML = `
+                    <div class="form-group">
+                        <label>တိုင်းဒေသကြီး/ပြည်နယ် (State/Region)</label>
+                        <select id="ship-state" onchange="loadCities()">
+                            <option value="">Select State/Region</option>
+                            <option value="Kachin">Kachin (ကချင်ပြည်နယ်)</option>
+                            <option value="Kayah">Kayah (ကယားပြည်နယ်)</option>
+                            <option value="Kayin">Kayin (ကရင်ပြည်နယ်)</option>
+                            <option value="Chin">Chin (ချင်းပြည်နယ်)</option>
+                            <option value="Sagaing">Sagaing (စစ်ကိုင်းတိုင်းဒေသကြီး)</option>
+                            <option value="Tanintharyi">Tanintharyi (တနင်္သာရီတိုင်းဒေသကြီး)</option>
+                            <option value="Bago">Bago (ပဲခူးတိုင်းဒေသကြီး)</option>
+                            <option value="Magway">Magway (မကွေးတိုင်းဒေသကြီး)</option>
+                            <option value="Mandalay">Mandalay (မန္တလေးတိုင်းဒေသကြီး)</option>
+                            <option value="Mon">Mon (မွန်ပြည်နယ်)</option>
+                            <option value="Rakhine">Rakhine (ရခိုင်ပြည်နယ်)</option>
+                            <option value="Yangon">Yangon (ရန်ကုန်တိုင်းဒေသကြီး)</option>
+                            <option value="Shan">Shan (ရှမ်းပြည်နယ်)</option>
+                            <option value="Ayeyarwady">Ayeyarwady (ဧရာဝတီတိုင်းဒေသကြီး)</option>
+                            <option value="Naypyitaw">Naypyitaw (နေပြည်တော်)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>ခရိုင် (District)</label>
+                        <select id="ship-city" onchange="loadTownships()">
+                            <option value="">Select District</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>မြို့နယ် (Township)</label>
+                        <select id="ship-township">
+                            <option value="">Select Township</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="ship-no"> No Shipping
+                        </label>
+                        <label>
+                            <input type="checkbox" id="ship-cod" checked> COD Allowed
+                        </label>
+                        <label>
+                            <input type="checkbox" id="ship-prepay" checked> Prepay Allowed
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>Prepay Shipping Fee (Ks)</label>
+                        <input type="number" id="ship-fee" value="5000">
+                    </div>
+                    <button onclick="saveShippingRate()" class="btn-primary">Save Shipping Rate</button>
+                    <hr>
+                    <h4>Existing Rates</h4>
+                    <div style="max-height:200px;overflow-y:auto;">
+                        ${rates.map(r => `
+                            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
+                                <span>${r.state} → ${r.city} → ${r.township}</span>
+                                <span>${r.prepay_shipping_fee || 5000} Ks</span>
+                            </div>
+                        `).join('') || '<p class="small text-secondary">No shipping rates configured</p>'}
+                    </div>
+                `;
+            } catch (err) {
+                document.getElementById('shipping-config').innerHTML = `<p class="error-text">Error loading shipping rates: ${err.message}</p>`;
+            }
+        }
+
+        // Complete Myanmar administrative data: State/Region -> Districts -> Townships
+        const MM_DISTRICTS = {
+            'Kachin': ['Bhamo', 'Mohnyin', 'Myitkyina', 'Putao'],
+            'Kayah': ['Bawlakhe', 'Demoso', 'Loikaw', 'Mese'],
+            'Kayin': ['Hpa-an', 'Hpapun', 'Thandaunggyi', 'Kawkareik', 'Kyain Seikgyi', 'Myawaddy'],
+            'Chin': ['Falam', 'Tedim', 'Hakha', 'Matupi', 'Mindat', 'Paletwa'],
+            'Sagaing': ['Hkamti', 'Kanbalu', 'Kale', 'Katha', 'Kawlin', 'Mawlaik', 'Monywa', 'Sagaing', 'Shwebo', 'Tamu', 'Yinmabin'],
+            'Tanintharyi': ['Dawei', 'Myeik', 'Bokpyin', 'Kawthaung'],
+            'Bago': ['Bago', 'Nyaunglebin', 'Taungoo', 'Pyay', 'Thayarwady', 'Nattalin'],
+            'Magway': ['Aunglan', 'Chauk', 'Gangaw', 'Magway', 'Minbu', 'Pakokku', 'Thayet'],
+            'Mandalay': ['Amarapura', 'Aungmyethazan', 'Kyaukse', 'Maha Aungmye', 'Meiktila', 'Myingyan', 'Tada-U', 'Nyaung-U', 'Pyinoolwin', 'Thabeikkyin', 'Yamethin'],
+            'Mon': ['Mawlamyine', 'Kyaikto', 'Thaton', 'Ye'],
+            'Rakhine': ['Ann', 'Kyaukpyu', 'Maungdaw', 'Mrauk-U', 'Sittwe', 'Taungup', 'Thandwe'],
+            'Yangon': ['Ahlon', 'Botataung', 'Dagon Myothit', 'Insein', 'Kamayut', 'Kyauktada', 'Mayangon', 'Mingaladon', 'Thingangyun', 'Taikkyi', 'Hlegu', 'Hmawbi', 'Thanlyin', 'Twante'],
+            'Shan': ['Kengtung', 'Mong La', 'Mong Hsat', 'Mong Ton', 'Mong Yang', 'Mong Yawng', 'Tachileik', 'Kutkai', 'Kyaukme', 'Lashio', 'Mu Se', 'Mongmit', 'Tangyan', 'Kokang', 'Pa Laung', 'Hopang', 'Matman', 'Kalaw', 'Langkho', 'Loilen', 'Mong Hsu', 'Nansang', 'Taunggyi', 'Danu', 'Pa-O'],
+            'Ayeyarwady': ['Hinthada', 'Kyonpyaw', 'Labutta', 'Ma-ubin', 'Myanaung', 'Myaungmya', 'Pathein', 'Pyapon'],
+            'Naypyitaw': ['Dekkhina', 'Pyinmana', 'Ottara', 'Zeyathiri']
+        };
+
+        const MM_TOWNSHIPS = {
+            // Kachin
+            'Bhamo': ['Bhamo', 'Mansi', 'Momauk', 'Shwegu'],
+            'Mohnyin': ['Hpakant', 'Mogaung', 'Mohnyin'],
+            'Myitkyina': ['Chipwi', 'Hsawlaw', 'Injangyang', 'Myitkyina', 'Tanai', 'Waingmaw'],
+            'Putao': ['Kawnglanghpu', 'Machanbaw', 'Nogmung', 'Putao', 'Sumprabum'],
+            // Kayah
+            'Bawlakhe': ['Bawlakhe', 'Hpasawng'],
+            'Demoso': ['Demoso', 'Hpruso'],
+            'Loikaw': ['Loikaw', 'Shadaw'],
+            'Mese': ['Mese'],
+            // Kayin
+            'Hpa-an': ['Hlaingbwe', 'Hpa-an'],
+            'Hpapun': ['Hpapun'],
+            'Thandaunggyi': ['Thandaunggyi'],
+            'Kawkareik': ['Kawkareik'],
+            'Kyain Seikgyi': ['Kyain Seikgyi'],
+            'Myawaddy': ['Myawaddy'],
+            // Chin
+            'Falam': ['Falam'],
+            'Tedim': ['Tedim', 'Tonzang'],
+            'Hakha': ['Hakha', 'Thantlang'],
+            'Matupi': ['Matupi'],
+            'Mindat': ['Mindat', 'Kanpetlet'],
+            'Paletwa': ['Paletwa'],
+            // Sagaing
+            'Hkamti': ['Hkamti', 'Homalin', 'Lahe', 'Leshi', 'Nanyun'],
+            'Kanbalu': ['Kanbalu', 'Kyunhla', 'Taze', 'Ye-U'],
+            'Kale': ['Kale', 'Kalewa', 'Mingin'],
+            'Katha': ['Banmauk', 'Indaw', 'Katha', 'Tigyaing'],
+            'Kawlin': ['Kawlin', 'Pinlebu', 'Wuntho'],
+            'Mawlaik': ['Mawlaik', 'Paungbyin'],
+            'Monywa': ['Ayadaw', 'Budalin', 'Chaung-U', 'Monywa'],
+            'Sagaing': ['Myaung', 'Myinmu', 'Sagaing'],
+            'Shwebo': ['Khin-U', 'Shwebo', 'Wetlet', 'Tabayin'],
+            'Tamu': ['Tamu'],
+            'Yinmabin': ['Kani', 'Pale', 'Salingyi', 'Yinmabin'],
+            // Tanintharyi
+            'Dawei': ['Dawei', 'Launglon', 'Thayetchaung', 'Yebyu'],
+            'Myeik': ['Kyunsu', 'Myeik', 'Palaw', 'Tanintharyi'],
+            'Bokpyin': ['Bokpyin'],
+            'Kawthaung': ['Kawthaung'],
+            // Bago
+            'Bago': ['Bago', 'Kawa', 'Thanatpin', 'Waw'],
+            'Nyaunglebin': ['Daik-U', 'Nyaunglebin', 'Kyauktaga', 'Kyaukkyi', 'Shwegyin'],
+            'Taungoo': ['Oktwin', 'Pyu', 'Htantabin', 'Taungoo', 'Yedashe'],
+            'Pyay': ['Pandaung', 'Paukkaung', 'Pyay', 'Shwedaung'],
+            'Thayarwady': ['Gyobingauk', 'Letpadan', 'Minhla', 'Monyo', 'Okpho', 'Tharrawaddy'],
+            'Nattalin': ['Nattalin', 'Zigon', 'Thegon', 'Paungde'],
+            // Magway
+            'Aunglan': ['Aunglan', 'Sinbaungwe'],
+            'Chauk': ['Chauk', 'Yenangyaung'],
+            'Gangaw': ['Gangaw', 'Saw', 'Tilin'],
+            'Magway': ['Magway', 'Myothit', 'Natmauk', 'Taungdwingyi'],
+            'Minbu': ['Minbu', 'Ngape', 'Pwintbyu', 'Salin', 'Sidoktaya'],
+            'Pakokku': ['Myaing', 'Pakokku', 'Pauk', 'Seikphyu', 'Yesagyo'],
+            'Thayet': ['Kamma', 'Mindon', 'Minhla', 'Thayet'],
+            // Mandalay
+            'Amarapura': ['Amarapura'],
+            'Aungmyethazan': ['Aungmyethazan', 'Patheingyi', 'Madaya'],
+            'Kyaukse': ['Kyaukse', 'Myittha', 'Sintgaing'],
+            'Maha Aungmye': ['Chanayethazan', 'Chanmyathazi', 'Maha Aungmye', 'Pyigyidagun'],
+            'Meiktila': ['Mahlaing', 'Meiktila', 'Thazi', 'Wundwin'],
+            'Myingyan': ['Myingyan', 'Natogyi', 'Taungtha'],
+            'Tada-U': ['Nganzun', 'Tada-U'],
+            'Nyaung-U': ['Nyaung-U', 'Kyaukpadaung'],
+            'Pyinoolwin': ['Pyinoolwin'],
+            'Thabeikkyin': ['Mogok', 'Singu', 'Thabeikkyin'],
+            'Yamethin': ['Pyawbwe', 'Yamethin'],
+            // Mon
+            'Mawlamyine': ['Chaungzon', 'Kyaikmaraw', 'Mawlamyine', 'Mudon', 'Thanbyuzayat'],
+            'Kyaikto': ['Bilin', 'Kyaikto'],
+            'Thaton': ['Paung', 'Thaton'],
+            'Ye': ['Ye'],
+            // Rakhine
+            'Ann': ['Ann'],
+            'Kyaukpyu': ['Kyaukpyu', 'Ramree'],
+            'Maungdaw': ['Buthidaung', 'Maungdaw'],
+            'Mrauk-U': ['Kyauktaw', 'Minbya', 'Mrauk-U', 'Myebon'],
+            'Sittwe': ['Pauktaw', 'Ponnagyun', 'Rathedaung', 'Sittwe'],
+            'Taungup': ['Taungup', 'Manaung'],
+            'Thandwe': ['Thandwe', 'Gwa'],
+            // Yangon
+            'Ahlon': ['Ahlon', 'Kyimyindaing', 'Sanchaung'],
+            'Botataung': ['Botataung', 'Dawbon', 'Mingala Taungnyunt', 'Pazundaung', 'Thaketa'],
+            'Dagon Myothit': ['Dagon Seikkan', 'East Dagon', 'North Dagon', 'South Dagon'],
+            'Insein': ['Insein', 'Hlaingthaya'],
+            'Kamayut': ['Bahan', 'Kamayut'],
+            'Kyauktada': ['Dagon', 'Kyauktada', 'Lanmadaw', 'Latha', 'Pabedan'],
+            'Mayangon': ['Hlaing', 'Mayangon', 'North Okkalapa'],
+            'Mingaladon': ['Mingaladon', 'Shwepyitha'],
+            'Thingangyun': ['South Okkalapa', 'Tamwe', 'Thingangyun', 'Yankin'],
+            'Taikkyi': ['Taikkyi'],
+            'Hlegu': ['Hlegu'],
+            'Hmawbi': ['Hmawbi', 'Htantabin'],
+            'Thanlyin': ['Cocokyun', 'Kayan', 'Kyauktan', 'Thanlyin', 'Thongwa'],
+            'Twante': ['Dala', 'Kawhmu', 'Kungyangon', 'Twante', 'Seikkyi Kanaungto'],
+            // Shan
+            'Kengtung': ['Kengtung', 'Mong Khet', 'Mong Ping'],
+            'Mong La': ['Mong La'],
+            'Mong Hsat': ['Mong Hsat'],
+            'Mong Ton': ['Mong Ton'],
+            'Mong Yang': ['Mong Yang'],
+            'Mong Yawng': ['Mong Yawng'],
+            'Tachileik': ['Mong Hpayak', 'Tachileik'],
+            'Kutkai': ['Kutkai'],
+            'Kyaukme': ['Hsipaw', 'Kyaukme', 'Namtu', 'Nawnghkio'],
+            'Lashio': ['Hsenwi', 'Kunlong', 'Lashio'],
+            'Mu Se': ['Mu Se', 'Nanhkan'],
+            'Mongmit': ['Mabein', 'Mongmit'],
+            'Tangyan': ['Mongyai', 'Tangyan'],
+            'Kokang': ['Laukkai', 'Konkyan'],
+            'Pa Laung': ['Mantong', 'Namhsan'],
+            'Hopang': ['Hopang', 'Mongmao', 'Pangwaun'],
+            'Matman': ['Matman', 'Namphan', 'Pangsang'],
+            'Kalaw': ['Kalaw', 'Nyaungshwe', 'Pekon'],
+            'Langkho': ['Langkho', 'Mawkmai', 'Mong Pan'],
+            'Loilen': ['Lai-Hka', 'Loilen', 'Mong Kung'],
+            'Mong Hsu': ['Mong Hsu', 'Kyethi'],
+            'Nansang': ['Kunhing', 'Mong Nai', 'Nansang'],
+            'Taunggyi': ['Lawksawk', 'Taunggyi'],
+            'Danu': ['Pindaya', 'Ywangan'],
+            'Pa-O': ['Hopong', 'Hsi Hseng', 'Pinlaung'],
+            // Ayeyarwady
+            'Hinthada': ['Hinthada', 'Lemyethna', 'Zalun'],
+            'Kyonpyaw': ['Kyaunggon', 'Kyonpyaw', 'Yekyi'],
+            'Labutta': ['Labutta', 'Mawlamyinegyun'],
+            'Ma-ubin': ['Danubyu', 'Maubin', 'Nyaungdon', 'Pantanaw'],
+            'Myanaung': ['Ingapu', 'Kyangin', 'Myanaung'],
+            'Myaungmya': ['Einme', 'Myaungmya', 'Wakema'],
+            'Pathein': ['Kangyidaunt', 'Ngapudaw', 'Pathein', 'Thabaung'],
+            'Pyapon': ['Bogale', 'Dedaye', 'Kyaiklat', 'Pyapon'],
+            // Naypyitaw
+            'Dekkhina': ['Dekkhinathiri', 'Lewe'],
+            'Pyinmana': ['Pyinmana', 'Zabuthiri'],
+            'Ottara': ['Ottarathiri', 'Tatkon'],
+            'Zeyathiri': ['Pobbathiri', 'Zeyathiri']
+        };
+
+        function loadCities() {
+            const state = document.getElementById('ship-state').value;
+            const citySelect = document.getElementById('ship-city');
+            citySelect.innerHTML = '<option value="">Select District</option>';
+            (MM_DISTRICTS[state] || []).forEach(c => {
+                citySelect.innerHTML += `<option value="${c}">${c}</option>`;
+            });
+            document.getElementById('ship-township').innerHTML = '<option value="">Select Township</option>';
+        }
+
+        function loadTownships() {
+            const city = document.getElementById('ship-city').value;
+            const townshipSelect = document.getElementById('ship-township');
+            townshipSelect.innerHTML = '<option value="">Select Township</option>';
+            (MM_TOWNSHIPS[city] || []).forEach(t => {
+                townshipSelect.innerHTML += `<option value="${t}">${t}</option>`;
+            });
+        }
+
+        async function saveShippingRate() {
+            const body = {
+                state: document.getElementById('ship-state').value,
+                city: document.getElementById('ship-city').value,
+                township: document.getElementById('ship-township').value,
+                is_no_shipping: document.getElementById('ship-no').checked ? 1 : 0,
+                is_cod_allowed: document.getElementById('ship-cod').checked ? 1 : 0,
+                is_prepay_allowed: document.getElementById('ship-prepay').checked ? 1 : 0,
+                prepay_shipping_fee: parseFloat(document.getElementById('ship-fee').value) || 5000
+            };
+
+            if (!body.state || !body.city || !body.township) {
+                alert('Please select State, City, and Township');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/shipping`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${storeToken}`
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                if (res.ok) {
+                    alert('Shipping rate saved successfully!');
+                    await loadShippingConfig();
+                } else {
+                    const data = await res.json();
+                    alert('Error: ' + (data.error || 'Failed to save shipping rate'));
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        async function updateTelegramId() {
+            const telegramId = document.getElementById('telegram-id').value;
+            if (!telegramId) {
+                alert('Please enter a Telegram User ID');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/auth/me`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${storeToken}`
+                    },
+                    body: JSON.stringify({ telegram_user_id: telegramId })
+                });
+
+                if (res.ok) {
+                    alert('Telegram ID updated successfully!');
+                    storeUser.telegram_user_id = telegramId;
+                } else {
+                    const data = await res.json();
+                    alert('Error: ' + (data.error || 'Failed to update Telegram ID'));
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        // ===== STORE TAB =====
+        async function renderStoreProfile(container) {
+            container.innerHTML = `
+                <div class="store-header">
+                    <h2>${storeUser.store_name || storeUser.name}</h2>
+                    <p>Monthly Commission: ${(storeUser.monthly_commission_due || 0).toLocaleString()} Ks</p>
+                    <button onclick="payCommission()" class="btn-primary" style="margin-top:12px;width:auto;padding:10px 24px;">Pay Commission Now</button>
+                </div>
+                <div class="commission-display">
+                    <h3>Commission Rates</h3>
+                    <div class="commission-row"><span>0 - 10,000 Ks</span><span>6%</span></div>
+                    <div class="commission-row"><span>10,001 - 20,000 Ks</span><span>5%</span></div>
+                    <div class="commission-row"><span>20,001 - 50,000 Ks</span><span>4%</span></div>
+                    <div class="commission-row"><span>50,000+ Ks</span><span>3%</span></div>
+                    <div class="commission-row" style="border-bottom:none;"><span>Bookstore</span><span>2%</span></div>
+                    <div class="commission-row" style="border-bottom:none;"><span>Commission Store</span><span>0%</span></div>
+                </div>
+                <div class="settings-section">
+                    <h3>Withdrawal</h3>
+                    <div class="form-group"><label>Account Name</label><input type="text" id="wd-name" placeholder="Your name"></div>
+                    <div class="form-group"><label>Wallet Phone</label><input type="tel" id="wd-phone" placeholder="WavePay / KBZ Pay phone"></div>
+                    <div class="form-group"><label>Amount (Ks)</label><input type="number" id="wd-amount" placeholder="0"></div>
+                    <button onclick="requestWithdrawal()" class="btn-primary" style="margin-top:8px;width:auto;padding:10px 24px;">Request Withdrawal</button>
+                </div>
+            `;
+        }
+
+        async function payCommission() {
+            if (!confirm('Pay all commission dues?')) return;
+            try {
+                const res = await fetch(`${API_URL}/wallet/seller/pay-commission`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${storeToken}`
+                    }
+                });
+
+                if (res.ok) {
+                    alert('Commission paid successfully!');
+                    navigateStore('store');
+                } else {
+                    const data = await res.json();
+                    alert('Error: ' + (data.error || 'Failed to pay commission'));
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        async function requestWithdrawal() {
+            const amount = parseFloat(document.getElementById('wd-amount').value);
+            const account_name = document.getElementById('wd-name').value;
+            const account_number = document.getElementById('wd-phone').value;
+
+            if (!amount || amount <= 0) {
+                alert('Please enter a valid amount');
+                return;
+            }
+            if (!account_name || !account_number) {
+                alert('Please enter account name and phone number');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/wallet/seller/withdraw`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${storeToken}`
+                    },
+                    body: JSON.stringify({ amount, account_name, account_number, bank_name: 'Wave/KBZ Pay' })
+                });
+
+                if (res.ok) {
+                    alert('Withdrawal request submitted successfully!');
+                    navigateStore('store');
+                } else {
+                    const data = await res.json();
+                    alert('Error: ' + (data.error || 'Failed to request withdrawal'));
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        // ===== CHAT HELPER =====
+        function startChat(userId, orderId) {
+            // Navigate to chat with context
+            window.location.href = `/index.html#chat?user=${userId}&order=${orderId}`;
+        }
+
+        // ===== NIGHT MODE =====
+        function toggleNightMode() {
+            document.body.classList.toggle('night-mode');
+            localStorage.setItem('spz_night', document.body.classList.contains('night-mode'));
+        }
+
+        // ===== LOGOUT =====
+        function logout() {
+            localStorage.removeItem('spz_store_token');
+            window.location.href = '/publisherlogin.html';
+        }
+
+        // ===== INIT =====
+        // Check night mode preference
+        if (localStorage.getItem('spz_night') === 'true') {
+            document.body.classList.add('night-mode');
+        }
+
+        // Start the app
+        initStore();
+    </script>
+</body>
+</html>

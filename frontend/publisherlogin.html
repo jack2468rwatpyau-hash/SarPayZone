@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Publisher Login - Sar Pay Zone</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <div class="gate-overlay">
+        <div class="gate-box" style="max-width: 400px;">
+                        <div><img src="partnerLogo.png" alt="partner logo" width="200"></div>
+            <div class="logos-slot"><i class="fas fa-book-open"></i></div>
+            <h2>Publisher Portal</h2>
+            
+            <input type="tel" id="login-phone" placeholder="Phone Number" style="margin-bottom: 12px;">
+            <input type="password" id="login-password" placeholder="Password" style="margin-bottom: 16px;">
+            
+            <button onclick="login('publisher')" class="btn-primary">Login as Publisher</button>
+            <p id="login-error" class="error-text"></p>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://sarpayzone-production.up.railway.app/api';
+        
+        async function login(role) {
+            const phone = document.getElementById('login-phone').value;
+            const password = document.getElementById('login-password').value;
+            
+            try {
+                const res = await fetch(`${API_URL}/auth/seller/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone, password, role })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    localStorage.setItem('spz_store_token', data.token);
+                    window.location.href = '/store-dashboard.html';
+                } else {
+                    document.getElementById('login-error').textContent = data.error;
+                }
+            } catch (err) {
+                document.getElementById('login-error').textContent = 'Login failed';
+            }
+        }
+    </script>
+</body>
+</html>

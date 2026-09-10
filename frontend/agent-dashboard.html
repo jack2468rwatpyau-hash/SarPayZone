@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Dashboard - Sar Pay Zone</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        .agent-header { background: linear-gradient(135deg, var(--secondary), hsl(225, 35%, 10%)); color: white; padding: 24px 16px; margin: -16px -16px 16px; text-align: center; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+        .agent-header h2 { color: white; }
+        .search-box { display: flex; gap: 8px; margin-bottom: 20px; }
+        .search-box input { flex: 1; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 16px; background: var(--card); color: var(--text); font-family: var(--font-sans); }
+        .buyer-result { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius); margin-bottom: 16px; }
+        .deposit-form { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+        .daily-summary { background: var(--card); border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); margin-top: 20px; }
+        .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-family: var(--font-mono); }
+    </style>
+</head>
+<body>
+    <div id="agent-app">
+        <header class="app-header">
+            <div class="logo-slot-header"><i class="fas fa-user-shield"></i> Agent Portal</div>
+            <button onclick="logout()" class="icon-btn"><i class="fas fa-sign-out-alt"></i></button>
+        </header>
+
+        <main id="agent-content" class="main-content">
+            <div class="agent-header">
+                <h2>Agent Dashboard</h2>
+                <p>Cash-In Management</p>
+            </div>
+
+            <div class="search-box">
+                <input type="text" id="buyer-search" placeholder="Enter Buyer Public ID (e.g. CU#0001)">
+                <button onclick="searchBuyer()" class="btn-primary" style="width: auto; padding: 14px 20px;"><i class="fas fa-search"></i></button>
+            </div>
+
+            <div id="buyer-result"></div>
+
+            <div class="daily-summary">
+                <h3>Today's Summary</h3>
+                <div id="daily-stats"></div>
+            </div>
+
+            <h3 style="margin-top: 24px;">Transaction History</h3>
+            <div id="agent-transactions"></div>
+        </main>
+    </div>
+
+    <script>
+        const API_URL = 'https://sarpayzone-production.up.railway.app/api';
+        let agentToken = localStorage.getItem('spz_store_token');
+        let currentBuyer = null;
+
+        async function initAgent() {
+            if (!agentToken) { window.location.href = '/agentlogin.html'; return; }
+            loadDailySummary();
+            loadTransactions();
+        }
+
+        async function searchBuyer() {
+            const publicId = document.getElementById('buyer-search').value;
+            // This would need a dedicated endpoint; using auth/me pattern for demo
+            document.getElementById('buyer-result').innerHTML = `
+                <div class="buyer-result">
+                    <h4>Buyer Found: ${publicId}</h4>
+                    <p>Verify identity before deposit</p>
+                    <div class="deposit-form">
+                        <input type="number" id="deposit-amount" placeholder="Amount (Ks)">
+                        <button onclick="depositMoney()" class="btn-primary">Confirm Deposit</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function depositMoney() {
+            const amount = parseFloat(document.getElementById('deposit-amount').value);
+            const publicId = document.getElementById('buyer-search').value;
+            
+            await fetch(`${API_URL}/wallet/cashin`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${agentToken}`
+                },
+                body: JSON.stringify({ buyer_public_id: publicId, amount })
+            });
+            
+            alert(`Deposited ${amount.toLocaleString()} Ks to ${publicId}`);
+            loadDailySummary();
+            loadTransactions();
+        }
+
+        async function loadDailySummary() {
+            // Mock summary - in production, fetch from API
+            document.getElementById('daily-stats').innerHTML = `
+                <div class="summary-row"><span>Total Deposits</span><span>0</span></div>
+                <div class="summary-row"><span>Total Amount</span><span>0 Ks</span></div>
+                <div class="summary-row"><span>Unique Buyers</span><span>0</span></div>
+            `;
+        }
+
+        async function loadTransactions() {
+            const res = await fetch(`${API_URL}/wallet`, {
+                headers: { 'Authorization': `Bearer ${agentToken}` }
+            });
+            const data = await res.json();
+            
+            document.getElementById('agent-transactions').innerHTML = data.transactions
+                .filter(t => t.type === 'cash_in')
+                .map(t => `
+                    <div class="transaction-item">
+                        <div class="trans-info">
+                            <span class="trans-type">CASH IN</span>
+                            <span class="trans-date">${new Date(t.created_at).toLocaleString()}</span>
+                        </div>
+                        <div class="trans-amount positive">+${t.amount.toLocaleString()} Ks</div>
+                    </div>
+                `).join('') || '<p class="empty-text">No transactions today</p>';
+        }
+
+        function logout() {
+            localStorage.removeItem('spz_store_token');
+            location.href = '/agentlogin.html';
+        }
+
+        initAgent();
+    </script>
+</body>
+</html>

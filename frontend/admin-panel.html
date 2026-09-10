@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Sar Pay Zone</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        .admin-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+        .admin-card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius); text-align: center; cursor: pointer; transition: all 0.2s; }
+        .admin-card:active { border-color: var(--primary); transform: scale(0.98); }
+        .admin-card i { font-size: 28px; color: var(--primary); margin-bottom: 8px; }
+        .admin-card h4 { font-size: 14px; }
+        .admin-section { display: none; }
+        .admin-section.active { display: block; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 16px; font-family: var(--font-mono); }
+        .data-table th, .data-table td { padding: 10px; border-bottom: 1px solid var(--border); text-align: left; }
+        .data-table th { background: var(--surface); font-weight: 600; font-family: var(--font-sans); }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); text-transform: uppercase; }
+        .badge-success { background: hsl(154, 40%, 90%); color: hsl(154, 45%, 24%); }
+        .badge-danger { background: hsl(3, 55%, 93%); color: hsl(3, 60%, 40%); }
+        .badge-warning { background: hsl(38, 85%, 92%); color: hsl(30, 75%, 38%); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        .chart-placeholder { background: var(--card); border: 1px solid var(--border); height: 200px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div id="admin-app">
+        <header class="app-header">
+            <div class="logo-slot-header"><i class="fas fa-shield-alt"></i> Admin</div>
+            <button onclick="logout()" class="icon-btn"><i class="fas fa-sign-out-alt"></i></button>
+        </header>
+
+        <main class="main-content">
+            <div id="admin-menu">
+                <h2 style="margin-bottom: 16px;">Admin Control Center</h2>
+                <div class="admin-grid">
+                    <div class="admin-card" onclick="showSection('dashboard')"><i class="fas fa-chart-line"></i><h4>Dashboard</h4></div>
+                    <div class="admin-card" onclick="showSection('users')"><i class="fas fa-users"></i><h4>Users</h4></div>
+                    <div class="admin-card" onclick="showSection('sellers')"><i class="fas fa-store"></i><h4>Sellers</h4></div>
+                    <div class="admin-card" onclick="showSection('products')"><i class="fas fa-book"></i><h4>Products</h4></div>
+                    <div class="admin-card" onclick="showSection('orders')"><i class="fas fa-clipboard-list"></i><h4>Orders</h4></div>
+                    <div class="admin-card" onclick="showSection('commission')"><i class="fas fa-percentage"></i><h4>Commission</h4></div>
+                    <div class="admin-card" onclick="showSection('ai')"><i class="fas fa-robot"></i><h4>AI Monitor</h4></div>
+                    <div class="admin-card" onclick="showSection('voting')"><i class="fas fa-vote-yea"></i><h4>Voting</h4></div>
+                    <div class="admin-card" onclick="showSection('resell')"><i class="fas fa-exchange-alt"></i><h4>Resell</h4></div>
+                    <div class="admin-card" onclick="showSection('security')"><i class="fas fa-lock"></i><h4>Security</h4></div>
+                </div>
+            </div>
+
+            <div id="section-dashboard" class="admin-section">
+                <button onclick="showMenu()" class="btn-text" style="margin-bottom: 16px;"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2>Dashboard</h2>
+                <div class="metric-cards" id="dashboard-metrics"></div>
+                <div class="chart-placeholder">Sales Chart Placeholder</div>
+            </div>
+
+            <div id="section-users" class="admin-section">
+                <button onclick="showMenu()" class="btn-text" style="margin-bottom: 16px;"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2>User Management</h2>
+                <div id="users-list"></div>
+            </div>
+
+            <div id="section-sellers" class="admin-section">
+                <button onclick="showMenu()" class="btn-text" style="margin-bottom: 16px;"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2>Create Seller/Agent</h2>
+                <form id="create-seller-form" onsubmit="createSeller(event)" style="margin-bottom: 24px;">
+                    <div class="form-row">
+                        <div class="form-group"><label>Name</label><input type="text" name="name" required></div>
+                        <div class="form-group"><label>Phone</label><input type="tel" name="phone" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Password</label><input type="password" name="password" required minlength="8"></div>
+                        <div class="form-group">
+                            <label>Role</label>
+                            <select name="role" required>
+                                <option value="publisher">Publisher</option>
+                                <option value="bookstore">Bookstore</option>
+                                <option value="commission_store">Commission Store</option>
+                                <option value="agent">Agent</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group"><label>Store Name</label><input type="text" name="store_name"></div>
+                    <button type="submit" class="btn-primary">Create Account</button>
+                </form>
+
+                <h3 style="margin-bottom: 12px;">Existing Sellers &amp; Agents</h3>
+                <div class="form-group">
+                    <label>Filter by Role</label>
+                    <select id="seller-role-filter" onchange="loadSellers()">
+                        <option value="">All</option>
+                        <option value="publisher">Publisher</option>
+                        <option value="bookstore">Bookstore</option>
+                        <option value="commission_store">Commission Store</option>
+                        <option value="agent">Agent</option>
+                    </select>
+                </div>
+                <div id="sellers-list"></div>
+            </div>
+
+            <div id="section-products" class="admin-section">
+                <button onclick="showMenu()" class="btn-text" style="margin-bottom: 16px;"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2>Pending Products</h2>
+                <div id="pending-products"></div>
+            </div>
+
+            <div id="section-orders" class="admin-section">
+                <button onclick="showMenu()" class="btn-text" style="margin-bottom: 16px;"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2>All Orders</h2>
+                <div class="form-group">
+                    <label>Filter by Status</label>
+                    <select id="order-status-filter" onchange="loadAllOrders()">
+                        <option value="">All</option>
+                        <option value="new">New</option>
+                        <option value="approved">Approved</option>
+                        <option value="shipping">Shipping</option>
+                        <option value="delivered">Delivered</option>
+                        <option value="cancelled">Cancelled</option>
+                        <option value="disputed">Disputed</option>
+                    </select>
+                </div>
+                <div id="all-orders"></div>
+            </div>
+
+            <div id="section-commission" class="admin-section">
+                <button onclick="showMenu()" class="btn-text" style="margin-bottom: 16px;"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2>Commission Settings</h2>
+                <form onsubmit="updateCommission(event)">
+                    <div class="form-group"><label>Publisher: 0-10k (%)</label><input type="number" id="pub-1" value="6" step="0.1"></div>
+                    <div class="form-group"><label>Publisher: 10-20k (%)</label><input type="number" id="pub-2" value="5" step="0.1"></div>
+                    <div class="form-group"><label>Publisher: 20-50k (%)</label><input type="number" id="pub-3" value="4" step="0.1"></div>
+                    <div class="form-group"><label>Publisher: 50k+ (%)</label><input type="number" id="pub-4" value="3" step="0.1"></div>
+                    <div class="form-group"><label>Bookstore (%)</label><input type="number" id="bookstore-rate" value="2" step="0.1"></div>
+                    <div class="form-group"><label>Resell (%)</label><input type="number" id="resell-rate" value="8" step="0.1"></div>
+                    <button type="submit" class="btn-primary">Update Rates</button>
+                </form>
+            </div>
+
+            <div id="section-ai" class="admin-section">
+                <button onclick="showMenu()" class="btn-text" style="margin-bottom: 16px;"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2>AI Flagged Messages</h2>
+                <div id="flagged-messages"></div>
+            </div>
+
+            <div id="section-voting" class="admin-section">
+                <button onclick="showMenu()" class="btn-text" style="margin-bottom: 16px;"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2>Voting Festivals</h2>
+                <form onsubmit="createFestival(event)" style="margin-bottom: 24px;">
+                    <div class="form-group"><label>Festival Name</label><input type="text" id="fest-name" required></div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Start Date</label><input type="datetime-local" id="fest-start" required></div>
+                        <div class="form-group"><label>End Date</label><input type="datetime-local" id="fest-end" required></div>
+                    </div>
+                    <button type="submit" class="btn-primary">Create Festival</button>
+                </form>
+                <div id="festivals-list"></div>
+
+                <div id="festival-books-panel" style="display:none; margin-top: 24px;">
+                    <h3 id="festival-books-title" style="margin-bottom: 12px;"></h3>
+                    <button onclick="closeFestivalBooks()" class="btn-text" style="margin-bottom: 12px;"><i class="fas fa-times"></i> Close</button>
+                    <div id="festival-books-list"></div>
+                </div>
+            </div>
+
+            <div id="section-resell" class="admin-section">
+                <button onclick="showMenu()" class="btn-text" style="margin-bottom: 16px;"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2>Resell Approval</h2>
+                <div id="resell-pending"></div>
+            </div>
+
+            <div id="section-security" class="admin-section">
+                <button onclick="showMenu()" class="btn-text" style="margin-bottom: 16px;"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2>Security Settings</h2>
+                <div class="form-group">
+                    <label>Current Password Code</label>
+                    <input type="text" id="current-code-display" readonly style="background: var(--surface);">
+                </div>
+                <div class="form-group">
+                    <label>New Password Code</label>
+                    <input type="text" id="new-password-code">
+                </div>
+                <button onclick="changePasswordCode()" class="btn-primary">Update Password Code</button>
+
+                <div style="margin-top: 32px;">
+                    <h3>Server Configuration</h3>
+                    <div class="form-group">
+                        <label>Server URL</label>
+                        <input type="url" id="server-url">
+                    </div>
+                    <button onclick="updateServerUrl()" class="btn-primary">Update Server URL</button>
+                    <p class="small text-secondary" style="margin-top: 8px;">Warning: Clearing this will put the platform in maintenance mode (403/404).</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API_URL = 'https://sarpayzone-production.up.railway.app/api'; 
+        let adminToken = localStorage.getItem('spz_store_token');
+
+        async function initAdmin() {
+            if (!adminToken) { window.location.href = '/publisherlogin.html'; return; }
+            const res = await fetch(`${API_URL}/auth/me`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            const data = await res.json();
+            if (data.user.role !== 'admin') { logout(); return; }
+        }
+
+        function showSection(section) {
+            document.getElementById('admin-menu').style.display = 'none';
+            document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
+            document.getElementById(`section-${section}`).classList.add('active');
+            
+            if (section === 'dashboard') loadDashboard();
+            if (section === 'users') loadUsers();
+            if (section === 'sellers') loadSellers();
+            if (section === 'products') loadPendingProducts();
+            if (section === 'orders') loadAllOrders();
+            if (section === 'ai') loadFlaggedMessages();
+            if (section === 'voting') loadFestivals();
+            if (section === 'resell') loadResellPending();
+            if (section === 'security') loadSecuritySettings();
+        }
+
+        function showMenu() {
+            document.getElementById('admin-menu').style.display = 'block';
+            document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
+        }
+
+        async function loadDashboard() {
+            const res = await fetch(`${API_URL}/admin/dashboard`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            const data = await res.json();
+            
+            document.getElementById('dashboard-metrics').innerHTML = `
+                <div class="metric-card"><div class="metric-value">${data.total_users}</div><div class="metric-label">Users</div></div>
+                <div class="metric-card"><div class="metric-value">${data.total_sellers}</div><div class="metric-label">Sellers</div></div>
+                <div class="metric-card"><div class="metric-value">${data.total_orders}</div><div class="metric-label">Orders</div></div>
+                <div class="metric-card"><div class="metric-value">${data.total_revenue.toLocaleString()}</div><div class="metric-label">Revenue (Ks)</div></div>
+            `;
+        }
+
+        async function loadUsers() {
+            const res = await fetch(`${API_URL}/admin/users`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            const users = await res.json();
+            
+            document.getElementById('users-list').innerHTML = `
+                <table class="data-table">
+                    <thead><tr><th>ID</th><th>Name</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody>
+                        ${users.map(u => `
+                            <tr>
+                                <td>${u.public_id}</td>
+                                <td>${u.name}</td>
+                                <td>${u.phone}</td>
+                                <td><span class="badge badge-${u.account_status === 'active' ? 'success' : 'danger'}">${u.account_status}</span></td>
+                                <td>
+                                    <button onclick="updateUserStatus(${u.user_id}, 'banned')" class="btn-text danger">Ban</button>
+                                    <button onclick="updateUserStatus(${u.user_id}, 'active')" class="btn-text success">Unban</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        async function updateUserStatus(userId, status) {
+            await fetch(`${API_URL}/admin/users/${userId}/status`, {
+                method: 'PATCH',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`
+                },
+                body: JSON.stringify({ status })
+            });
+            loadUsers();
+        }
+
+        async function createSeller(e) {
+            e.preventDefault();
+            const form = new FormData(e.target);
+            const body = Object.fromEntries(form);
+            await fetch(`${API_URL}/admin/sellers`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`
+                },
+                body: JSON.stringify(body)
+            });
+            alert('Seller/Agent created successfully');
+            e.target.reset();
+            loadSellers();
+        }
+
+        async function loadSellers() {
+            const role = document.getElementById('seller-role-filter').value;
+            const res = await fetch(`${API_URL}/admin/sellers${role ? '?role=' + role : ''}`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            const sellers = await res.json();
+
+            document.getElementById('sellers-list').innerHTML = `
+                <table class="data-table">
+                    <thead><tr><th>ID</th><th>Role</th><th>Store</th><th>Phone</th><th>Wallet</th><th>Visible</th><th>Actions</th></tr></thead>
+                    <tbody>
+                        ${sellers.map(s => `
+                            <tr>
+                                <td>${s.public_id}</td>
+                                <td>${s.role}</td>
+                                <td>${s.store_name || s.name}</td>
+                                <td>${s.phone}</td>
+                                <td>${s.wallet_balance.toLocaleString()} Ks</td>
+                                <td><span class="badge badge-${s.is_visible ? 'success' : 'danger'}">${s.is_visible ? 'Visible' : 'Hidden'}</span></td>
+                                <td>
+                                    <button onclick="toggleSellerVisibility(${s.seller_id}, ${s.is_visible ? 0 : 1})" class="btn-text">${s.is_visible ? 'Hide' : 'Unhide'}</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            ` || '<p class="empty-text">No sellers yet</p>';
+        }
+
+        async function toggleSellerVisibility(id, isVisible) {
+            await fetch(`${API_URL}/admin/sellers/${id}/visibility`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`
+                },
+                body: JSON.stringify({ is_visible: isVisible })
+            });
+            loadSellers();
+        }
+
+        async function loadPendingProducts() {
+            const res = await fetch(`${API_URL}/admin/products/pending`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            const products = await res.json();
+            
+            document.getElementById('pending-products').innerHTML = products.map(p => `
+                <div class="product-card" style="margin-bottom: 12px;">
+                    <div class="product-info">
+                        <h4>${p.title}</h4>
+                        <p>Seller: ${p.store_name}</p>
+                        <div style="display:flex; gap:12px; margin-top:8px;">
+                            <button onclick="approveProduct(${p.book_id}, 1)" class="btn-text success">Approve</button>
+                            <button onclick="approveProduct(${p.book_id}, 0)" class="btn-text danger">Reject</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('') || '<p class="empty-text">No pending products</p>';
+        }
+
+        async function approveProduct(id, approved) {
+            await fetch(`${API_URL}/admin/products/${id}/approve`, {
+                method: 'PATCH',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`
+                },
+                body: JSON.stringify({ approved })
+            });
+            loadPendingProducts();
+        }
+
+        async function loadAllOrders() {
+            document.getElementById('all-orders').innerHTML = '<p class="empty-text">Loading orders...</p>';
+            const status = document.getElementById('order-status-filter').value;
+            const res = await fetch(`${API_URL}/admin/orders${status ? '?status=' + status : ''}`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            const orders = await res.json();
+
+            document.getElementById('all-orders').innerHTML = `
+                <table class="data-table">
+                    <thead><tr><th>Order #</th><th>Product</th><th>Buyer</th><th>Seller</th><th>Total</th><th>Status</th></tr></thead>
+                    <tbody>
+                        ${orders.map(o => `
+                            <tr>
+                                <td>${o.order_number}</td>
+                                <td>${o.product_title || '-'}</td>
+                                <td>${o.buyer_name || '-'}<br><span class="text-secondary">${o.buyer_phone || ''}</span></td>
+                                <td>${o.store_name || '-'}</td>
+                                <td>${o.total_amount.toLocaleString()} Ks</td>
+                                <td><span class="badge badge-${o.order_status === 'delivered' ? 'success' : o.order_status === 'cancelled' || o.order_status === 'disputed' ? 'danger' : 'warning'}">${o.order_status}</span></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            ` || '<p class="empty-text">No orders yet</p>';
+        }
+
+        async function updateCommission(e) {
+            e.preventDefault();
+            const body = {
+                publisher_tiers: [
+                    { max: 10000, rate: parseFloat(document.getElementById('pub-1').value) },
+                    { max: 20000, rate: parseFloat(document.getElementById('pub-2').value) },
+                    { max: 50000, rate: parseFloat(document.getElementById('pub-3').value) },
+                    { max: 999999, rate: parseFloat(document.getElementById('pub-4').value) }
+                ],
+                bookstore_rate: parseFloat(document.getElementById('bookstore-rate').value),
+                commission_rate: 0,
+                resell_rate: parseFloat(document.getElementById('resell-rate').value)
+            };
+            await fetch(`${API_URL}/admin/commission`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`
+                },
+                body: JSON.stringify(body)
+            });
+            alert('Commission rates updated');
+        }
+
+        async function loadFlaggedMessages() {
+            const res = await fetch(`${API_URL}/admin/flagged-messages`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            const messages = await res.json();
+            
+            document.getElementById('flagged-messages').innerHTML = messages.map(m => `
+                <div class="review-card" style="margin-bottom: 12px;">
+                    <div class="review-header">
+                        <span>${m.sender_type}: ${m.sender_id}</span>
+                        <span class="badge badge-danger">FLAGGED</span>
+                    </div>
+                    <p>${m.content}</p>
+                    <button onclick="deleteMessage(${m.message_id})" class="btn-text danger">Delete</button>
+                </div>
+            `).join('') || '<p class="empty-text">No flagged messages</p>';
+        }
+
+        async function deleteMessage(id) {
+            await fetch(`${API_URL}/admin/messages/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            loadFlaggedMessages();
+        }
+
+        async function createFestival(e) {
+            e.preventDefault();
+            const body = {
+                festival_name: document.getElementById('fest-name').value,
+                start_date: document.getElementById('fest-start').value,
+                end_date: document.getElementById('fest-end').value
+            };
+            await fetch(`${API_URL}/admin/festivals`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`
+                },
+                body: JSON.stringify(body)
+            });
+            alert('Festival created');
+            loadFestivals();
+        }
+
+        async function loadFestivals() {
+            const res = await fetch(`${API_URL}/admin/festivals`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            const festivals = await res.json();
+            document.getElementById('festivals-list').innerHTML = festivals.map(f => `
+                <div class="festival-card" style="margin-bottom: 12px;">
+                    <h4>${f.festival_name}</h4>
+                    <p>${new Date(f.start_date).toLocaleString()} - ${new Date(f.end_date).toLocaleString()}</p>
+                    <p>Status: <span class="badge badge-${f.is_active ? 'success' : 'danger'}">${f.is_active ? 'Active' : 'Inactive'}</span> &nbsp; Books: ${f.book_count} &nbsp; Votes: ${f.total_votes}</p>
+                    <div style="display:flex; gap:12px; margin-top:8px;">
+                        <button onclick="manageFestivalBooks(${f.festival_id}, '${f.festival_name.replace(/'/g, "\\'")}')" class="btn-text">Manage Books</button>
+                        <button onclick="toggleFestival(${f.festival_id}, ${f.is_active ? 0 : 1})" class="btn-text ${f.is_active ? 'danger' : 'success'}">${f.is_active ? 'Deactivate' : 'Activate'}</button>
+                    </div>
+                </div>
+            `).join('') || '<p class="empty-text">No festivals</p>';
+        }
+
+        async function toggleFestival(id, isActive) {
+            await fetch(`${API_URL}/admin/festivals/${id}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`
+                },
+                body: JSON.stringify({ is_active: isActive })
+            });
+            loadFestivals();
+        }
+
+        let currentFestivalId = null;
+
+        async function manageFestivalBooks(festivalId, festivalName) {
+            currentFestivalId = festivalId;
+            document.getElementById('festival-books-title').textContent = `Books for: ${festivalName}`;
+            document.getElementById('festival-books-panel').style.display = 'block';
+            await loadFestivalBooks();
+        }
+
+        function closeFestivalBooks() {
+            currentFestivalId = null;
+            document.getElementById('festival-books-panel').style.display = 'none';
+        }
+
+        async function loadFestivalBooks() {
+            const res = await fetch(`${API_URL}/admin/festivals/${currentFestivalId}/books`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            const books = await res.json();
+            document.getElementById('festival-books-list').innerHTML = books.map(b => `
+                <div class="product-card" style="margin-bottom: 8px;">
+                    <div class="product-info" style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <h4>${b.title}</h4>
+                            <p>${b.author_name || ''} - ${b.store_name}</p>
+                        </div>
+                        <button onclick="toggleFestivalBook(${b.book_id}, ${b.is_added})" class="btn-text ${b.is_added ? 'danger' : 'success'}">${b.is_added ? 'Remove' : 'Add'}</button>
+                    </div>
+                </div>
+            `).join('') || '<p class="empty-text">No eligible books found</p>';
+        }
+
+        async function toggleFestivalBook(bookId, isAdded) {
+            if (isAdded) {
+                await fetch(`${API_URL}/admin/festivals/${currentFestivalId}/books/${bookId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${adminToken}` }
+                });
+            } else {
+                await fetch(`${API_URL}/admin/festivals/${currentFestivalId}/books`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${adminToken}`
+                    },
+                    body: JSON.stringify({ book_id: bookId })
+                });
+            }
+            loadFestivalBooks();
+            loadFestivals();
+        }
+
+        async function loadResellPending() {
+            const res = await fetch(`${API_URL}/resell/pending`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            const listings = await res.json();
+            
+            document.getElementById('resell-pending').innerHTML = listings.map(l => `
+                <div class="product-card" style="margin-bottom: 12px;">
+                    <div class="product-info">
+                        <h4>${l.title} by ${l.author_name}</h4>
+                        <p>Seller: ${l.seller_name} (${l.seller_public_id})</p>
+                        <p>Asking Price: ${l.asking_price.toLocaleString()} Ks</p>
+                        <div style="display:flex; gap:12px; margin-top:8px;">
+                            <button onclick="approveResell(${l.listing_id}, 'approved')" class="btn-text success">Approve (8%)</button>
+                            <button onclick="approveResell(${l.listing_id}, 'approved', 5)" class="btn-text success">Approve (5%)</button>
+                            <button onclick="approveResell(${l.listing_id}, 'rejected')" class="btn-text danger">Reject</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('') || '<p class="empty-text">No pending resell listings</p>';
+        }
+
+        async function approveResell(id, status, markup) {
+            await fetch(`${API_URL}/resell/${id}/approve`, {
+                method: 'PATCH',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`
+                },
+                body: JSON.stringify({ status, markup_percentage: markup || 10 })
+            });
+            loadResellPending();
+        }
+
+        async function loadSecuritySettings() {
+            const res = await fetch(`${API_URL}/admin/config`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            const config = await res.json();
+            document.getElementById('current-code-display').value = config.current_password_code || '';
+            document.getElementById('server-url').value = config.server_url || '';
+        }
+
+        async function changePasswordCode() {
+            const newCode = document.getElementById('new-password-code').value;
+            await fetch(`${API_URL}/admin/password-code`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`
+                },
+                body: JSON.stringify({ new_code: newCode })
+            });
+            alert('Password code updated');
+            loadSecuritySettings();
+        }
+
+        async function updateServerUrl() {
+            const url = document.getElementById('server-url').value;
+            await fetch(`${API_URL}/admin/server-url`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`
+                },
+                body: JSON.stringify({ server_url: url })
+            });
+            alert('Server URL updated. Platform will use new URL.');
+            loadSecuritySettings();
+        }
+
+        function logout() {
+            localStorage.removeItem('spz_store_token');
+            location.href = '/publisherlogin.html';
+        }
+
+        initAdmin();
+    </script>
+</body>
+</html>
