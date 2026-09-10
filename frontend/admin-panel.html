@@ -29,6 +29,7 @@
     <div id="admin-app">
         <header class="app-header">
             <div class="logo-slot-header"><i class="fas fa-shield-alt"></i> Admin</div>
+            <button onclick="showMenu()" class="btn-text" aria-label="Back to admin menu"><i class="fas fa-arrow-left"></i> Back</button>
             <button onclick="logout()" class="icon-btn"><i class="fas fa-sign-out-alt"></i></button>
         </header>
 
@@ -42,6 +43,8 @@
                     <div class="admin-card" onclick="showSection('products')"><i class="fas fa-book"></i><h4>Products</h4></div>
                     <div class="admin-card" onclick="showSection('orders')"><i class="fas fa-clipboard-list"></i><h4>Orders</h4></div>
                     <div class="admin-card" onclick="showSection('commission')"><i class="fas fa-percentage"></i><h4>Commission</h4></div>
+                    <div class="admin-card" onclick="showSection('cod')"><i class="fas fa-receipt"></i><h4>COD Verification</h4></div>
+                    <div class="admin-card" onclick="showSection('withdrawals')"><i class="fas fa-money-bill-wave"></i><h4>Withdrawals</h4></div>
                     <div class="admin-card" onclick="showSection('ai')"><i class="fas fa-robot"></i><h4>AI Monitor</h4></div>
                     <div class="admin-card" onclick="showSection('voting')"><i class="fas fa-vote-yea"></i><h4>Voting</h4></div>
                     <div class="admin-card" onclick="showSection('resell')"><i class="fas fa-exchange-alt"></i><h4>Resell</h4></div>
@@ -83,7 +86,7 @@
                         </div>
                     </div>
                     <div class="form-group"><label>Store Name</label><input type="text" name="store_name"></div>
-                    <button type="submit" class="btn-primary">Create Account</button>
+                    <button type="submit" class="btn-primary">Create Shop / Agent Account</button>
                 </form>
 
                 <h3 style="margin-bottom: 12px;">Existing Sellers &amp; Agents</h3>
@@ -138,6 +141,26 @@
                 </form>
             </div>
 
+            <div id="section-cod" class="admin-section">
+                <button onclick="showMenu()" class="btn-text" style="margin-bottom: 16px;"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2>COD Verification</h2>
+                <p class="small text-secondary">Configure the wallets sellers use for commission settlement, then verify their transfer references.</p>
+                <form onsubmit="saveCodAccounts(event)" style="margin: 16px 0 28px;">
+                    <div class="form-row"><div class="form-group"><label>K-Pay name</label><input id="cod-kpay-name"></div><div class="form-group"><label>K-Pay phone</label><input id="cod-kpay-phone"></div></div>
+                    <div class="form-row"><div class="form-group"><label>Wave Pay name</label><input id="cod-wavepay-name"></div><div class="form-group"><label>Wave Pay phone</label><input id="cod-wavepay-phone"></div></div>
+                    <div class="form-row"><div class="form-group"><label>AYA Pay name</label><input id="cod-ayapay-name"></div><div class="form-group"><label>AYA Pay phone</label><input id="cod-ayapay-phone"></div></div>
+                    <button class="btn-primary" type="submit">Save payment accounts</button>
+                </form>
+                <div id="cod-verification-list"></div>
+            </div>
+
+            <div id="section-withdrawals" class="admin-section">
+                <button onclick="showMenu()" class="btn-text" style="margin-bottom: 16px;"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2>Withdrawal Requests</h2>
+                <p class="small text-secondary">Check the wallet, phone number, account name, and transfer reference before marking a request paid.</p>
+                <div id="withdrawal-list"></div>
+            </div>
+
             <div id="section-ai" class="admin-section">
                 <button onclick="showMenu()" class="btn-text" style="margin-bottom: 16px;"><i class="fas fa-arrow-left"></i> Back</button>
                 <h2>AI Flagged Messages</h2>
@@ -160,6 +183,13 @@
                 <div id="festival-books-panel" style="display:none; margin-top: 24px;">
                     <h3 id="festival-books-title" style="margin-bottom: 12px;"></h3>
                     <button onclick="closeFestivalBooks()" class="btn-text" style="margin-bottom: 12px;"><i class="fas fa-times"></i> Close</button>
+                    <form onsubmit="addExternalVotingBook(event)" style="margin: 16px 0; padding: 14px; background: var(--surface); border-radius: 12px;">
+                        <h4>ထုပ်ပိုးထားသော Link ဖြင့် စာအုပ်အသစ်ထည့်ရန်</h4>
+                        <div class="form-group"><label>စာအုပ်အမည်</label><input id="external-book-title" required maxlength="200"></div>
+                        <div class="form-row"><div class="form-group"><label>စာအုပ် Link</label><input id="external-book-link" type="url" placeholder="https://..." required></div><div class="form-group"><label>စာအုပ်ပုံ Link</label><input id="external-book-image" type="url" placeholder="https://..." required></div></div>
+                        <div class="form-group"><label>စာရေးသူ (မဖြည့်လည်းရ)</label><input id="external-book-author" maxlength="120"></div>
+                        <button class="btn-primary" type="submit">Vote စာအုပ်အဖြစ် ထည့်မည်</button>
+                    </form>
                     <div id="festival-books-list"></div>
                 </div>
             </div>
@@ -218,6 +248,47 @@
             if (section === 'voting') loadFestivals();
             if (section === 'resell') loadResellPending();
             if (section === 'security') loadSecuritySettings();
+            if (section === 'cod') loadCodVerification();
+            if (section === 'withdrawals') loadWithdrawals();
+        }
+
+        async function loadWithdrawals() {
+            const res = await fetch(`${API_URL}/wallet/admin/withdrawals`, { headers: { 'Authorization': `Bearer ${adminToken}` } });
+            const rows = await res.json();
+            document.getElementById('withdrawal-list').innerHTML = rows.map(w => `<div class="admin-card" style="text-align:left;margin:12px 0;cursor:default"><strong>${w.owner_name || 'Account'} (${w.owner_type})</strong><p>${Number(w.amount).toLocaleString()} Ks → ${Number(w.net_amount).toLocaleString()} Ks · ${w.payment_method.toUpperCase()}</p><p>Account: ${w.account_name} · ${w.account_phone}</p><p class="small text-secondary">${w.status} · Requested ${w.requested_at}</p>${w.status === 'pending' ? `<button class="btn-primary" onclick="reviewWithdrawal(${w.withdrawal_id}, 'approved')">Approve</button> <button class="btn-text danger" onclick="reviewWithdrawal(${w.withdrawal_id}, 'rejected')">Reject</button>` : ''}${w.status === 'approved' ? `<button class="btn-primary" onclick="reviewWithdrawal(${w.withdrawal_id}, 'paid')">Mark paid</button>` : ''}</div>`).join('') || '<p class="empty-text">No withdrawal requests</p>';
+        }
+
+        async function reviewWithdrawal(id, status) {
+            const note = prompt('Admin note (optional):') || '';
+            const reference = status === 'paid' ? (prompt('Payment transaction reference:') || '') : '';
+            if (status === 'paid' && !reference) return;
+            const res = await fetch(`${API_URL}/wallet/admin/withdrawals/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` }, body: JSON.stringify({ status, admin_note: note, admin_reference: reference }) });
+            const data = await res.json(); if (!res.ok) return alert(data.error || 'Unable to update withdrawal');
+            loadWithdrawals();
+        }
+
+        async function loadCodVerification() {
+            const [accountsRes, codRes] = await Promise.all([
+                fetch(`${API_URL}/settlements/admin/payment-accounts`, { headers: { 'Authorization': `Bearer ${adminToken}` } }),
+                fetch(`${API_URL}/settlements/admin/cod`, { headers: { 'Authorization': `Bearer ${adminToken}` } })
+            ]);
+            const accounts = await accountsRes.json(); const data = await codRes.json();
+            ['kpay', 'wavepay', 'ayapay'].forEach(k => { document.getElementById(`cod-${k}-name`).value = accounts[k]?.name || ''; document.getElementById(`cod-${k}-phone`).value = accounts[k]?.phone || ''; });
+            document.getElementById('cod-verification-list').innerHTML = `<h3>Seller payment submissions</h3>${(data.submissions || []).map(s => `<div class="admin-card" style="text-align:left;margin:12px 0;cursor:default"><strong>${s.store_name || 'Seller'}</strong><p>${s.payment_method.toUpperCase()} · ${Number(s.amount).toLocaleString()} Ks · Ref: ${s.reference}</p><p class="small text-secondary">${s.status} · ${s.submitted_at}</p>${s.status === 'pending' ? `<button class="btn-primary" onclick="reviewCod(${s.submission_id}, 'approved')">Approve</button> <button class="btn-text danger" onclick="reviewCod(${s.submission_id}, 'rejected')">Reject</button>` : ''}</div>`).join('') || '<p class="small text-secondary">No payment submissions.</p>'}<h3 style="margin-top:24px">Outstanding COD payables</h3>${(data.due || []).map(p => `<p>${p.store_name || 'Seller'} · ${p.order_number} · ${Number(p.total_due).toLocaleString()} Ks due ${p.due_date}</p>`).join('') || '<p class="small text-secondary">No outstanding payables.</p>'}`;
+        }
+
+        async function saveCodAccounts(event) {
+            event.preventDefault(); const body = {};
+            ['kpay', 'wavepay', 'ayapay'].forEach(k => body[k] = { name: document.getElementById(`cod-${k}-name`).value, phone: document.getElementById(`cod-${k}-phone`).value });
+            const res = await fetch(`${API_URL}/settlements/admin/payment-accounts`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` }, body: JSON.stringify(body) });
+            alert(res.ok ? 'COD payment accounts saved.' : 'Unable to save accounts.');
+        }
+
+        async function reviewCod(submissionId, status) {
+            const note = prompt('Admin note (optional):') || '';
+            const res = await fetch(`${API_URL}/settlements/admin/cod/${submissionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` }, body: JSON.stringify({ status, admin_note: note }) });
+            const data = await res.json(); if (!res.ok) return alert(data.error || 'Unable to review payment');
+            loadCodVerification();
         }
 
         function showMenu() {
@@ -282,7 +353,7 @@
             e.preventDefault();
             const form = new FormData(e.target);
             const body = Object.fromEntries(form);
-            await fetch(`${API_URL}/admin/sellers`, {
+            const res = await fetch(`${API_URL}/admin/sellers`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -290,7 +361,9 @@
                 },
                 body: JSON.stringify(body)
             });
-            alert('Seller/Agent created successfully');
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'ဆိုင်/Agent အကောင့်ဖန်တီး၍ မရပါ');
+            alert('ဆိုင်/Agent အကောင့် ဖန်တီးပြီးပါပြီ');
             e.target.reset();
             loadSellers();
         }
@@ -509,10 +582,11 @@
         }
 
         async function loadFestivalBooks() {
-            const res = await fetch(`${API_URL}/admin/festivals/${currentFestivalId}/books`, {
+            const [res, externalRes] = await Promise.all([fetch(`${API_URL}/admin/festivals/${currentFestivalId}/books`, {
                 headers: { 'Authorization': `Bearer ${adminToken}` }
-            });
+            }), fetch(`${API_URL}/admin/festivals/${currentFestivalId}/external-books`, { headers: { 'Authorization': `Bearer ${adminToken}` } })]);
             const books = await res.json();
+            const externalBooks = await externalRes.json();
             document.getElementById('festival-books-list').innerHTML = books.map(b => `
                 <div class="product-card" style="margin-bottom: 8px;">
                     <div class="product-info" style="display:flex; justify-content:space-between; align-items:center;">
@@ -523,7 +597,23 @@
                         <button onclick="toggleFestivalBook(${b.book_id}, ${b.is_added})" class="btn-text ${b.is_added ? 'danger' : 'success'}">${b.is_added ? 'Remove' : 'Add'}</button>
                     </div>
                 </div>
+            `).join('') + externalBooks.map(b => `
+                <div class="product-card" style="margin-bottom: 8px;"><img src="${b.image_url}" alt="${b.book_title}" style="width:64px;height:80px;object-fit:cover;border-radius:6px;float:left;margin-right:12px;"><div class="product-info"><h4>${b.book_title}</h4><p>${b.author_name || ''} · ${Number(b.vote_count || 0)} votes</p><p><a href="${b.book_link}" target="_blank" rel="noopener">Open book link</a></p><button onclick="removeExternalVotingBook(${b.external_book_id})" class="btn-text danger">Remove</button></div><div style="clear:both"></div></div>
             `).join('') || '<p class="empty-text">No eligible books found</p>';
+        }
+
+        async function addExternalVotingBook(event) {
+            event.preventDefault();
+            const body = { book_title: document.getElementById('external-book-title').value.trim(), book_link: document.getElementById('external-book-link').value.trim(), image_url: document.getElementById('external-book-image').value.trim(), author_name: document.getElementById('external-book-author').value.trim() };
+            const res = await fetch(`${API_URL}/admin/festivals/${currentFestivalId}/external-books`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` }, body: JSON.stringify(body) });
+            const data = await res.json(); if (!res.ok) return alert(data.error || 'စာအုပ်ထည့်၍ မရပါ');
+            event.target.reset(); loadFestivalBooks(); loadFestivals();
+        }
+
+        async function removeExternalVotingBook(bookId) {
+            if (!confirm('ဒီ Vote စာအုပ်ကို ဖယ်ရှားမလား?')) return;
+            await fetch(`${API_URL}/admin/festivals/${currentFestivalId}/external-books/${bookId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${adminToken}` } });
+            loadFestivalBooks(); loadFestivals();
         }
 
         async function toggleFestivalBook(bookId, isAdded) {
@@ -557,7 +647,10 @@
                     <div class="product-info">
                         <h4>${l.title} by ${l.author_name}</h4>
                         <p>Seller: ${l.seller_name} (${l.seller_public_id})</p>
-                        <p>Asking Price: ${l.asking_price.toLocaleString()} Ks</p>
+                        <p>Author: ${l.author_name || '-'} · ISBN: ${l.isbn || '-'} · Publisher: ${l.publisher || '-'}</p>
+                        <p>Condition: ${l.condition_status} · ${l.condition_note || ''}</p>
+                        <p>Asking Price: ${Number(l.asking_price).toLocaleString()} Ks</p>
+                        <div style="display:flex;gap:6px;overflow:auto;">${(l.condition_images ? JSON.parse(l.condition_images) : []).map(img => `<img src="${img}" alt="Condition photo" style="width:72px;height:72px;object-fit:cover;border-radius:6px;">`).join('')}</div>
                         <div style="display:flex; gap:12px; margin-top:8px;">
                             <button onclick="approveResell(${l.listing_id}, 'approved')" class="btn-text success">Approve (8%)</button>
                             <button onclick="approveResell(${l.listing_id}, 'approved', 5)" class="btn-text success">Approve (5%)</button>

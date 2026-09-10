@@ -6,11 +6,13 @@ const { requireRole } = require('../middleware/roleCheck');
 const { calculateCommission } = require('../utils/commission');
 const { sendInstantOrder } = require('../utils/telegram');
 const { sendPushNotification } = require('../utils/webpush');
+const upload = require('../middleware/upload');
+const { uploadToCloudinary } = require('../utils/cloudinary');
 
 // Create order
 router.post('/', authenticate, async (req, res) => {
     try {
-        const { product_id, variation_id, resell_listing_id, quantity, shipping_address, payment_method, p2p_friend_id } = req.body;
+        const { product_id, variation_id, resell_listing_id, quantity, shipping_address, shipping_state, shipping_district, shipping_township, payment_method, p2p_friend_id } = req.body;
         const parsedQuantity = Math.max(1, parseInt(quantity, 10) || 1);
         if (!['wallet', 'cod'].includes(payment_method)) return res.status(400).json({ error: 'Payment must use wallet or COD. Agents add funds to the buyer wallet.' });
         if (resell_listing_id && payment_method !== 'wallet') {
@@ -20,10 +22,10 @@ router.post('/', authenticate, async (req, res) => {
         const product = resell_listing_id
             ? await db.execute({
                 sql: `SELECT r.listing_id, r.seller_id AS resell_seller_id, r.final_price, r.asking_price,
-                             p.*, 'resell' AS role, NULL AS telegram_user_id, NULL AS store_seller_id,
-                             1 AS store_is_open, 1 AS store_accepting_orders
-                      FROM resell_listings r JOIN products p ON r.product_id = p.book_id
-                      WHERE r.listing_id = ? AND r.status = 'approved'`,
+                             r.title, r.author_name, r.condition_images AS images, NULL AS book_id,
+                             'resell' AS role, NULL AS telegram_user_id, NULL AS store_seller_id,
+                             NULL AS seller_id, 1 AS store_is_open, 1 AS store_accepting_orders
+                      FROM resell_listings r WHERE r.listing_id = ? AND r.status = 'approved'`,
                 args: [resell_listing_id]
             })
             : await db.execute({
@@ -46,9 +48,11 @@ router.post('/', authenticate, async (req, res) => {
         // Get shipping fee
         let shippingFee = 5000;
         const shippingRate = await db.execute({
-            sql: `SELECT prepay_shipping_fee FROM shipping_rates 
-                  WHERE seller_id = ? AND is_no_shipping = 0 LIMIT 1`,
-            args: [prod.store_seller_id || 0]
+            sql: `SELECT prepay_shipping_fee FROM shipping_rates
+                  WHERE seller_id = ? AND is_no_shipping = 0
+                    AND (? IS NULL OR (state = ? AND township = ? AND (city = ? OR district = ?)))
+                  LIMIT 1`,
+            args: [prod.store_seller_id || 0, shipping_state || null, shipping_state, shipping_township, shipping_district, shipping_district]
         });
         if (shippingRate.rows.length > 0) shippingFee = shippingRate.rows[0].prepay_shipping_fee;
 
@@ -72,13 +76,15 @@ router.post('/', authenticate, async (req, res) => {
 
         const result = await db.execute({
             sql: `INSERT INTO orders (order_number, buyer_id, seller_id, product_id, variation_id, resell_listing_id, resell_seller_id, quantity,
-                  total_amount, shipping_fee, commission_amount, markup_amount, payment_method, payment_status, shipping_address, p2p_friend_id)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  total_amount, shipping_fee, commission_amount, markup_amount, payment_method, payment_status, shipping_address,
+                  shipping_state, shipping_district, shipping_township, p2p_friend_id)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             args: [orderNumber, req.user.user_id || req.user.id, prod.store_seller_id || null, resolvedProductId, variation_id,
                    resell_listing_id || null, resell_listing_id ? prod.resell_seller_id : null, parsedQuantity,
                    total, shippingFee, commission,
                    resell_listing_id ? (unitPrice - Number(prod.asking_price || 0)) * parsedQuantity : 0,
-                   payment_method, payment_method === 'wallet' ? 'paid' : 'pending', shipping_address, p2p_friend_id || null]
+                   payment_method, payment_method === 'wallet' ? 'paid' : 'pending', shipping_address || 'လိပ်စာ မသတ်မှတ်ရသေးပါ',
+                   shipping_state || null, shipping_district || null, shipping_township || null, p2p_friend_id || null]
         });
 
         if (!resell_listing_id) {
@@ -106,8 +112,12 @@ router.post('/', authenticate, async (req, res) => {
             });
         }
 
+        await sendPushNotification(req.user.user_id || req.user.id, 'buyer', {
+            title: 'Order placed successfully', body: `Your order ${orderNumber} has been placed.`, tag: `order-${result.lastInsertRowid}`, url: '/index.html#orders'
+        });
+
         // Send Telegram notification
-        await sendInstantOrder(prod.telegram_user_id, {
+        if (prod.telegram_user_id) await sendInstantOrder(prod.telegram_user_id, {
             order_number: orderNumber,
             product_name: prod.title,
             total_amount: finalTotal,
@@ -117,7 +127,7 @@ router.post('/', authenticate, async (req, res) => {
         });
 
         // Push notification
-        await sendPushNotification(prod.seller_id, 'seller', {
+        if (prod.seller_id) await sendPushNotification(prod.seller_id, 'seller', {
             title: 'New Order Received',
             body: `Order ${orderNumber} - ${prod.title}`,
             data: { order_id: result.lastInsertRowid }
@@ -132,11 +142,11 @@ router.post('/', authenticate, async (req, res) => {
 // Create a cart checkout with one shipping charge per shop
 router.post('/bulk', authenticate, async (req, res) => {
     try {
-        const { items, shipping_address, payment_method = 'wallet', p2p_friend_id } = req.body;
+        const { items, shipping_address, shipping_state, shipping_district, shipping_township, payment_method = 'wallet', p2p_friend_id } = req.body;
         const buyerId = req.user.user_id || req.user.id;
         if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
         if (!['wallet', 'cod'].includes(payment_method)) return res.status(400).json({ error: 'Payment must use wallet or COD. Agents add funds to the buyer wallet.' });
-        if (!shipping_address) return res.status(400).json({ error: 'Shipping address is required' });
+        if (!shipping_address || !shipping_state || !shipping_district || !shipping_township) return res.status(400).json({ error: 'ပြည်နယ်၊ ခရိုင်၊ မြို့နယ်နှင့် အသေးစိတ်လိပ်စာကို ထည့်ပါ' });
 
         const prepared = [];
         const shippingBySeller = new Map();
@@ -160,11 +170,14 @@ router.post('/bulk', authenticate, async (req, res) => {
             const unitPrice = Number(prod.discounted_price || prod.original_price);
             const subtotal = unitPrice * quantity;
             const rate = await db.execute({
-                sql: `SELECT is_no_shipping, prepay_shipping_fee FROM shipping_rates
-                      WHERE seller_id = ? LIMIT 1`,
-                args: [prod.seller_id]
+                sql: `SELECT is_no_shipping, is_cod_allowed, is_prepay_allowed, prepay_shipping_fee FROM shipping_rates
+                      WHERE seller_id = ? AND state = ? AND township = ? AND (city = ? OR district = ?)
+                      LIMIT 1`,
+                args: [prod.seller_id, shipping_state, shipping_township, shipping_district, shipping_district]
             });
-            const sellerShipping = rate.rows[0]?.is_no_shipping ? 0 : Number(rate.rows[0]?.prepay_shipping_fee || 5000);
+            if (rate.rows[0] && payment_method === 'cod' && !Number(rate.rows[0].is_cod_allowed)) return res.status(400).json({ error: `${prod.store_name} သည် ရွေးချယ်ထားသောနေရာအတွက် COD မပို့ပါ` });
+            if (rate.rows[0] && payment_method === 'wallet' && !Number(rate.rows[0].is_prepay_allowed)) return res.status(400).json({ error: `${prod.store_name} သည် ရွေးချယ်ထားသောနေရာအတွက် ကြိုတင်ငွေပေးချေမှု မလက်ခံပါ` });
+            const sellerShipping = rate.rows[0]?.is_no_shipping ? 0 : Number(rate.rows[0]?.prepay_shipping_fee ?? 5000);
             if (!shippingBySeller.has(prod.seller_id)) shippingBySeller.set(prod.seller_id, sellerShipping);
             merchandiseTotal += subtotal;
             prepared.push({ item, prod, quantity, subtotal, commission: subtotal * calculateCommission(prod.role, subtotal) });
@@ -187,20 +200,25 @@ router.post('/bulk', authenticate, async (req, res) => {
             const orderNumber = `SPZ-${Date.now()}-${String(Number(orderCount.rows[0].c) + orderIds.length + 1).padStart(4, '0')}`;
             const result = await db.execute({
                 sql: `INSERT INTO orders (order_number, buyer_id, seller_id, product_id, variation_id, quantity,
-                      total_amount, shipping_fee, commission_amount, payment_method, payment_status, shipping_address, p2p_friend_id)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                      total_amount, shipping_fee, commission_amount, payment_method, payment_status, shipping_address,
+                      shipping_state, shipping_district, shipping_township, p2p_friend_id)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 args: [orderNumber, buyerId, prod.seller_id, item.product_id, item.variation_id || null, quantity,
-                    subtotal, shippingFee, commission, payment_method, payment_method === 'wallet' ? 'paid' : 'pending', shipping_address, p2p_friend_id || null]
+                    subtotal, shippingFee, commission, payment_method, payment_method === 'wallet' ? 'paid' : 'pending', shipping_address,
+                    shipping_state, shipping_district, shipping_township, p2p_friend_id || null]
             });
             orderIds.push(result.lastInsertRowid);
             await db.execute({
                 sql: 'UPDATE products SET stock_quantity = stock_quantity - ? WHERE book_id = ? AND stock_quantity >= ?',
                 args: [quantity, item.product_id, quantity]
             });
-            await sendInstantOrder(prod.telegram_user_id, {
+            if (prod.telegram_user_id) await sendInstantOrder(prod.telegram_user_id, {
                 order_number: orderNumber, product_name: prod.title,
                 total_amount: subtotal + shippingFee, quantity,
                 buyer_name: req.user.name, shipping_address
+            });
+            await sendPushNotification(prod.seller_id, 'seller', {
+                title: 'New order received', body: `${prod.title} · ${orderNumber}`, tag: `order-${result.lastInsertRowid}`, url: '/store-dashboard.html#orders'
             });
         }
 
@@ -213,6 +231,9 @@ router.post('/bulk', authenticate, async (req, res) => {
             });
         }
 
+        await sendPushNotification(buyerId, 'buyer', {
+            title: 'Orders placed successfully', body: `${orderIds.length} order(s) have been placed.`, tag: `orders-${orderIds.join('-')}`, url: '/index.html#orders'
+        });
         res.json({ success: true, order_ids: orderIds, merchandise_total: merchandiseTotal, shipping_total: shippingTotal, total: finalTotal });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -223,10 +244,11 @@ router.post('/bulk', authenticate, async (req, res) => {
 router.get('/buyer', authenticate, async (req, res) => {
     try {
         const orders = await db.execute({
-            sql: `SELECT o.*, p.title, p.images, s.store_name 
+            sql: `SELECT o.*, COALESCE(p.title, r.title) AS title, COALESCE(p.images, r.condition_images) AS images, s.store_name 
                   FROM orders o 
-                  JOIN products p ON o.product_id = p.book_id 
-                  JOIN sellers s ON o.seller_id = s.seller_id 
+                  LEFT JOIN products p ON o.product_id = p.book_id 
+                  LEFT JOIN resell_listings r ON o.resell_listing_id = r.listing_id
+                  LEFT JOIN sellers s ON o.seller_id = s.seller_id 
                   WHERE o.buyer_id = ? ORDER BY o.created_at DESC LIMIT 100`,
             args: [req.user.user_id || req.user.id]
         });
@@ -264,6 +286,53 @@ router.get('/seller', authenticate, requireRole('publisher', 'bookstore', 'commi
     }
 });
 
+// Buyer confirms COD delivery and optionally uploads a delivery photo.
+router.post('/:id/cod/buyer-confirm', authenticate, upload.single('proof'), async (req, res) => {
+    try {
+        const order = await db.execute({ sql: 'SELECT * FROM orders WHERE order_id = ?', args: [req.params.id] });
+        if (!order.rows.length) return res.status(404).json({ error: 'Order not found' });
+        const ord = order.rows[0];
+        if (req.user.role !== 'buyer' || Number(ord.buyer_id) !== Number(req.user.user_id || req.user.id)) return res.status(403).json({ error: 'Only the buyer can confirm this order' });
+        if (ord.payment_method !== 'cod') return res.status(400).json({ error: 'This is not a COD order' });
+        if (['cancelled', 'delivered'].includes(ord.order_status)) return res.status(400).json({ error: 'This order is no longer awaiting delivery confirmation' });
+        if (!req.file && !req.body.proof_url) return res.status(400).json({ error: 'A delivery photo is required' });
+        const proofUrl = req.file ? await uploadToCloudinary(req.file.buffer, `orders/${ord.order_id}`, 'cod-proof') : req.body.proof_url;
+        await db.execute({
+            sql: 'UPDATE orders SET buyer_delivery_confirmed_at = datetime("now"), buyer_delivery_proof = ?, updated_at = datetime("now") WHERE order_id = ?',
+            args: [proofUrl, ord.order_id]
+        });
+        res.json({ success: true, buyer_confirmed: true, proof_url: proofUrl });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Seller confirms COD delivery after buyer proof is submitted. Cash was collected directly by the seller;
+// the platform records only the commission payable due in 25 days.
+router.post('/:id/cod/seller-confirm', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
+    try {
+        const order = await db.execute({ sql: 'SELECT * FROM orders WHERE order_id = ?', args: [req.params.id] });
+        if (!order.rows.length) return res.status(404).json({ error: 'Order not found' });
+        const ord = order.rows[0];
+        if (Number(ord.seller_id) !== Number(req.user.seller_id) || ord.payment_method !== 'cod') return res.status(403).json({ error: 'Invalid COD order' });
+        if (!ord.buyer_delivery_confirmed_at) return res.status(409).json({ error: 'Buyer delivery confirmation and photo are required first' });
+        if (ord.order_status === 'cancelled') return res.status(400).json({ error: 'Cancelled orders cannot be confirmed' });
+        await db.execute({
+            sql: `UPDATE orders SET seller_delivery_confirmed_at = datetime('now'), order_status = 'delivered',
+                  payment_status = 'paid', updated_at = datetime('now') WHERE order_id = ?`,
+            args: [ord.order_id]
+        });
+        await db.execute({
+            sql: `INSERT OR IGNORE INTO cod_payables (order_id, seller_id, commission_amount, due_date)
+                  VALUES (?, ?, ?, datetime('now', '+25 days'))`,
+            args: [ord.order_id, ord.seller_id, Number(ord.commission_amount || 0)]
+        });
+        res.json({ success: true, order_status: 'delivered', commission_due: Number(ord.commission_amount || 0), due_in_days: 25 });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Update order status
 router.patch('/:id/status', authenticate, async (req, res) => {
     try {
@@ -289,7 +358,10 @@ router.patch('/:id/status', authenticate, async (req, res) => {
             });
 
             // On delivery, transfer merchandise revenue plus seller-defined shipping, minus commission.
-            if (status === 'delivered' && ord.payment_status === 'paid' && ord.order_status !== 'delivered') {
+            if (status === 'delivered' && ord.payment_method === 'cod') {
+                return res.status(400).json({ error: 'COD delivery requires buyer proof and seller confirmation' });
+            }
+            if (status === 'delivered' && ord.payment_status === 'paid' && ord.order_status !== 'delivered' && ord.payment_method !== 'cod') {
                 const sellerAmount = Math.max(0, Number(ord.total_amount) + Number(ord.shipping_fee || 0) - Number(ord.commission_amount || 0));
                 if (ord.resell_listing_id && ord.resell_seller_id) {
                     await db.execute({

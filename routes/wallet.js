@@ -97,31 +97,33 @@ router.post('/p2p', authenticate, async (req, res) => {
 // Withdrawal (Buyers)
 router.post('/withdraw', authenticate, requireRole('buyer'), async (req, res) => {
     try {
-        const { amount, account_name, wallet_phone, type = 'general' } = req.body;
+        const { amount, account_name, account_phone, payment_method, type = 'general' } = req.body;
         const userId = req.user.user_id || req.user.id;
-        
-        const fee = type === 'resell' ? 0 : amount * 0.03;
-        const netAmount = amount - fee;
-        const balanceField = type === 'resell' ? 'resell_balance' : 'wallet_balance';
+        const numericAmount = Number(amount);
+        const sourceBalance = type === 'resell' ? 'resell_balance' : 'wallet_balance';
+        if (!Number.isFinite(numericAmount) || numericAmount <= 0) return res.status(400).json({ error: 'Enter a valid withdrawal amount' });
+        if (!['kpay', 'wavepay', 'ayapay'].includes(payment_method)) return res.status(400).json({ error: 'Choose K Pay, Wave Pay, or AYA Pay' });
+        if (!String(account_name || '').trim() || !/^09\d{7,13}$/.test(String(account_phone || '').replace(/[\s-]/g, ''))) return res.status(400).json({ error: 'Account name and a valid wallet phone number are required' });
+        const fee = type === 'resell' ? 0 : numericAmount * 0.03;
+        const netAmount = numericAmount - fee;
 
         const user = await db.execute({
-            sql: `SELECT ${balanceField} FROM users WHERE user_id = ?`,
+            sql: `SELECT ${sourceBalance} FROM users WHERE user_id = ?`,
             args: [userId]
         });
-        if (user.rows[0][balanceField] < amount) return res.status(400).json({ error: 'Insufficient balance' });
+        if (!user.rows.length || Number(user.rows[0][sourceBalance]) < numericAmount) return res.status(400).json({ error: 'Insufficient balance' });
 
         await db.execute({
-            sql: `UPDATE users SET ${balanceField} = ${balanceField} - ? WHERE user_id = ?`,
-            args: [amount, userId]
+            sql: `UPDATE users SET ${sourceBalance} = ${sourceBalance} - ? WHERE user_id = ? AND ${sourceBalance} >= ?`,
+            args: [numericAmount, userId, numericAmount]
+        });
+        const request = await db.execute({
+            sql: `INSERT INTO withdrawal_requests (owner_type, owner_id, source_balance, amount, fee, net_amount, payment_method, account_name, account_phone)
+                  VALUES ('user', ?, ?, ?, ?, ?, ?, ?, ?)`,
+            args: [userId, sourceBalance, numericAmount, fee, netAmount, payment_method, String(account_name).trim(), String(account_phone).replace(/[\s-]/g, '')]
         });
 
-        await db.execute({
-            sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id) 
-                  VALUES ('user', ?, 'withdrawal', ?, ?, (SELECT ${balanceField} FROM users WHERE user_id = ?), ?)`,
-            args: [userId, netAmount, fee, userId, `Withdraw to ${wallet_phone}`]
-        });
-
-        res.json({ success: true, net_amount: netAmount, fee });
+        res.json({ success: true, status: 'pending', withdrawal_id: request.lastInsertRowid, net_amount: netAmount, fee });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -235,30 +237,67 @@ router.post('/cashin', authenticate, requireRole('agent'), async (req, res) => {
 // Seller Withdrawal Request
 router.post('/seller/withdraw', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
     try {
-        const { amount, account_name, account_number, bank_name } = req.body;
+        const { amount, account_name, account_phone, payment_method } = req.body;
         const sellerId = req.user.seller_id;
+        const numericAmount = Number(amount);
+        if (!Number.isFinite(numericAmount) || numericAmount <= 0) return res.status(400).json({ error: 'Enter a valid withdrawal amount' });
+        if (!['kpay', 'wavepay', 'ayapay'].includes(payment_method)) return res.status(400).json({ error: 'Choose K Pay, Wave Pay, or AYA Pay' });
+        if (!String(account_name || '').trim() || !/^09\d{7,13}$/.test(String(account_phone || '').replace(/[\s-]/g, ''))) return res.status(400).json({ error: 'Account name and a valid wallet phone number are required' });
 
         const seller = await db.execute({
             sql: 'SELECT wallet_balance FROM sellers WHERE seller_id = ?',
             args: [sellerId]
         });
-        if (seller.rows[0].wallet_balance < amount) return res.status(400).json({ error: 'Insufficient balance' });
+        if (!seller.rows.length || Number(seller.rows[0].wallet_balance) < numericAmount) return res.status(400).json({ error: 'Insufficient balance' });
 
         await db.execute({
-            sql: 'UPDATE sellers SET wallet_balance = wallet_balance - ? WHERE seller_id = ?',
-            args: [amount, sellerId]
+            sql: 'UPDATE sellers SET wallet_balance = wallet_balance - ? WHERE seller_id = ? AND wallet_balance >= ?',
+            args: [numericAmount, sellerId, numericAmount]
         });
 
-        await db.execute({
-            sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id) 
-                  VALUES ('seller', ?, 'withdrawal', ?, 0, (SELECT wallet_balance FROM sellers WHERE seller_id = ?), ?)`,
-            args: [sellerId, amount, sellerId, `Bank: ${bank_name} - ${account_number}`]
+        const request = await db.execute({
+            sql: `INSERT INTO withdrawal_requests (owner_type, owner_id, source_balance, amount, fee, net_amount, payment_method, account_name, account_phone)
+                  VALUES ('seller', ?, 'wallet_balance', ?, 0, ?, ?, ?, ?)`,
+            args: [sellerId, numericAmount, numericAmount, payment_method, String(account_name).trim(), String(account_phone).replace(/[\s-]/g, '')]
         });
 
-        res.json({ success: true });
+        res.json({ success: true, status: 'pending', withdrawal_id: request.lastInsertRowid, net_amount: numericAmount, fee: 0 });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+});
+
+// Admin withdrawal queue. Funds are already reserved while a request is pending.
+router.get('/admin/withdrawals', authenticate, requireRole('admin'), async (_req, res) => {
+    try {
+        const rows = await db.execute({ sql: `SELECT w.*, COALESCE(u.name, s.name) AS owner_name, COALESCE(u.phone, s.phone) AS owner_login
+            FROM withdrawal_requests w LEFT JOIN users u ON w.owner_type = 'user' AND u.user_id = w.owner_id
+            LEFT JOIN sellers s ON w.owner_type = 'seller' AND s.seller_id = w.owner_id
+            ORDER BY CASE w.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END, w.requested_at DESC` });
+        res.json(rows.rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.patch('/admin/withdrawals/:id', authenticate, requireRole('admin'), async (req, res) => {
+    try {
+        const { status, admin_note, admin_reference } = req.body;
+        if (!['approved', 'rejected', 'paid'].includes(status)) return res.status(400).json({ error: 'Status must be approved, rejected, or paid' });
+        const result = await db.execute({ sql: 'SELECT * FROM withdrawal_requests WHERE withdrawal_id = ?', args: [req.params.id] });
+        if (!result.rows.length) return res.status(404).json({ error: 'Withdrawal request not found' });
+        const row = result.rows[0];
+        if ((status === 'approved' && row.status !== 'pending') || (status === 'paid' && row.status !== 'approved') || (status === 'rejected' && !['pending', 'approved'].includes(row.status))) return res.status(409).json({ error: `Cannot mark ${row.status} as ${status}` });
+        if (status === 'rejected') {
+            const table = row.owner_type === 'user' ? 'users' : 'sellers';
+            await db.execute({ sql: `UPDATE ${table} SET ${row.source_balance} = ${row.source_balance} + ? WHERE ${row.owner_type === 'user' ? 'user_id' : 'seller_id'} = ?`, args: [row.amount, row.owner_id] });
+        }
+        await db.execute({ sql: `UPDATE withdrawal_requests SET status = ?, admin_note = ?, admin_reference = ?, reviewed_at = CASE WHEN ? IN ('approved','rejected') THEN datetime('now') ELSE reviewed_at END, paid_at = CASE WHEN ? = 'paid' THEN datetime('now') ELSE paid_at END, rejected_at = CASE WHEN ? = 'rejected' THEN datetime('now') ELSE rejected_at END WHERE withdrawal_id = ?`, args: [status, admin_note || null, admin_reference || null, status, status, status, row.withdrawal_id] });
+        if (status === 'paid') {
+            const table = row.owner_type === 'user' ? 'users' : 'sellers';
+            const idField = row.owner_type === 'user' ? 'user_id' : 'seller_id';
+            await db.execute({ sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id) VALUES (?, ?, 'withdrawal', ?, ?, (SELECT ${row.source_balance} FROM ${table} WHERE ${idField} = ?), ?)`, args: [row.owner_type, row.owner_id, -row.net_amount, row.fee, row.owner_id, `WD#${row.withdrawal_id}`] });
+        }
+        res.json({ success: true, status });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // Pay outstanding monthly commission (Seller)

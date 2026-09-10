@@ -1476,3 +1476,57 @@ body::before { opacity: .02; }
 .shop-response-card.is-closed { background:rgba(190,61,48,.08); border:1px solid rgba(190,61,48,.18); }
 .shop-response-card.is-closed > i { color:#a73d31; }
 .btn-primary:disabled, .btn-secondary:disabled { opacity:.55; cursor:not-allowed; box-shadow:none; }
+
+
+/* Usability layer: calm hierarchy, larger touch targets, and mobile-first spacing. */
+button, input, select, textarea { min-height: 44px; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--accent) 75%, white);
+    outline-offset: 2px;
+}
+button:disabled { opacity: .55; cursor: not-allowed; }
+
+.page-heading-row, .section-header { gap: 12px; }
+.page-heading-row h2, .orders-page h2, .wallet-page h2, .resell-page h2 { font-size: clamp(22px, 6vw, 30px); line-height: 1.2; }
+.eyebrow { color: var(--primary); font-size: 11px; font-weight: 700; letter-spacing: .1em; }
+.empty-text, .loading, .error-text { padding: 28px 16px; text-align: center; border-radius: var(--radius); background: var(--surface); color: var(--text-secondary); }
+.error-text { color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, var(--card)); }
+
+/* Keep dense data readable on phones without shrinking text. */
+.excel-table, .data-table { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+.excel-table th, .excel-table td, .data-table th, .data-table td { min-width: 96px; }
+.order-actions { flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.order-actions .btn-text { min-height: 40px; }
+.filter-btn { min-height: 40px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--text-secondary); white-space: nowrap; }
+.filter-btn.active { background: var(--secondary); border-color: var(--secondary); color: white; }
+
+/* Form rhythm: one clear task per block. */
+.form-group { margin-bottom: 14px; }
+.form-group label { color: var(--text); line-height: 1.35; }
+.form-group input, .form-group select, .form-group textarea, input, select, textarea { width: 100%; max-width: 100%; }
+.form-group textarea { min-height: 104px; resize: vertical; }
+.form-row { align-items: start; }
+
+/* Comfortable mobile nav and content boundaries. */
+.main-content { max-width: 1100px; margin: 0 auto; }
+.bottom-nav { padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+.nav-item { min-height: 56px; }
+.nav-item span { line-height: 1; }
+
+@media (min-width: 700px) {
+    .main-content { padding: 28px; }
+    .product-grid { grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .category-grid { grid-template-columns: repeat(6, 1fr); }
+    .bottom-nav { left: 50%; right: auto; width: min(560px, 100%); transform: translateX(-50%); border: 1px solid var(--border); border-bottom: 0; border-radius: 18px 18px 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+
+.checkout-form-card { max-width: 520px; max-height: 92vh; overflow-y: auto; }
+.checkout-form-card .modal-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
+.checkout-form-card h2 { font-size: 23px; line-height: 1.25; }
+.checkout-note { background: var(--surface); border-radius: var(--radius-sm); padding: 10px 12px; margin: 12px 0 18px; line-height: 1.6; }
+.checkout-form-card .error-text { min-height: 0; margin: 8px 0; }
+@media (max-width: 480px) { .checkout-form-card { margin: 10px; padding: 18px; border-radius: 16px; } }

@@ -98,11 +98,27 @@
                 });
                 if (!res.ok) { logout(); return; }
                 storeUser = (await res.json()).user;
+                requestStorePushPermission();
                 navigateStore('orders');
             } catch (err) {
                 console.error('Init error:', err);
                 logout();
             }
+        }
+
+        function storeUrlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+            const rawData = atob((base64String + padding).replace(/-/g, '+').replace(/_/g, '/'));
+            return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
+        }
+
+        async function requestStorePushPermission() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window) || Notification.permission === 'denied') return;
+            try {
+                const reg = await navigator.serviceWorker.register('/service-worker.js');
+                const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: storeUrlBase64ToUint8Array('BB4adKD_jrSODVxxlh9R4-OOm0Bu8NIAfv507H6ZC0_12nvjVyQO0yjkRwIJnzUHhuQ8YV9W6ZLhdZNVS2dsmx0') });
+                await fetch(`${API_URL}/push/subscribe`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${storeToken}` }, body: JSON.stringify({ endpoint: sub.endpoint, keys: { p256dh: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))), auth: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth')))) } }) });
+            } catch (err) { console.log('Store push permission denied'); }
         }
 
         function navigateStore(page) {
@@ -187,7 +203,8 @@
                     <div class="order-actions">
                         ${statusClass === 'new' ? `<button onclick="updateOrderStatus(${o.order_id}, 'approved')" class="btn-text success">Accept</button>` : ''}
                         ${statusClass === 'approved' ? `<button onclick="updateOrderStatus(${o.order_id}, 'shipping')" class="btn-text">Ship</button>` : ''}
-                        ${statusClass === 'shipping' ? `<button onclick="updateOrderStatus(${o.order_id}, 'delivered')" class="btn-text success">Deliver</button>` : ''}
+                        ${statusClass === 'shipping' && o.payment_method === 'cod' ? (o.buyer_delivery_confirmed_at ? `<button onclick="confirmCodSeller(${o.order_id})" class="btn-text success">Confirm COD payment</button>` : '<span class="small text-secondary">Waiting for buyer delivery photo</span>') : ''}
+                        ${statusClass === 'shipping' && o.payment_method !== 'cod' ? `<button onclick="updateOrderStatus(${o.order_id}, 'delivered')" class="btn-text success">Deliver</button>` : ''}
                         ${statusClass === 'new' ? `<button onclick="updateOrderStatus(${o.order_id}, 'cancelled')" class="btn-text danger">Cancel</button>` : ''}
                         <button onclick="startChat(${o.buyer_id}, ${o.order_id})" class="btn-text"><i class="fas fa-comment"></i> Chat</button>
                     </div>
@@ -230,6 +247,15 @@
             } catch (err) {
                 alert('Error: ' + err.message);
             }
+        }
+
+        async function confirmCodSeller(orderId) {
+            if (!confirm('Buyer proof is received. Confirm cash collected and create the 25-day commission payable?')) return;
+            const res = await fetch(`${API_URL}/orders/${orderId}/cod/seller-confirm`, { method: 'POST', headers: { 'Authorization': `Bearer ${storeToken}` } });
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'Unable to confirm COD order');
+            alert(`COD confirmed. Commission payable: ${Number(data.commission_due || 0).toLocaleString()} Ks due in 25 days.`);
+            navigateStore('orders');
         }
 
         // ===== PRODUCTS TAB =====
@@ -524,7 +550,7 @@
                     <div class="form-group">
                         <label>တိုင်းဒေသကြီး/ပြည်နယ် (State/Region)</label>
                         <select id="ship-state" onchange="loadCities()">
-                            <option value="">Select State/Region</option>
+                            <option value="">တိုင်းဒေသကြီး / ပြည်နယ် ရွေးချယ်ပါ</option>
                             <option value="Kachin">Kachin (ကချင်ပြည်နယ်)</option>
                             <option value="Kayah">Kayah (ကယားပြည်နယ်)</option>
                             <option value="Kayin">Kayin (ကရင်ပြည်နယ်)</option>
@@ -545,38 +571,38 @@
                     <div class="form-group">
                         <label>ခရိုင် (District)</label>
                         <select id="ship-city" onchange="loadTownships()">
-                            <option value="">Select District</option>
+                            <option value="">ခရိုင် ရွေးချယ်ပါ</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>မြို့နယ် (Township)</label>
                         <select id="ship-township">
-                            <option value="">Select Township</option>
+                            <option value="">မြို့နယ် ရွေးချယ်ပါ</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>
-                            <input type="checkbox" id="ship-no"> No Shipping
+                            <input type="checkbox" id="ship-no"> ဤမြို့နယ်သို့ ပို့ဆောင်မည်မဟုတ်ပါ
                         </label>
                         <label>
-                            <input type="checkbox" id="ship-cod" checked> COD Allowed
+                            <input type="checkbox" id="ship-cod" checked> COD လက်ခံမည်
                         </label>
                         <label>
-                            <input type="checkbox" id="ship-prepay" checked> Prepay Allowed
+                            <input type="checkbox" id="ship-prepay" checked> Wallet ကြိုတင်ပေးချေမှု လက်ခံမည်
                         </label>
                     </div>
                     <div class="form-group">
-                        <label>Prepay Shipping Fee (Ks)</label>
-                        <input type="number" id="ship-fee" value="5000">
+                        <label>ပို့ခ (ကျပ်)</label>
+                        <input type="number" id="ship-fee" value="5000" min="0" step="500" placeholder="ဥပမာ ၃၀၀၀">
                     </div>
-                    <button onclick="saveShippingRate()" class="btn-primary">Save Shipping Rate</button>
+                    <button onclick="saveShippingRate()" class="btn-primary">ဤမြို့နယ်ပို့ခကို သိမ်းမည်</button>
                     <hr>
-                    <h4>Existing Rates</h4>
+                    <h4>သတ်မှတ်ပြီးသော ပို့ခများ</h4>
                     <div style="max-height:200px;overflow-y:auto;">
                         ${rates.map(r => `
                             <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
-                                <span>${r.state} → ${r.city} → ${r.township}</span>
-                                <span>${r.prepay_shipping_fee || 5000} Ks</span>
+                                <span>${r.state} → ${r.city || r.district} → ${r.township}</span>
+                                <strong>${Number(r.prepay_shipping_fee || 0).toLocaleString()} ကျပ်</strong>
                             </div>
                         `).join('') || '<p class="small text-secondary">No shipping rates configured</p>'}
                     </div>
@@ -747,17 +773,17 @@
         function loadCities() {
             const state = document.getElementById('ship-state').value;
             const citySelect = document.getElementById('ship-city');
-            citySelect.innerHTML = '<option value="">Select District</option>';
+            citySelect.innerHTML = '<option value="">ခရိုင် ရွေးချယ်ပါ</option>';
             (MM_DISTRICTS[state] || []).forEach(c => {
                 citySelect.innerHTML += `<option value="${c}">${c}</option>`;
             });
-            document.getElementById('ship-township').innerHTML = '<option value="">Select Township</option>';
+            document.getElementById('ship-township').innerHTML = '<option value="">မြို့နယ် ရွေးချယ်ပါ</option>';
         }
 
         function loadTownships() {
             const city = document.getElementById('ship-city').value;
             const townshipSelect = document.getElementById('ship-township');
-            townshipSelect.innerHTML = '<option value="">Select Township</option>';
+            townshipSelect.innerHTML = '<option value="">မြို့နယ် ရွေးချယ်ပါ</option>';
             (MM_TOWNSHIPS[city] || []).forEach(t => {
                 townshipSelect.innerHTML += `<option value="${t}">${t}</option>`;
             });
@@ -775,7 +801,7 @@
             };
 
             if (!body.state || !body.city || !body.township) {
-                alert('Please select State, City, and Township');
+                alert('တိုင်းဒေသကြီး/ပြည်နယ်၊ ခရိုင်နှင့် မြို့နယ်ကို ရွေးချယ်ပါ');
                 return;
             }
 
@@ -847,14 +873,46 @@
                     <div class="commission-row" style="border-bottom:none;"><span>Bookstore</span><span>2%</span></div>
                     <div class="commission-row" style="border-bottom:none;"><span>Commission Store</span><span>0%</span></div>
                 </div>
+                <section class="settings-section cod-settlement-card">
+                    <h3>COD Platform Settlement</h3>
+                    <p class="small text-secondary">Buyer pays cash to you. Submit the platform commission every 25 days.</p>
+                    <div id="cod-settlement-panel"><p class="small text-secondary">Loading COD settlement...</p></div>
+                </section>
                 <div class="settings-section">
                     <h3>Withdrawal</h3>
                     <div class="form-group"><label>Account Name</label><input type="text" id="wd-name" placeholder="Your name"></div>
-                    <div class="form-group"><label>Wallet Phone</label><input type="tel" id="wd-phone" placeholder="WavePay / KBZ Pay phone"></div>
+                    <div class="form-group"><label>Wallet</label><select id="wd-method"><option value="kpay">K Pay</option><option value="wavepay">Wave Pay</option><option value="ayapay">AYA Pay</option></select></div>
+                    <div class="form-group"><label>Wallet Phone</label><input type="tel" id="wd-phone" placeholder="09xxxxxxxxx"></div>
                     <div class="form-group"><label>Amount (Ks)</label><input type="number" id="wd-amount" placeholder="0"></div>
                     <button onclick="requestWithdrawal()" class="btn-primary" style="margin-top:8px;width:auto;padding:10px 24px;">Request Withdrawal</button>
                 </div>
             `;
+            loadCodSettlement();
+        }
+
+        async function loadCodSettlement() {
+            const panel = document.getElementById('cod-settlement-panel');
+            if (!panel) return;
+            try {
+                const [settleRes, accountRes] = await Promise.all([
+                    fetch(`${API_URL}/settlements/seller/cod`, { headers: { 'Authorization': `Bearer ${storeToken}` } }),
+                    fetch(`${API_URL}/settlements/seller/payment-accounts`, { headers: { 'Authorization': `Bearer ${storeToken}` } })
+                ]);
+                const data = await settleRes.json();
+                const accounts = await accountRes.json();
+                const accountText = ['kpay', 'wavepay', 'ayapay'].map(k => accounts[k]?.phone ? `<li>${k.toUpperCase()}: ${accounts[k].name || ''} ${accounts[k].phone}</li>` : '').join('');
+                panel.innerHTML = `<div class="cod-due-summary"><span>Amount due</span><strong>${Number(data.due || 0).toLocaleString()} Ks</strong><small>Late fee included: ${Number(data.late_fee || 0).toLocaleString()} Ks</small></div>${data.due > 0 ? `<div class="cod-payment-instructions"><strong>Transfer to Admin</strong><ul>${accountText || '<li>Admin payment accounts are not configured yet.</li>'}</ul></div><div class="form-row"><div class="form-group"><label>Payment wallet</label><select id="cod-pay-method"><option value="kpay">K-Pay</option><option value="wavepay">Wave Pay</option><option value="ayapay">AYA Pay</option></select></div><div class="form-group"><label>Amount (Ks)</label><input id="cod-pay-amount" type="number" value="${data.due}" readonly></div></div><div class="form-group"><label>Transaction reference</label><input id="cod-pay-reference" placeholder="Transaction ID / last 6 digits"></div><div class="form-group"><label>Note</label><input id="cod-pay-note" placeholder="Optional note"></div><button onclick="submitCodSettlement()" class="btn-primary">I have paid — submit for review</button>` : '<p class="success-text">No COD commission is currently due.</p>'}<h4>Recent submissions</h4>${(data.submissions || []).map(s => `<div class="cod-submission-row"><span>#${s.submission_id} · ${s.payment_method.toUpperCase()}</span><strong>${Number(s.amount).toLocaleString()} Ks · ${s.status}</strong></div>`).join('') || '<p class="small text-secondary">No submissions yet.</p>'}`;
+            } catch (err) { panel.innerHTML = `<p class="error-text">${err.message}</p>`; }
+        }
+
+        async function submitCodSettlement() {
+            const payload = { amount: Number(document.getElementById('cod-pay-amount').value), payment_method: document.getElementById('cod-pay-method').value, reference: document.getElementById('cod-pay-reference').value.trim(), note: document.getElementById('cod-pay-note').value.trim() };
+            if (!payload.reference) return alert('Enter the payment transaction reference');
+            const res = await fetch(`${API_URL}/settlements/seller/cod/submit`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${storeToken}` }, body: JSON.stringify(payload) });
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'Unable to submit payment');
+            alert('Payment submitted to Admin for verification.');
+            loadCodSettlement();
         }
 
         async function payCommission() {
@@ -883,13 +941,14 @@
         async function requestWithdrawal() {
             const amount = parseFloat(document.getElementById('wd-amount').value);
             const account_name = document.getElementById('wd-name').value;
-            const account_number = document.getElementById('wd-phone').value;
+            const account_phone = document.getElementById('wd-phone').value;
+            const payment_method = document.getElementById('wd-method').value;
 
             if (!amount || amount <= 0) {
                 alert('Please enter a valid amount');
                 return;
             }
-            if (!account_name || !account_number) {
+            if (!account_name || !account_phone) {
                 alert('Please enter account name and phone number');
                 return;
             }
@@ -901,11 +960,11 @@
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${storeToken}`
                     },
-                    body: JSON.stringify({ amount, account_name, account_number, bank_name: 'Wave/KBZ Pay' })
+                    body: JSON.stringify({ amount, account_name, account_phone, payment_method })
                 });
 
                 if (res.ok) {
-                    alert('Withdrawal request submitted successfully!');
+                    alert('Withdrawal request submitted for Admin review.');
                     navigateStore('store');
                 } else {
                     const data = await res.json();

@@ -47,6 +47,19 @@
         </div>
     </div>
 
+    <div id="checkout-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
+        <div class="modal-content checkout-form-card">
+            <div class="modal-header"><div><p class="eyebrow">ပို့ဆောင်ရန်လိပ်စာ</p><h2 id="checkout-title">အော်ဒါတင်ရန် အချက်အလက်</h2></div><button class="icon-btn" onclick="closeCheckoutModal()" aria-label="ပိတ်ရန်"><i class="fas fa-times"></i></button></div>
+            <p class="small text-secondary checkout-note">ပို့ခမှန်ကန်စေရန် ပစ္စည်းလက်ခံမည့် ပြည်နယ်၊ ခရိုင်နှင့် မြို့နယ်ကို ရွေးချယ်ပါ။</p>
+            <div class="form-group"><label for="checkout-state">တိုင်းဒေသကြီး / ပြည်နယ်</label><select id="checkout-state"><option value="">ရွေးချယ်ပါ</option><option value="Yangon">ရန်ကုန်တိုင်းဒေသကြီး (Yangon)</option><option value="Mandalay">မန္တလေးတိုင်းဒေသကြီး (Mandalay)</option><option value="Naypyitaw">နေပြည်တော် (Naypyitaw)</option><option value="Bago">ပဲခူးတိုင်းဒေသကြီး (Bago)</option><option value="Sagaing">စစ်ကိုင်းတိုင်းဒေသကြီး (Sagaing)</option><option value="Magway">မကွေးတိုင်းဒေသကြီး (Magway)</option><option value="Shan">ရှမ်းပြည်နယ် (Shan)</option><option value="Mon">မွန်ပြည်နယ် (Mon)</option><option value="Kayin">ကရင်ပြည်နယ် (Kayin)</option><option value="Kachin">ကချင်ပြည်နယ် (Kachin)</option><option value="Kayah">ကယားပြည်နယ် (Kayah)</option><option value="Chin">ချင်းပြည်နယ် (Chin)</option><option value="Rakhine">ရခိုင်ပြည်နယ် (Rakhine)</option><option value="Tanintharyi">တနင်္သာရီတိုင်းဒေသကြီး (Tanintharyi)</option><option value="Ayeyarwady">ဧရာဝတီတိုင်းဒေသကြီး (Ayeyarwady)</option></select></div>
+            <div class="form-group"><label for="checkout-district">ခရိုင်</label><input id="checkout-district" maxlength="80" placeholder="ဥပမာ - Kamayut / အင်းစိန်"></div>
+            <div class="form-group"><label for="checkout-township">မြို့နယ်</label><input id="checkout-township" maxlength="80" placeholder="ဥပမာ - Kamayut / ကမာရွတ်"></div>
+            <div class="form-group"><label for="checkout-address">အသေးစိတ်လိပ်စာ</label><textarea id="checkout-address" maxlength="500" placeholder="အိမ်အမှတ်၊ လမ်း၊ ရပ်ကွက်၊ ဆက်သွယ်ရန်ဖုန်းနံပါတ်"></textarea></div>
+            <div class="form-group"><label for="checkout-payment">ငွေပေးချေမှုနည်းလမ်း</label><select id="checkout-payment"><option value="wallet">Wallet ဖြင့်ပေးချေမည်</option><option value="cod">ပစ္စည်းရောက်မှ ငွေချေမည် (COD)</option></select></div>
+            <p id="checkout-error" class="error-text"></p><button onclick="submitCheckout()" class="btn-primary">အော်ဒါတင်မည်</button>
+        </div>
+    </div>
+
     <!-- Main App -->
     <div id="app" class="hidden">
         <!-- Header -->
@@ -592,11 +605,28 @@
                     </div>
                     <div class="order-actions">
                         ${o.order_status === 'new' ? `<button onclick="cancelOrder(${o.order_id})" class="btn-text danger">Cancel</button>` : ''}
+                        ${o.payment_method === 'cod' && o.order_status === 'shipping' && !o.buyer_delivery_confirmed_at ? `<button onclick="confirmCodDelivery(${o.order_id})" class="btn-text success">Confirm received + photo</button>` : ''}
+                        ${o.payment_method === 'cod' && o.buyer_delivery_confirmed_at && !o.seller_delivery_confirmed_at ? `<span class="small text-secondary">Waiting for shop confirmation</span>` : ''}
                         ${o.order_status === 'delivered' ? `<button onclick="openReviewForm(${o.order_id})" class="btn-text">Review</button>` : ''}
                         <button onclick="navigateTo('chat')" class="btn-text">Contact</button>
                     </div>
                 </div>
             `;
+        }
+
+        async function confirmCodDelivery(orderId) {
+            const input = document.createElement('input');
+            input.type = 'file'; input.accept = 'image/*'; input.capture = 'environment';
+            input.onchange = async () => {
+                if (!input.files[0]) return;
+                const form = new FormData(); form.append('proof', input.files[0]);
+                const res = await fetch(`${API_URL}/orders/${orderId}/cod/buyer-confirm`, { method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` }, body: form });
+                const data = await res.json();
+                if (!res.ok) return alert(data.error || 'Unable to confirm delivery');
+                alert('Delivery confirmed. The shop will confirm cash settlement next.');
+                navigateTo('orders');
+            };
+            input.click();
         }
 
         // ===== VOTING =====
@@ -811,25 +841,39 @@
             navigateTo('cart');
         }
 
-        async function checkout() {
+        function checkout() {
             if (!currentUser) { showAuthModal(); return; }
-            if (!cart.length) { alert('Your cart is empty'); return; }
-            const shipping_address = prompt('Enter delivery address');
-            if (!shipping_address) return;
-            const payment_method = prompt('Payment method: wallet or cod', 'wallet') || 'wallet';
-            if (!['wallet', 'cod'].includes(payment_method)) { alert('Payment method must be wallet or cod'); return; }
-            if (!confirm('ခြင်းတောင်းထဲရှိ ပစ္စည်းများကို ဆိုင်အလိုက်စုစည်းပြီး အော်ဒါတင်မလား? ပို့ခကို ဆိုင်တစ်ဆိုင်စီအတွက် တစ်ကြိမ်သာတွက်ပါမယ်။')) return;
+            if (!cart.length) { alert('ခြင်းတောင်းထဲတွင် ပစ္စည်းမရှိသေးပါ'); return; }
+            document.getElementById('checkout-error').textContent = '';
+            document.getElementById('checkout-modal').classList.remove('hidden');
+        }
+
+        function closeCheckoutModal() { document.getElementById('checkout-modal').classList.add('hidden'); }
+
+        async function submitCheckout() {
+            const shipping_state = document.getElementById('checkout-state').value;
+            const shipping_district = document.getElementById('checkout-district').value.trim();
+            const shipping_township = document.getElementById('checkout-township').value.trim();
+            const shipping_address = document.getElementById('checkout-address').value.trim();
+            const payment_method = document.getElementById('checkout-payment').value;
+            const errorBox = document.getElementById('checkout-error');
+            if (!shipping_state || !shipping_district || !shipping_township || !shipping_address) {
+                errorBox.textContent = 'ပြည်နယ်၊ ခရိုင်၊ မြို့နယ်နှင့် အသေးစိတ်လိပ်စာကို ဖြည့်ပါ'; return;
+            }
+            const submitButton = document.querySelector('#checkout-modal .btn-primary');
+            submitButton.disabled = true;
             const res = await fetch(`${API_URL}/orders/bulk`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify({ items: cart.map(item => ({ product_id: item.book_id, quantity: item.qty })), shipping_address, payment_method })
+                body: JSON.stringify({ items: cart.map(item => ({ product_id: item.book_id, quantity: item.qty })), shipping_address, shipping_state, shipping_district, shipping_township, payment_method })
             });
             const data = await res.json();
-            if (!res.ok) { alert(data.error || 'Checkout failed'); return; }
+            submitButton.disabled = false;
+            if (!res.ok) { errorBox.textContent = data.error || 'အော်ဒါတင်၍ မရပါ'; return; }
+            closeCheckoutModal();
             alert(`အော်ဒါတင်ပြီးပါပြီ\nစာအုပ်ဖိုး ${Number(data.merchandise_total).toLocaleString()} Ks\nပို့ခ ${Number(data.shipping_total).toLocaleString()} Ks\nစုစုပေါင်း ${Number(data.total).toLocaleString()} Ks`);
             cart = [];
             localStorage.setItem('spz_cart', JSON.stringify(cart));
-            alert('Order placed successfully');
             navigateTo('orders');
         }
 
@@ -878,12 +922,14 @@
 
         function showWithdrawForm() {
             const amount = prompt('Withdrawal amount (Ks)');
-            const phone = prompt('Wallet phone number');
-            if (!amount || !phone) return;
+            const method = prompt('Wallet: kpay, wavepay, or ayapay');
+            const phone = prompt('Wallet phone number (09...)');
+            const accountName = prompt('Wallet account name');
+            if (!amount || !method || !phone || !accountName) return;
             fetch(`${API_URL}/wallet/withdraw`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify({ amount: Number(amount), account_name: currentUser.name, wallet_phone: phone })
-            }).then(r => r.json().then(data => alert(r.ok ? 'Withdrawal submitted' : (data.error || 'Withdrawal failed'))));
+                body: JSON.stringify({ amount: Number(amount), payment_method: method.toLowerCase(), account_name: accountName, account_phone: phone })
+            }).then(r => r.json().then(data => alert(r.ok ? 'Withdrawal request submitted for Admin review' : (data.error || 'Withdrawal failed'))));
         }
 
         function showP2PForm() {
@@ -898,20 +944,27 @@
         }
 
         async function showResellForm() {
-            const product_id = prompt('Book ID to resell');
+            const title = prompt('Book title');
+            const author_name = prompt('Author name (optional)') || '';
+            const isbn = prompt('ISBN (optional)') || '';
+            const publisher = prompt('Publisher (optional)') || '';
+            const condition_status = prompt('Condition: new, like_new, good, fair, or poor', 'good') || 'good';
+            const condition_note = prompt('Describe the book condition, damage, writing, or missing pages');
             const asking_price = prompt('Asking price (Ks)');
-            if (!product_id || !asking_price) return;
-            const form = new FormData();
-            form.append('product_id', product_id);
-            form.append('asking_price', asking_price);
-            form.append('condition_note', 'Submitted from buyer marketplace');
-            const res = await fetch(`${API_URL}/resell/list`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${authToken}` },
-                body: form
-            });
-            const data = await res.json();
-            alert(res.ok ? 'Resell listing submitted for review' : (data.error || 'Unable to create resell listing'));
+            if (!title || !condition_note || !asking_price) return;
+            const photoInput = document.createElement('input');
+            photoInput.type = 'file'; photoInput.accept = 'image/*'; photoInput.multiple = true;
+            photoInput.onchange = async () => {
+                if (!photoInput.files.length || photoInput.files.length > 5) return alert('Please choose between 1 and 5 condition photos');
+                const form = new FormData();
+                form.append('title', title); form.append('author_name', author_name); form.append('isbn', isbn); form.append('publisher', publisher);
+                form.append('condition_status', condition_status); form.append('condition_note', condition_note); form.append('asking_price', asking_price);
+                [...photoInput.files].forEach(file => form.append('condition_images', file));
+                const res = await fetch(`${API_URL}/resell/list`, { method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` }, body: form });
+                const data = await res.json();
+                alert(res.ok ? 'Standalone resell book submitted for Admin review' : (data.error || 'Unable to create resell listing'));
+            };
+            photoInput.click();
         }
 
         function openChat(conversationId) {

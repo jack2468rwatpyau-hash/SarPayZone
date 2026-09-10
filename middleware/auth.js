@@ -18,14 +18,16 @@ const authenticate = async (req, res, next) => {
             req.user = { ...decoded, ...user.rows[0], userType: 'buyer' };
         } else if (['publisher', 'bookstore', 'commission_store', 'agent', 'admin'].includes(decoded.role)) {
             const seller = await db.execute({
-                sql: 'SELECT * FROM sellers WHERE seller_id = ?',
-                args: [decoded.id]
+                sql: 'SELECT * FROM sellers WHERE seller_id = ? AND role = ? AND is_visible = 1',
+                args: [decoded.id, decoded.role]
             });
             if (seller.rows.length === 0) return res.status(401).json({ error: 'Seller not found' });
             req.user = { ...decoded, ...seller.rows[0], userType: 'seller' };
+        } else {
+            return res.status(401).json({ error: 'Invalid token role' });
         }
-        
-        next();
+
+        return next();
     } catch (err) {
         res.status(401).json({ error: 'Invalid token' });
     }

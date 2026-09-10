@@ -20,7 +20,8 @@ INSERT OR IGNORE INTO system_config (config_key, config_value) VALUES
     ('current_password_code', 'SPZ2024'),
     ('markup_percentage', '10'),
     ('agent_cash_in_limit', '500000'),
-    ('commission_settings', '{"publisher_tiers":{"10000":0.06,"20000":0.05,"50000":0.04,"above":0.03},"bookstore_rate":0.02,"commission_store_rate":0,"resell_rate":0.08}');
+    ('commission_settings', '{"publisher_tiers":{"10000":0.06,"20000":0.05,"50000":0.04,"above":0.03},"bookstore_rate":0.02,"commission_store_rate":0,"resell_rate":0.08}'),
+    ('cod_payment_accounts', '{"kpay":{"phone":"","name":""},"wavepay":{"phone":"","name":""},"ayapay":{"phone":"","name":""}}');
 
 -- --------------------------------------------------------------------------
 -- Buyers
@@ -79,7 +80,7 @@ INSERT OR IGNORE INTO sellers
     (public_id, role, name, phone, password_hash, store_name, is_visible)
 VALUES
     ('ADMIN#0001', 'admin', 'Admin User', '09987654321',
-     '$2a$12$0WuiX4N.eUCLhepOqC7EqeZAFDNlTFP1iisHmYdyfq9aVDS/z1jAu',
+     '$2a$12$/13Klzm/CpUIOF8vKZ5aeuvHWw8SgzBHgX.hjVocriPnjh7B4ViZ6',
      'Sar Pay Zone Admin', 1),
     ('AGENT#0001', 'agent', 'Agent User', '09765432109',
      '$2a$12$0WuiX4N.eUCLhepOqC7EqeZAFDNlTFP1iisHmYdyfq9aVDS/z1jAu',
@@ -152,7 +153,12 @@ CREATE TABLE IF NOT EXISTS resell_listings (
     listing_id INTEGER PRIMARY KEY AUTOINCREMENT,
     public_id TEXT NOT NULL UNIQUE,
     seller_id INTEGER NOT NULL,
-    product_id INTEGER NOT NULL,
+    product_id INTEGER,
+    title TEXT NOT NULL,
+    author_name TEXT,
+    isbn TEXT,
+    publisher TEXT,
+    condition_status TEXT NOT NULL DEFAULT 'good',
     condition_images TEXT DEFAULT '[]',
     condition_note TEXT,
     asking_price REAL NOT NULL CHECK (asking_price >= 0),
@@ -192,7 +198,13 @@ CREATE TABLE IF NOT EXISTS orders (
     order_status TEXT NOT NULL DEFAULT 'new'
         CHECK (order_status IN ('new', 'approved', 'shipping', 'delivered', 'cancelled', 'disputed')),
     shipping_address TEXT NOT NULL,
+    shipping_state TEXT,
+    shipping_district TEXT,
+    shipping_township TEXT,
     p2p_friend_id INTEGER,
+    buyer_delivery_confirmed_at DATETIME,
+    buyer_delivery_proof TEXT,
+    seller_delivery_confirmed_at DATETIME,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (buyer_id) REFERENCES users(user_id),
@@ -202,6 +214,35 @@ CREATE TABLE IF NOT EXISTS orders (
     FOREIGN KEY (resell_listing_id) REFERENCES resell_listings(listing_id),
     FOREIGN KEY (resell_seller_id) REFERENCES users(user_id),
     FOREIGN KEY (p2p_friend_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS cod_payables (
+    payable_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL UNIQUE,
+    seller_id INTEGER NOT NULL,
+    commission_amount REAL NOT NULL DEFAULT 0 CHECK (commission_amount >= 0),
+    due_date DATETIME NOT NULL,
+    status TEXT NOT NULL DEFAULT 'unpaid' CHECK (status IN ('unpaid', 'submitted', 'paid', 'rejected')),
+    payment_submission_id INTEGER,
+    paid_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE,
+    FOREIGN KEY (seller_id) REFERENCES sellers(seller_id)
+);
+
+CREATE TABLE IF NOT EXISTS cod_payment_submissions (
+    submission_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    seller_id INTEGER NOT NULL,
+    amount REAL NOT NULL CHECK (amount > 0),
+    payment_method TEXT NOT NULL CHECK (payment_method IN ('kpay', 'wavepay', 'ayapay')),
+    reference TEXT NOT NULL,
+    proof_url TEXT,
+    note TEXT,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    admin_note TEXT,
+    submitted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    verified_at DATETIME,
+    FOREIGN KEY (seller_id) REFERENCES sellers(seller_id)
 );
 
 -- --------------------------------------------------------------------------
@@ -250,6 +291,30 @@ CREATE TABLE IF NOT EXISTS festival_books (
     UNIQUE (festival_id, book_id),
     FOREIGN KEY (festival_id) REFERENCES voting_festivals(festival_id) ON DELETE CASCADE,
     FOREIGN KEY (book_id) REFERENCES products(book_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS voting_external_books (
+    external_book_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    festival_id INTEGER NOT NULL,
+    book_title TEXT NOT NULL,
+    book_link TEXT NOT NULL,
+    image_url TEXT NOT NULL,
+    author_name TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (festival_id, book_link),
+    FOREIGN KEY (festival_id) REFERENCES voting_festivals(festival_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS voting_external_votes (
+    vote_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    festival_id INTEGER NOT NULL,
+    external_book_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    voted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (festival_id, user_id),
+    FOREIGN KEY (festival_id) REFERENCES voting_festivals(festival_id) ON DELETE CASCADE,
+    FOREIGN KEY (external_book_id) REFERENCES voting_external_books(external_book_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS votes (
@@ -354,6 +419,29 @@ CREATE TABLE IF NOT EXISTS transactions (
     reference_id TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS withdrawal_requests (
+    withdrawal_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_type TEXT NOT NULL CHECK (owner_type IN ('user', 'seller')),
+    owner_id INTEGER NOT NULL,
+    source_balance TEXT NOT NULL CHECK (source_balance IN ('wallet_balance', 'resell_balance')),
+    amount REAL NOT NULL CHECK (amount > 0),
+    fee REAL NOT NULL DEFAULT 0 CHECK (fee >= 0),
+    net_amount REAL NOT NULL CHECK (net_amount > 0),
+    payment_method TEXT NOT NULL CHECK (payment_method IN ('kpay', 'wavepay', 'ayapay')),
+    account_name TEXT NOT NULL,
+    account_phone TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'paid', 'rejected')),
+    admin_note TEXT,
+    admin_reference TEXT,
+    requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at DATETIME,
+    paid_at DATETIME,
+    rejected_at DATETIME
+);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawal_status ON withdrawal_requests(status, requested_at);
+CREATE INDEX IF NOT EXISTS idx_withdrawal_owner ON withdrawal_requests(owner_type, owner_id, requested_at);
 
 CREATE TABLE IF NOT EXISTS agent_deposit_requests (
     deposit_id INTEGER PRIMARY KEY AUTOINCREMENT,

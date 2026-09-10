@@ -5,6 +5,7 @@ const { authenticate } = require('../middleware/auth');
 const { moderateMessage } = require('../utils/gemini');
 const upload = require('../middleware/upload');
 const { uploadToCloudinary } = require('../utils/cloudinary');
+const { sendPushNotification } = require('../utils/webpush');
 
 const getIdentity = (user) => {
     const id = user.user_id || user.seller_id || user.id;
@@ -113,6 +114,13 @@ router.post('/', authenticate, async (req, res) => {
             args: [convId]
         });
 
+        const conversation = await db.execute({ sql: 'SELECT participants FROM conversations WHERE conversation_id = ?', args: [convId] });
+        for (const participant of JSON.parse(conversation.rows[0]?.participants || '[]')) {
+            if (participant === senderIdentifier) continue;
+            if (participant.startsWith('U')) await sendPushNotification(Number(participant.slice(1)), 'buyer', { title: 'New chat message', body: String(content).slice(0, 120), tag: `chat-${convId}`, url: `/index.html#chat?conversation=${convId}` });
+            if (participant.startsWith('S')) await sendPushNotification(Number(participant.slice(1)), 'seller', { title: 'New chat message', body: String(content).slice(0, 120), tag: `chat-${convId}`, url: `/store-dashboard.html#chat?conversation=${convId}` });
+        }
+
         res.json({ success: true, conversation_id: convId, store_reply: storeReply });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -134,6 +142,13 @@ router.post('/image', authenticate, upload.single('image'), async (req, res) => 
                   VALUES (?, ?, ?, 'image', ?)`,
             args: [conversation_id, identity.identifier, identity.type, url]
         });
+
+        const conversation = await db.execute({ sql: 'SELECT participants FROM conversations WHERE conversation_id = ?', args: [conversation_id] });
+        for (const participant of JSON.parse(conversation.rows[0]?.participants || '[]')) {
+            if (participant === identity.identifier) continue;
+            if (participant.startsWith('U')) await sendPushNotification(Number(participant.slice(1)), 'buyer', { title: 'New chat image', body: 'A new image was sent in chat.', tag: `chat-${conversation_id}`, url: `/index.html#chat?conversation=${conversation_id}` });
+            if (participant.startsWith('S')) await sendPushNotification(Number(participant.slice(1)), 'seller', { title: 'New chat image', body: 'A new image was sent in chat.', tag: `chat-${conversation_id}`, url: `/store-dashboard.html#chat?conversation=${conversation_id}` });
+        }
 
         res.json({ success: true, url });
     } catch (err) {

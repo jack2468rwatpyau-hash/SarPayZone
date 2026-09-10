@@ -6,6 +6,9 @@ const db = require('../db');
 const config = require('../config');
 const { authenticate, requirePasswordCode } = require('../middleware/auth');
 
+const normalizePhone = (value) => String(value || '').replace(/[\s-]/g, '');
+const sellerRoles = new Set(['publisher', 'bookstore', 'commission_store', 'agent', 'admin']);
+
 // Buyer: Check Password Code
 router.post('/buyer/check-code', requirePasswordCode, (req, res) => {
     res.json({ valid: true });
@@ -14,8 +17,9 @@ router.post('/buyer/check-code', requirePasswordCode, (req, res) => {
 // Buyer Register
 router.post('/buyer/register', async (req, res) => {
     try {
-        const { name, phone, password, city } = req.body;
-        if (!name || !phone || !password || password.length < 8) {
+        const { name, password, city } = req.body;
+        const phone = normalizePhone(req.body.phone);
+        if (!String(name || '').trim() || !/^09\d{7,13}$/.test(phone) || !password || password.length < 8 || password.length > 128) {
             return res.status(400).json({ error: 'Invalid input. Password min 8 chars.' });
         }
 
@@ -25,7 +29,7 @@ router.post('/buyer/register', async (req, res) => {
         });
         if (existing.rows.length > 0) return res.status(400).json({ error: 'Phone already registered' });
 
-        const hash = await bcrypt.hash(password, 10);
+        const hash = await bcrypt.hash(password, 12);
         const count = await db.execute({ sql: 'SELECT COUNT(*) as c FROM users' });
         const publicId = `CU#${String(count.rows[0].c + 1).padStart(4, '0')}`;
 
@@ -44,7 +48,9 @@ router.post('/buyer/register', async (req, res) => {
 // Buyer Login
 router.post('/buyer/login', async (req, res) => {
     try {
-        const { phone, password } = req.body;
+        const phone = normalizePhone(req.body.phone);
+        const { password } = req.body;
+        if (!/^09\d{7,13}$/.test(phone) || !password || password.length > 128) return res.status(400).json({ error: 'Invalid credentials' });
         const user = await db.execute({
             sql: 'SELECT * FROM users WHERE phone = ? AND account_status = "active"',
             args: [phone]
@@ -69,7 +75,9 @@ router.post('/buyer/login', async (req, res) => {
 // Seller/Agent Login (Dedicated URLs use same endpoint with role check)
 router.post('/seller/login', async (req, res) => {
     try {
-        const { phone, password, role } = req.body;
+        const phone = normalizePhone(req.body.phone);
+        const { password, role } = req.body;
+        if (!sellerRoles.has(role) || !/^09\d{7,13}$/.test(phone) || !password || password.length > 128) return res.status(400).json({ error: 'Invalid credentials' });
         const seller = await db.execute({
             sql: 'SELECT * FROM sellers WHERE phone = ? AND role = ?',
             args: [phone, role]

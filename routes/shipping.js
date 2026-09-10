@@ -20,7 +20,13 @@ router.get('/', authenticate, requireRole('publisher', 'bookstore', 'commission_
 // Update/Create shipping rate
 router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
     try {
-        const { state, city, township, is_no_shipping, is_cod_allowed, is_prepay_allowed, prepay_shipping_fee } = req.body;
+        const { state, city, township, is_no_shipping, is_cod_allowed, is_prepay_allowed } = req.body;
+        const fee = Number(req.body.prepay_shipping_fee);
+        if (!String(state || '').trim() || !String(city || '').trim() || !String(township || '').trim()) return res.status(400).json({ error: 'ပြည်နယ်၊ ခရိုင်နှင့် မြို့နယ်ကို ရွေးချယ်ပါ' });
+        if (!Number.isFinite(fee) || fee < 0 || fee > 1000000) return res.status(400).json({ error: 'ပို့ခကို မှန်ကန်စွာ ထည့်ပါ' });
+        const noShipping = Number(is_no_shipping) === 1 ? 1 : 0;
+        const codAllowed = Number(is_cod_allowed) === 1 ? 1 : 0;
+        const prepayAllowed = Number(is_prepay_allowed) === 1 ? 1 : 0;
         
         const existing = await db.execute({
             sql: 'SELECT rate_id FROM shipping_rates WHERE seller_id = ? AND state = ? AND city = ? AND township = ?',
@@ -32,13 +38,13 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
                 sql: `UPDATE shipping_rates 
                       SET is_no_shipping = ?, is_cod_allowed = ?, is_prepay_allowed = ?, prepay_shipping_fee = ? 
                       WHERE rate_id = ?`,
-                args: [is_no_shipping, is_cod_allowed, is_prepay_allowed, prepay_shipping_fee || 5000, existing.rows[0].rate_id]
+                args: [noShipping, codAllowed, prepayAllowed, fee, existing.rows[0].rate_id]
             });
         } else {
             await db.execute({
                 sql: `INSERT INTO shipping_rates (seller_id, state, city, township, is_no_shipping, is_cod_allowed, is_prepay_allowed, prepay_shipping_fee) 
                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                args: [req.user.seller_id, state, city, township, is_no_shipping, is_cod_allowed, is_prepay_allowed, prepay_shipping_fee || 5000]
+                args: [req.user.seller_id, state.trim(), city.trim(), township.trim(), noShipping, codAllowed, prepayAllowed, fee]
             });
         }
 
@@ -81,4 +87,3 @@ router.post('/bulk', authenticate, requireRole('publisher', 'bookstore', 'commis
 });
 
 module.exports = router;
-

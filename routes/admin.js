@@ -59,6 +59,9 @@ router.patch('/users/:id/status', authenticate, requireRole('admin'), async (req
 router.post('/sellers', authenticate, requireRole('admin'), async (req, res) => {
     try {
         const { name, phone, password, role, store_name } = req.body;
+        if (!String(name || '').trim() || !/^09\d{7,13}$/.test(String(phone || '').trim()) || !String(password || '') || String(password).length < 8 || !['publisher', 'bookstore', 'commission_store', 'agent'].includes(role)) return res.status(400).json({ error: 'ဆိုင်အမည်၊ 09 ဖုန်းနံပါတ်၊ Password နှင့် Role ကို မှန်ကန်စွာထည့်ပါ' });
+        const duplicate = await db.execute({ sql: 'SELECT seller_id FROM sellers WHERE phone = ?', args: [phone.trim()] });
+        if (duplicate.rows.length) return res.status(409).json({ error: 'ဒီဖုန်းနံပါတ်ဖြင့် အကောင့်ရှိပြီးသားပါ' });
         const hash = await bcrypt.hash(password, 10);
         
         const count = await db.execute({ sql: 'SELECT COUNT(*) as c FROM sellers WHERE role = ?', args: [role] });
@@ -248,8 +251,8 @@ router.get('/festivals', authenticate, requireRole('admin'), async (req, res) =>
     try {
         const festivals = await db.execute({
             sql: `SELECT f.*,
-                  (SELECT COUNT(*) FROM votes WHERE festival_id = f.festival_id) as total_votes,
-                  (SELECT COUNT(*) FROM festival_books WHERE festival_id = f.festival_id) as book_count
+                  (SELECT COUNT(*) FROM votes WHERE festival_id = f.festival_id) + (SELECT COUNT(*) FROM voting_external_votes WHERE festival_id = f.festival_id) as total_votes,
+                  (SELECT COUNT(*) FROM festival_books WHERE festival_id = f.festival_id) + (SELECT COUNT(*) FROM voting_external_books WHERE festival_id = f.festival_id) as book_count
                   FROM voting_festivals f ORDER BY f.created_at DESC`
         });
         res.json(festivals.rows);
@@ -302,6 +305,27 @@ router.delete('/festivals/:id/books/:bookId', authenticate, requireRole('admin')
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+});
+
+router.get('/festivals/:id/external-books', authenticate, requireRole('admin'), async (req, res) => {
+    try {
+        const rows = await db.execute({ sql: `SELECT b.*, (SELECT COUNT(*) FROM voting_external_votes v WHERE v.external_book_id = b.external_book_id) AS vote_count FROM voting_external_books b WHERE b.festival_id = ? ORDER BY b.created_at DESC`, args: [req.params.id] });
+        res.json(rows.rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/festivals/:id/external-books', authenticate, requireRole('admin'), async (req, res) => {
+    try {
+        const { book_title, book_link, image_url, author_name } = req.body;
+        if (!String(book_title || '').trim() || !/^https?:\/\//i.test(String(book_link || '')) || !/^https?:\/\//i.test(String(image_url || ''))) return res.status(400).json({ error: 'စာအုပ်အမည်၊ link နှင့် image URL ကို မှန်ကန်စွာထည့်ပါ' });
+        await db.execute({ sql: 'INSERT INTO voting_external_books (festival_id, book_title, book_link, image_url, author_name) VALUES (?, ?, ?, ?, ?)', args: [req.params.id, book_title.trim(), book_link.trim(), image_url.trim(), String(author_name || '').trim() || null] });
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/festivals/:id/external-books/:bookId', authenticate, requireRole('admin'), async (req, res) => {
+    try { await db.execute({ sql: 'DELETE FROM voting_external_books WHERE festival_id = ? AND external_book_id = ?', args: [req.params.id, req.params.bookId] }); res.json({ success: true }); }
+    catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.post('/festivals', authenticate, requireRole('admin'), async (req, res) => {

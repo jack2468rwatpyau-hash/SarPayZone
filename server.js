@@ -13,6 +13,7 @@ const errorHandler = require('./middleware/errorHandler');
 const { authenticate } = require('./middleware/auth');
 const { initCronJobs } = require('./utils/cronJobs');
 const { moderateMessage } = require('./utils/gemini');
+const { sendPushNotification } = require('./utils/webpush');
 
 // Routes
 const authRoutes = require('./routes/auth');
@@ -26,6 +27,7 @@ const resellRoutes = require('./routes/resell');
 const adminRoutes = require('./routes/admin');
 const buyerRoutes = require('./routes/buyer');
 const storeRoutes = require('./routes/store');
+const settlementRoutes = require('./routes/settlements');
 
 const app = express();
 const server = http.createServer(app);
@@ -37,8 +39,16 @@ app.get('/health', (req, res) => {
 
 // Security middleware
 app.use(helmet());
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin || config.CORS_ORIGINS.includes('*') || config.CORS_ORIGINS.includes(origin)) return callback(null, true);
+        return callback(new Error('Origin not allowed'));
+    },
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: false
+}));
+app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting
@@ -48,6 +58,8 @@ const limiter = rateLimit({
     message: 'Too many requests, please try again later.'
 });
 app.use('/api/', limiter);
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many authentication attempts. Try again later.' } });
+app.use('/api/auth/', authLimiter);
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -61,6 +73,7 @@ app.use('/api/resell', resellRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/buyer', buyerRoutes);
 app.use('/api/store', storeRoutes);
+app.use('/api/settlements', settlementRoutes);
 
 // Web Push subscription
 app.post('/api/push/subscribe', authenticate, async (req, res) => {
@@ -68,8 +81,10 @@ app.post('/api/push/subscribe', authenticate, async (req, res) => {
         const { endpoint, keys } = req.body;
         const isBuyer = req.user.role === 'buyer';
         await db.execute({
-            sql: `INSERT INTO push_subscriptions (user_id, seller_id, endpoint, keys_p256dh, keys_auth) 
-                  VALUES (?, ?, ?, ?, ?)`,
+            sql: `INSERT INTO push_subscriptions (user_id, seller_id, endpoint, keys_p256dh, keys_auth)
+                  VALUES (?, ?, ?, ?, ?)
+                  ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id, seller_id = excluded.seller_id,
+                    keys_p256dh = excluded.keys_p256dh, keys_auth = excluded.keys_auth`,
             args: [
                 isBuyer ? req.user.user_id || req.user.id : null,
                 !isBuyer ? req.user.seller_id : null,
@@ -146,6 +161,12 @@ io.on('connection', (socket) => {
             await db.execute({ sql: 'UPDATE conversations SET last_message_at = datetime("now") WHERE conversation_id = ?', args: [conversationId] });
             const message = { message_id: inserted.lastInsertRowid, conversation_id: conversationId, content, sender_id: identity.identifier, sender_type: identity.type, created_at: new Date().toISOString() };
             io.to(`conv_${conversationId}`).emit('new_message', message);
+            const participants = await db.execute({ sql: 'SELECT participants FROM conversations WHERE conversation_id = ?', args: [conversationId] });
+            for (const participant of JSON.parse(participants.rows[0]?.participants || '[]')) {
+                if (participant === identity.identifier) continue;
+                if (participant.startsWith('U')) await sendPushNotification(Number(participant.slice(1)), 'buyer', { title: 'New chat message', body: content.slice(0, 120), tag: `chat-${conversationId}`, url: `/index.html#chat?conversation=${conversationId}` });
+                if (participant.startsWith('S')) await sendPushNotification(Number(participant.slice(1)), 'seller', { title: 'New chat message', body: content.slice(0, 120), tag: `chat-${conversationId}`, url: `/store-dashboard.html#chat?conversation=${conversationId}` });
+            }
             if (typeof acknowledge === 'function') acknowledge({ ok: true, message });
         } catch (error) {
             if (typeof acknowledge === 'function') acknowledge({ ok: false, error: error.message });
