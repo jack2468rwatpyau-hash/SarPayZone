@@ -288,9 +288,9 @@ router.patch('/:id/status', authenticate, async (req, res) => {
                 args: [status, req.params.id]
             });
 
-            // On delivery, transfer to seller wallet minus commission
+            // On delivery, transfer merchandise revenue plus seller-defined shipping, minus commission.
             if (status === 'delivered' && ord.payment_status === 'paid' && ord.order_status !== 'delivered') {
-                const sellerAmount = Math.max(0, ord.total_amount - ord.shipping_fee - ord.commission_amount);
+                const sellerAmount = Math.max(0, Number(ord.total_amount) + Number(ord.shipping_fee || 0) - Number(ord.commission_amount || 0));
                 if (ord.resell_listing_id && ord.resell_seller_id) {
                     await db.execute({
                         sql: 'UPDATE users SET resell_balance = resell_balance + ? WHERE user_id = ?',
