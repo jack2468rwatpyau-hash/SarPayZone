@@ -16,3 +16,4 @@ CREATE TABLE IF NOT EXISTS agent_deposit_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_agent_deposits_agent ON agent_deposit_requests(agent_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_agent_deposits_buyer ON agent_deposit_requests(buyer_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_deposits_verification_code ON agent_deposit_requests(verification_code);

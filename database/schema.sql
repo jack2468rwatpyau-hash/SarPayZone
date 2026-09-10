@@ -180,7 +180,7 @@ CREATE TABLE IF NOT EXISTS orders (
     commission_amount REAL NOT NULL DEFAULT 0 CHECK (commission_amount >= 0),
     markup_amount REAL NOT NULL DEFAULT 0 CHECK (markup_amount >= 0),
     payment_method TEXT NOT NULL DEFAULT 'cod'
-        CHECK (payment_method IN ('cod', 'pre_order', 'wallet', 'agent')),
+        CHECK (payment_method IN ('cod', 'pre_order', 'wallet')),
     payment_status TEXT NOT NULL DEFAULT 'pending'
         CHECK (payment_status IN ('pending', 'paid', 'refunded', 'failed')),
     order_status TEXT NOT NULL DEFAULT 'new'
@@ -355,7 +355,7 @@ CREATE TABLE IF NOT EXISTS agent_deposit_requests (
     agent_id INTEGER NOT NULL,
     buyer_id INTEGER NOT NULL,
     amount REAL NOT NULL CHECK (amount > 0),
-    verification_code TEXT NOT NULL,
+    verification_code TEXT NOT NULL UNIQUE,
     status TEXT NOT NULL DEFAULT 'verified'
         CHECK (status IN ('pending', 'verified', 'rejected', 'reversed')),
     verified_at DATETIME,

@@ -181,6 +181,12 @@ router.post('/cashin', authenticate, requireRole('agent'), async (req, res) => {
         if (!verification_code || String(verification_code).trim().length < 4) {
             return res.status(400).json({ error: 'Verification code is required' });
         }
+        const verificationCode = String(verification_code).trim();
+        const duplicate = await db.execute({
+            sql: 'SELECT deposit_id FROM agent_deposit_requests WHERE verification_code = ? LIMIT 1',
+            args: [verificationCode]
+        });
+        if (duplicate.rows.length) return res.status(409).json({ error: 'This verification reference has already been used' });
         
         const buyer = await db.execute({
             sql: 'SELECT user_id, account_status FROM users WHERE public_id = ?',
@@ -211,7 +217,7 @@ router.post('/cashin', authenticate, requireRole('agent'), async (req, res) => {
             sql: `INSERT INTO agent_deposit_requests
                   (public_id, agent_id, buyer_id, amount, verification_code, status, verified_at, note)
                   VALUES (?, ?, ?, ?, ?, 'verified', datetime('now'), ?)`,
-            args: [depositPublicId, req.user.seller_id, buyer.rows[0].user_id, numericAmount, String(verification_code).trim(), note || null]
+            args: [depositPublicId, req.user.seller_id, buyer.rows[0].user_id, numericAmount, verificationCode, note || null]
         });
 
         await db.execute({

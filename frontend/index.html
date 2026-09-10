@@ -651,12 +651,11 @@
         async function buyResell(listingId) {
             const shippingAddress = prompt('Enter delivery address');
             if (!shippingAddress) return;
-            const useWallet = confirm('Pay from wallet? Choose Cancel to pay through Agent.');
             try {
                 const res = await fetch(`${API_URL}/orders`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                    body: JSON.stringify({ resell_listing_id: listingId, quantity: 1, shipping_address: shippingAddress, payment_method: useWallet ? 'wallet' : 'agent' })
+                    body: JSON.stringify({ resell_listing_id: listingId, quantity: 1, shipping_address: shippingAddress, payment_method: 'wallet' })
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Resell checkout failed');
@@ -813,8 +812,8 @@
             if (!cart.length) { alert('Your cart is empty'); return; }
             const shipping_address = prompt('Enter delivery address');
             if (!shipping_address) return;
-            const payment_method = prompt('Payment method: wallet, cod, or agent', 'wallet') || 'wallet';
-            if (!['wallet', 'cod', 'agent'].includes(payment_method)) { alert('Payment method must be wallet, cod, or agent'); return; }
+            const payment_method = prompt('Payment method: wallet or cod', 'wallet') || 'wallet';
+            if (!['wallet', 'cod'].includes(payment_method)) { alert('Payment method must be wallet or cod'); return; }
             if (!confirm('ခြင်းတောင်းထဲရှိ ပစ္စည်းများကို ဆိုင်အလိုက်စုစည်းပြီး အော်ဒါတင်မလား? ပို့ခကို ဆိုင်တစ်ဆိုင်စီအတွက် တစ်ကြိမ်သာတွက်ပါမယ်။')) return;
             const res = await fetch(`${API_URL}/orders/bulk`, {
                 method: 'POST',

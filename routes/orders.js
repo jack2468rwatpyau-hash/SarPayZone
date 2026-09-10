@@ -12,9 +12,9 @@ router.post('/', authenticate, async (req, res) => {
     try {
         const { product_id, variation_id, resell_listing_id, quantity, shipping_address, payment_method, p2p_friend_id } = req.body;
         const parsedQuantity = Math.max(1, parseInt(quantity, 10) || 1);
-        if (!['wallet', 'cod', 'agent'].includes(payment_method)) return res.status(400).json({ error: 'Invalid payment method' });
-        if (resell_listing_id && !['wallet', 'agent'].includes(payment_method)) {
-            return res.status(400).json({ error: 'C2C listings require platform wallet or agent payment' });
+        if (!['wallet', 'cod'].includes(payment_method)) return res.status(400).json({ error: 'Payment must use wallet or COD. Agents add funds to the buyer wallet.' });
+        if (resell_listing_id && payment_method !== 'wallet') {
+            return res.status(400).json({ error: 'C2C listings require wallet payment' });
         }
 
         const product = resell_listing_id
@@ -129,7 +129,7 @@ router.post('/bulk', authenticate, async (req, res) => {
         const { items, shipping_address, payment_method = 'wallet', p2p_friend_id } = req.body;
         const buyerId = req.user.user_id || req.user.id;
         if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
-        if (!['wallet', 'cod', 'agent'].includes(payment_method)) return res.status(400).json({ error: 'Invalid payment method' });
+        if (!['wallet', 'cod'].includes(payment_method)) return res.status(400).json({ error: 'Payment must use wallet or COD. Agents add funds to the buyer wallet.' });
         if (!shipping_address) return res.status(400).json({ error: 'Shipping address is required' });
 
         const prepared = [];
@@ -311,19 +311,33 @@ router.patch('/:id/status', authenticate, async (req, res) => {
 
         // Buyer can cancel within 30 minutes
         if (status === 'cancelled' && req.user.role === 'buyer' && ord.buyer_id === req.user.user_id) {
+            if (['cancelled', 'delivered'].includes(ord.order_status)) return res.status(400).json({ error: 'This order cannot be cancelled' });
             const created = new Date(ord.created_at);
             const now = new Date();
             const diffMins = (now - created) / 60000;
 
             if (diffMins > 30) return res.status(400).json({ error: 'Cancellation window expired (30 mins)' });
 
-            const refundFee = ord.total_amount * 0.02;
-            const refundAmount = ord.total_amount - refundFee;
+            const refundFee = ord.payment_method === 'wallet' ? Number(ord.total_amount) * 0.02 : 0;
+            const refundAmount = Number(ord.total_amount) + Number(ord.shipping_fee || 0) - refundFee;
+            const nextPaymentStatus = ord.payment_status === 'paid' ? 'refunded' : 'failed';
 
             await db.execute({
-                sql: 'UPDATE orders SET order_status = "cancelled", payment_status = "refunded" WHERE order_id = ?',
-                args: [req.params.id]
+                sql: 'UPDATE orders SET order_status = "cancelled", payment_status = ? WHERE order_id = ? AND order_status NOT IN ("cancelled", "delivered")',
+                args: [nextPaymentStatus, req.params.id]
             });
+
+            if (ord.resell_listing_id) {
+                await db.execute({
+                    sql: 'UPDATE resell_listings SET status = "approved", updated_at = datetime("now") WHERE listing_id = ? AND status = "sold"',
+                    args: [ord.resell_listing_id]
+                });
+            } else {
+                await db.execute({
+                    sql: 'UPDATE products SET stock_quantity = stock_quantity + ? WHERE book_id = ?',
+                    args: [ord.quantity, ord.product_id]
+                });
+            }
 
             if (ord.payment_method === 'wallet') {
                 await db.execute({
