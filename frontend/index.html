@@ -642,9 +642,29 @@
                             ${l.final_price ? `<small class="resell-markup">Seller price ${Number(l.asking_price).toLocaleString()} Ks + platform markup</small>` : ''}
                         </div>
                         <p class="seller-info"><i class="fas fa-user"></i> ${l.seller_name} (${l.city || 'N/A'})</p>
+                        <button class="btn-primary resell-buy-btn" onclick="buyResell(${l.listing_id})">Buy with Platform Payment</button>
                     </div>
                 </div>
             `).join('') || '<p class="empty-text">No resell listings available</p>';
+        }
+
+        async function buyResell(listingId) {
+            const shippingAddress = prompt('Enter delivery address');
+            if (!shippingAddress) return;
+            const useWallet = confirm('Pay from wallet? Choose Cancel to pay through Agent.');
+            try {
+                const res = await fetch(`${API_URL}/orders`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ resell_listing_id: listingId, quantity: 1, shipping_address: shippingAddress, payment_method: useWallet ? 'wallet' : 'agent' })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Resell checkout failed');
+                alert(`C2C order created: ${data.order_number}`);
+                navigateTo('orders');
+            } catch (err) {
+                alert(err.message);
+            }
         }
 
         // ===== SEARCH =====

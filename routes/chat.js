@@ -6,6 +6,21 @@ const { moderateMessage } = require('../utils/gemini');
 const upload = require('../middleware/upload');
 const { uploadToCloudinary } = require('../utils/cloudinary');
 
+const getIdentity = (user) => {
+    const id = user.user_id || user.seller_id || user.id;
+    const prefix = user.role === 'buyer' ? 'U' : 'S';
+    return { id, identifier: `${prefix}${id}`, type: user.role === 'buyer' ? 'user' : (user.role === 'admin' ? 'admin' : 'seller') };
+};
+
+const getConversationForUser = async (conversationId, user) => {
+    const identity = getIdentity(user);
+    const result = await db.execute({
+        sql: 'SELECT * FROM conversations WHERE conversation_id = ? AND participants LIKE ?',
+        args: [conversationId, `%"${identity.identifier}"%`]
+    });
+    return result.rows[0];
+};
+
 // Get conversations
 router.get('/conversations', authenticate, async (req, res) => {
     try {
@@ -31,6 +46,7 @@ router.get('/conversations', authenticate, async (req, res) => {
 // Get messages
 router.get('/:conversationId', authenticate, async (req, res) => {
     try {
+        if (!await getConversationForUser(req.params.conversationId, req.user)) return res.status(403).json({ error: 'Not a conversation participant' });
         const messages = await db.execute({
             sql: `SELECT m.*, 
                   CASE 
@@ -52,9 +68,8 @@ router.get('/:conversationId', authenticate, async (req, res) => {
 router.post('/', authenticate, async (req, res) => {
     try {
         const { conversation_id, content, conversation_type, participants, related_order_id } = req.body;
-        const senderId = req.user.user_id || req.user.id;
-        const senderPrefix = req.user.role === 'buyer' ? 'U' : 'S';
-        const senderIdentifier = `${senderPrefix}${senderId}`;
+        const identity = getIdentity(req.user);
+        const senderIdentifier = identity.identifier;
 
         // AI Moderation
         const isFlagged = await moderateMessage(content);
@@ -65,19 +80,22 @@ router.post('/', authenticate, async (req, res) => {
         // Create conversation if new
         let convId = conversation_id;
         if (!convId) {
-            const participantsJson = JSON.stringify(participants || [senderIdentifier]);
+            const participantList = Array.from(new Set([senderIdentifier, ...(Array.isArray(participants) ? participants : [])]));
+            const participantsJson = JSON.stringify(participantList);
             const conv = await db.execute({
                 sql: `INSERT INTO conversations (conversation_type, participants, related_order_id) 
                       VALUES (?, ?, ?)`,
                 args: [conversation_type || 'buyer_shop', participantsJson, related_order_id || null]
             });
             convId = conv.lastInsertRowid;
+        } else if (!await getConversationForUser(convId, req.user)) {
+            return res.status(403).json({ error: 'Not a conversation participant' });
         }
 
         await db.execute({
             sql: `INSERT INTO messages (conversation_id, sender_id, sender_type, content) 
                   VALUES (?, ?, ?, ?)`,
-            args: [convId, senderIdentifier, req.user.role === 'buyer' ? 'user' : 'seller', content]
+            args: [convId, senderIdentifier, identity.type, content]
         });
 
         await db.execute({
@@ -95,15 +113,16 @@ router.post('/', authenticate, async (req, res) => {
 router.post('/image', authenticate, upload.single('image'), async (req, res) => {
     try {
         const { conversation_id } = req.body;
+        if (!req.file) return res.status(400).json({ error: 'Image file is required' });
+        if (!await getConversationForUser(conversation_id, req.user)) return res.status(403).json({ error: 'Not a conversation participant' });
         const url = await uploadToCloudinary(req.file.buffer, `chat/${conversation_id}`, 'chat');
         
-        const senderId = req.user.user_id || req.user.id;
-        const senderPrefix = req.user.role === 'buyer' ? 'U' : 'S';
+        const identity = getIdentity(req.user);
         
         await db.execute({
             sql: `INSERT INTO messages (conversation_id, sender_id, sender_type, message_type, content) 
                   VALUES (?, ?, ?, 'image', ?)`,
-            args: [conversation_id, `${senderPrefix}${senderId}`, req.user.role === 'buyer' ? 'user' : 'seller', url]
+            args: [conversation_id, identity.identifier, identity.type, url]
         });
 
         res.json({ success: true, url });

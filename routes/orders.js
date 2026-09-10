@@ -10,19 +10,31 @@ const { sendPushNotification } = require('../utils/webpush');
 // Create order
 router.post('/', authenticate, async (req, res) => {
     try {
-        const { product_id, variation_id, quantity, shipping_address, payment_method, p2p_friend_id } = req.body;
+        const { product_id, variation_id, resell_listing_id, quantity, shipping_address, payment_method, p2p_friend_id } = req.body;
         const parsedQuantity = Math.max(1, parseInt(quantity, 10) || 1);
         if (!['wallet', 'cod', 'agent'].includes(payment_method)) return res.status(400).json({ error: 'Invalid payment method' });
-        
-        const product = await db.execute({
-            sql: 'SELECT p.*, s.role, s.telegram_user_id, s.seller_id FROM products p JOIN sellers s ON p.seller_id = s.seller_id WHERE p.book_id = ?',
-            args: [product_id]
-        });
+        if (resell_listing_id && !['wallet', 'agent'].includes(payment_method)) {
+            return res.status(400).json({ error: 'C2C listings require platform wallet or agent payment' });
+        }
+
+        const product = resell_listing_id
+            ? await db.execute({
+                sql: `SELECT r.listing_id, r.seller_id AS resell_seller_id, r.final_price, r.asking_price,
+                             p.*, 'resell' AS role, NULL AS telegram_user_id, NULL AS store_seller_id
+                      FROM resell_listings r JOIN products p ON r.product_id = p.book_id
+                      WHERE r.listing_id = ? AND r.status = 'approved'`,
+                args: [resell_listing_id]
+            })
+            : await db.execute({
+                sql: 'SELECT p.*, s.role, s.telegram_user_id, s.seller_id AS store_seller_id FROM products p JOIN sellers s ON p.seller_id = s.seller_id WHERE p.book_id = ?',
+                args: [product_id]
+            });
         if (product.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
 
         const prod = product.rows[0];
-        const unitPrice = prod.discounted_price || prod.original_price;
-        if (Number(prod.stock_quantity || 0) < parsedQuantity) return res.status(400).json({ error: 'Insufficient stock' });
+        const resolvedProductId = prod.book_id;
+        const unitPrice = resell_listing_id ? Number(prod.final_price || prod.asking_price) : Number(prod.discounted_price || prod.original_price);
+        if (!resell_listing_id && Number(prod.stock_quantity || 0) < parsedQuantity) return res.status(400).json({ error: 'Insufficient stock' });
         const total = unitPrice * parsedQuantity;
 
         // Get shipping fee
@@ -30,11 +42,11 @@ router.post('/', authenticate, async (req, res) => {
         const shippingRate = await db.execute({
             sql: `SELECT prepay_shipping_fee FROM shipping_rates 
                   WHERE seller_id = ? AND is_no_shipping = 0 LIMIT 1`,
-            args: [prod.seller_id]
+            args: [prod.store_seller_id || 0]
         });
         if (shippingRate.rows.length > 0) shippingFee = shippingRate.rows[0].prepay_shipping_fee;
 
-        const commissionRate = calculateCommission(prod.role, total);
+        const commissionRate = resell_listing_id ? 0.08 : calculateCommission(prod.role, total);
         const commission = total * commissionRate;
         const finalTotal = total + shippingFee;
 
@@ -53,17 +65,27 @@ router.post('/', authenticate, async (req, res) => {
         const orderNumber = `SPZ-${Date.now()}-${String(orderCount.rows[0].c + 1).padStart(4, '0')}`;
 
         const result = await db.execute({
-            sql: `INSERT INTO orders (order_number, buyer_id, seller_id, product_id, variation_id, quantity, 
-                  total_amount, shipping_fee, commission_amount, payment_method, payment_status, shipping_address, p2p_friend_id)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            args: [orderNumber, req.user.user_id || req.user.id, prod.seller_id, product_id, variation_id, parsedQuantity,
-                   total, shippingFee, commission, payment_method, payment_method === 'wallet' ? 'paid' : 'pending', shipping_address, p2p_friend_id || null]
+            sql: `INSERT INTO orders (order_number, buyer_id, seller_id, product_id, variation_id, resell_listing_id, resell_seller_id, quantity,
+                  total_amount, shipping_fee, commission_amount, markup_amount, payment_method, payment_status, shipping_address, p2p_friend_id)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            args: [orderNumber, req.user.user_id || req.user.id, prod.store_seller_id || null, resolvedProductId, variation_id,
+                   resell_listing_id || null, resell_listing_id ? prod.resell_seller_id : null, parsedQuantity,
+                   total, shippingFee, commission,
+                   resell_listing_id ? (unitPrice - Number(prod.asking_price || 0)) * parsedQuantity : 0,
+                   payment_method, payment_method === 'wallet' ? 'paid' : 'pending', shipping_address, p2p_friend_id || null]
         });
 
-        await db.execute({
-            sql: 'UPDATE products SET stock_quantity = stock_quantity - ? WHERE book_id = ? AND stock_quantity >= ?',
-            args: [parsedQuantity, product_id, parsedQuantity]
-        });
+        if (!resell_listing_id) {
+            await db.execute({
+                sql: 'UPDATE products SET stock_quantity = stock_quantity - ? WHERE book_id = ? AND stock_quantity >= ?',
+                args: [parsedQuantity, resolvedProductId, parsedQuantity]
+            });
+        } else {
+            await db.execute({
+                sql: 'UPDATE resell_listings SET status = "sold", updated_at = datetime("now") WHERE listing_id = ?',
+                args: [resell_listing_id]
+            });
+        }
 
         // Deduct wallet if wallet payment
         if (payment_method === 'wallet') {
@@ -236,6 +258,9 @@ router.get('/seller', authenticate, requireRole('publisher', 'bookstore', 'commi
 router.patch('/:id/status', authenticate, async (req, res) => {
     try {
         const { status } = req.body;
+        if (!['approved', 'shipping', 'delivered', 'cancelled', 'disputed'].includes(status)) {
+            return res.status(400).json({ error: 'Invalid order status' });
+        }
         const order = await db.execute({
             sql: 'SELECT * FROM orders WHERE order_id = ?',
             args: [req.params.id]
@@ -245,15 +270,33 @@ router.patch('/:id/status', authenticate, async (req, res) => {
         const ord = order.rows[0];
 
         // Seller can update to approved/shipping/delivered
-        if (req.user.role !== 'buyer' && ord.seller_id === req.user.seller_id) {
+        const isStoreSeller = req.user.role !== 'buyer' && ord.seller_id === req.user.seller_id;
+        const isResellAdmin = req.user.role === 'admin' && ord.resell_listing_id;
+        if (isStoreSeller || isResellAdmin) {
             await db.execute({
                 sql: 'UPDATE orders SET order_status = ?, updated_at = datetime("now") WHERE order_id = ?',
                 args: [status, req.params.id]
             });
 
             // On delivery, transfer to seller wallet minus commission
-            if (status === 'delivered' && ord.payment_status === 'paid') {
-                const sellerAmount = ord.total_amount - ord.commission_amount;
+            if (status === 'delivered' && ord.payment_status === 'paid' && ord.order_status !== 'delivered') {
+                const sellerAmount = Math.max(0, ord.total_amount - ord.shipping_fee - ord.commission_amount);
+                if (ord.resell_listing_id && ord.resell_seller_id) {
+                    await db.execute({
+                        sql: 'UPDATE users SET resell_balance = resell_balance + ? WHERE user_id = ?',
+                        args: [sellerAmount, ord.resell_seller_id]
+                    });
+                    await db.execute({
+                        sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id)
+                              VALUES ('user', ?, 'resell_payout', ?, ?, (SELECT resell_balance FROM users WHERE user_id = ?), ?)`,
+                        args: [ord.resell_seller_id, sellerAmount, ord.commission_amount, ord.resell_seller_id, ord.order_number]
+                    });
+                    await db.execute({
+                        sql: 'UPDATE resell_listings SET status = "sold", updated_at = datetime("now") WHERE listing_id = ?',
+                        args: [ord.resell_listing_id]
+                    });
+                    return res.json({ success: true, escrow_settled: true });
+                }
                 await db.execute({
                     sql: 'UPDATE sellers SET wallet_balance = wallet_balance + ? WHERE seller_id = ?',
                     args: [sellerAmount, ord.seller_id]

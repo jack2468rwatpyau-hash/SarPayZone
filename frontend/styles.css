@@ -1372,3 +1372,5 @@ body::before { opacity: .02; }
     .cart-footer { gap:10px; }
     .cart-footer .btn-primary { min-width:0; padding:12px 13px; }
 }
+
+.resell-buy-btn { margin-top: 10px; width: 100%; font-size: 12px; }
