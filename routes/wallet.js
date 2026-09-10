@@ -127,29 +127,100 @@ router.post('/withdraw', authenticate, requireRole('buyer'), async (req, res) =>
     }
 });
 
-// Cash-in via Agent
+// Search a buyer before an agent cash-in. Never reveal wallet balances here.
+router.get('/agent/buyer/:public_id', authenticate, requireRole('agent'), async (req, res) => {
+    try {
+        const buyer = await db.execute({
+            sql: 'SELECT user_id, public_id, name, phone, city, account_status FROM users WHERE public_id = ?',
+            args: [req.params.public_id]
+        });
+        if (buyer.rows.length === 0 || buyer.rows[0].account_status !== 'active') return res.status(404).json({ error: 'Active buyer not found' });
+        res.json({ buyer: buyer.rows[0] });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/agent/summary', authenticate, requireRole('agent'), async (req, res) => {
+    try {
+        const summary = await db.execute({
+            sql: `SELECT COUNT(*) AS deposit_count, COALESCE(SUM(amount), 0) AS total_amount,
+                         COUNT(DISTINCT buyer_id) AS unique_buyers
+                  FROM agent_deposit_requests
+                  WHERE agent_id = ? AND status = 'verified' AND date(created_at) = date('now')`,
+            args: [req.user.seller_id]
+        });
+        res.json(summary.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/agent/deposits', authenticate, requireRole('agent'), async (req, res) => {
+    try {
+        const deposits = await db.execute({
+            sql: `SELECT d.*, u.public_id AS buyer_public_id, u.name AS buyer_name
+                  FROM agent_deposit_requests d JOIN users u ON d.buyer_id = u.user_id
+                  WHERE d.agent_id = ? ORDER BY d.created_at DESC LIMIT 20`,
+            args: [req.user.seller_id]
+        });
+        res.json(deposits.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Verified cash-in via Agent
 router.post('/cashin', authenticate, requireRole('agent'), async (req, res) => {
     try {
-        const { buyer_public_id, amount } = req.body;
+        const { buyer_public_id, amount, verification_code, note } = req.body;
+        const numericAmount = Number(amount);
+        if (!buyer_public_id || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+            return res.status(400).json({ error: 'Buyer and a positive amount are required' });
+        }
+        if (!verification_code || String(verification_code).trim().length < 4) {
+            return res.status(400).json({ error: 'Verification code is required' });
+        }
         
         const buyer = await db.execute({
-            sql: 'SELECT user_id FROM users WHERE public_id = ?',
+            sql: 'SELECT user_id, account_status FROM users WHERE public_id = ?',
             args: [buyer_public_id]
         });
-        if (buyer.rows.length === 0) return res.status(404).json({ error: 'Buyer not found' });
+        if (buyer.rows.length === 0 || buyer.rows[0].account_status !== 'active') return res.status(404).json({ error: 'Active buyer not found' });
+
+        const limitConfig = await db.execute({ sql: 'SELECT config_value FROM system_config WHERE config_key = "agent_cash_in_limit"' });
+        const dailyLimit = Number(limitConfig.rows[0]?.config_value || 500000);
+        const daily = await db.execute({
+            sql: `SELECT COALESCE(SUM(amount), 0) AS total FROM agent_deposit_requests
+                  WHERE agent_id = ? AND status = 'verified' AND date(created_at) = date('now')`,
+            args: [req.user.seller_id]
+        });
+        if (Number(daily.rows[0].total) + numericAmount > dailyLimit) {
+            return res.status(400).json({ error: `Daily cash-in limit is ${dailyLimit} MMK` });
+        }
+
+        const count = await db.execute({ sql: 'SELECT COUNT(*) AS c FROM agent_deposit_requests' });
+        const depositPublicId = `AGD#${String(Number(count.rows[0].c) + 1).padStart(6, '0')}`;
 
         await db.execute({
             sql: 'UPDATE users SET wallet_balance = wallet_balance + ? WHERE user_id = ?',
-            args: [amount, buyer.rows[0].user_id]
+            args: [numericAmount, buyer.rows[0].user_id]
+        });
+
+        await db.execute({
+            sql: `INSERT INTO agent_deposit_requests
+                  (public_id, agent_id, buyer_id, amount, verification_code, status, verified_at, note)
+                  VALUES (?, ?, ?, ?, ?, 'verified', datetime('now'), ?)`,
+            args: [depositPublicId, req.user.seller_id, buyer.rows[0].user_id, numericAmount, String(verification_code).trim(), note || null]
         });
 
         await db.execute({
             sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id) 
                   VALUES ('user', ?, 'cash_in', ?, 0, (SELECT wallet_balance FROM users WHERE user_id = ?), ?)`,
-            args: [buyer.rows[0].user_id, amount, buyer.rows[0].user_id, `Agent: ${req.user.public_id}`]
+            args: [buyer.rows[0].user_id, numericAmount, buyer.rows[0].user_id, depositPublicId]
         });
 
-        res.json({ success: true });
+        res.json({ success: true, deposit_id: depositPublicId, buyer_public_id, amount: numericAmount, status: 'verified' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

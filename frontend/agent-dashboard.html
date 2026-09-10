@@ -60,14 +60,23 @@
 
         async function searchBuyer() {
             const publicId = document.getElementById('buyer-search').value;
-            // This would need a dedicated endpoint; using auth/me pattern for demo
+            if (!publicId) return alert('Enter a Buyer Public ID');
+            const res = await fetch(`${API_URL}/wallet/agent/buyer/${encodeURIComponent(publicId)}`, {
+                headers: { 'Authorization': `Bearer ${agentToken}` }
+            });
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'Buyer not found');
+            currentBuyer = data.buyer;
             document.getElementById('buyer-result').innerHTML = `
                 <div class="buyer-result">
-                    <h4>Buyer Found: ${publicId}</h4>
-                    <p>Verify identity before deposit</p>
+                    <h4>Buyer Found: ${currentBuyer.name}</h4>
+                    <p>${currentBuyer.public_id} · ${currentBuyer.phone}</p>
+                    <p>Verify the buyer identity and cash amount before confirming.</p>
                     <div class="deposit-form">
-                        <input type="number" id="deposit-amount" placeholder="Amount (Ks)">
-                        <button onclick="depositMoney()" class="btn-primary">Confirm Deposit</button>
+                        <input type="number" id="deposit-amount" placeholder="Amount (Ks)" min="1">
+                        <input type="text" id="deposit-verification" placeholder="Verification reference / receipt code" minlength="4">
+                        <input type="text" id="deposit-note" placeholder="Note (optional)">
+                        <button onclick="depositMoney()" class="btn-primary">Verify & Confirm Deposit</button>
                     </div>
                 </div>
             `;
@@ -75,46 +84,52 @@
 
         async function depositMoney() {
             const amount = parseFloat(document.getElementById('deposit-amount').value);
-            const publicId = document.getElementById('buyer-search').value;
+            const publicId = currentBuyer?.public_id || document.getElementById('buyer-search').value;
+            const verificationCode = document.getElementById('deposit-verification').value.trim();
+            const note = document.getElementById('deposit-note').value.trim();
+            if (!amount || amount <= 0 || verificationCode.length < 4) return alert('Amount and verification reference are required');
             
-            await fetch(`${API_URL}/wallet/cashin`, {
+            const res = await fetch(`${API_URL}/wallet/cashin`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${agentToken}`
                 },
-                body: JSON.stringify({ buyer_public_id: publicId, amount })
+                body: JSON.stringify({ buyer_public_id: publicId, amount, verification_code: verificationCode, note })
             });
-            
-            alert(`Deposited ${amount.toLocaleString()} Ks to ${publicId}`);
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'Deposit verification failed');
+            alert(`Verified deposit ${data.deposit_id}: ${amount.toLocaleString()} Ks to ${publicId}`);
             loadDailySummary();
             loadTransactions();
         }
 
         async function loadDailySummary() {
-            // Mock summary - in production, fetch from API
+            const res = await fetch(`${API_URL}/wallet/agent/summary`, {
+                headers: { 'Authorization': `Bearer ${agentToken}` }
+            });
+            const data = await res.json();
             document.getElementById('daily-stats').innerHTML = `
-                <div class="summary-row"><span>Total Deposits</span><span>0</span></div>
-                <div class="summary-row"><span>Total Amount</span><span>0 Ks</span></div>
-                <div class="summary-row"><span>Unique Buyers</span><span>0</span></div>
+                <div class="summary-row"><span>Total Deposits</span><span>${Number(data.deposit_count || 0).toLocaleString()}</span></div>
+                <div class="summary-row"><span>Total Amount</span><span>${Number(data.total_amount || 0).toLocaleString()} Ks</span></div>
+                <div class="summary-row"><span>Unique Buyers</span><span>${Number(data.unique_buyers || 0).toLocaleString()}</span></div>
             `;
         }
 
         async function loadTransactions() {
-            const res = await fetch(`${API_URL}/wallet`, {
+            const res = await fetch(`${API_URL}/wallet/agent/deposits`, {
                 headers: { 'Authorization': `Bearer ${agentToken}` }
             });
-            const data = await res.json();
+            const deposits = await res.json();
             
-            document.getElementById('agent-transactions').innerHTML = data.transactions
-                .filter(t => t.type === 'cash_in')
+            document.getElementById('agent-transactions').innerHTML = deposits
                 .map(t => `
                     <div class="transaction-item">
                         <div class="trans-info">
-                            <span class="trans-type">CASH IN</span>
+                            <span class="trans-type">VERIFIED CASH IN · ${t.public_id}</span>
                             <span class="trans-date">${new Date(t.created_at).toLocaleString()}</span>
                         </div>
-                        <div class="trans-amount positive">+${t.amount.toLocaleString()} Ks</div>
+                        <div class="trans-amount positive">${Number(t.amount).toLocaleString()} Ks</div>
                     </div>
                 `).join('') || '<p class="empty-text">No transactions today</p>';
         }

@@ -349,6 +349,22 @@ CREATE TABLE IF NOT EXISTS transactions (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS agent_deposit_requests (
+    deposit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    public_id TEXT NOT NULL UNIQUE,
+    agent_id INTEGER NOT NULL,
+    buyer_id INTEGER NOT NULL,
+    amount REAL NOT NULL CHECK (amount > 0),
+    verification_code TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'verified'
+        CHECK (status IN ('pending', 'verified', 'rejected', 'reversed')),
+    verified_at DATETIME,
+    note TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_id) REFERENCES sellers(seller_id),
+    FOREIGN KEY (buyer_id) REFERENCES users(user_id)
+);
+
 -- --------------------------------------------------------------------------
 -- Retention triggers
 -- --------------------------------------------------------------------------
@@ -434,4 +450,6 @@ CREATE INDEX IF NOT EXISTS idx_product_views_book ON product_views(book_id, view
 CREATE INDEX IF NOT EXISTS idx_reviews_book ON reviews(book_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_shipping_rates_seller ON shipping_rates(seller_id, state, district, city, township);
 CREATE INDEX IF NOT EXISTS idx_transactions_owner ON transactions(wallet_owner_type, wallet_owner_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_agent_deposits_agent ON agent_deposit_requests(agent_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_agent_deposits_buyer ON agent_deposit_requests(buyer_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_wishlist_user ON wishlist(user_id, created_at);

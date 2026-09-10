@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const http = require('http');
 const { Server } = require('socket.io');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const config = require('./config');
@@ -11,6 +12,7 @@ const db = require('./db');
 const errorHandler = require('./middleware/errorHandler');
 const { authenticate } = require('./middleware/auth');
 const { initCronJobs } = require('./utils/cronJobs');
+const { moderateMessage } = require('./utils/gemini');
 
 // Routes
 const authRoutes = require('./routes/auth');
@@ -80,28 +82,75 @@ app.post('/api/push/subscribe', authenticate, async (req, res) => {
     }
 });
 
-// Socket.io for real-time chat
+// Socket.io authentication and realtime chat authorization.
+const getSocketIdentity = (user) => {
+    const id = user.user_id || user.seller_id || user.id;
+    return { id, identifier: `${user.role === 'buyer' ? 'U' : 'S'}${id}`, type: user.role === 'buyer' ? 'user' : (user.role === 'admin' ? 'admin' : 'seller') };
+};
+
+io.use(async (socket, next) => {
+    try {
+        const raw = socket.handshake.auth?.token || socket.handshake.headers.authorization?.split(' ')[1];
+        if (!raw) return next(new Error('Authentication required'));
+        const decoded = jwt.verify(raw, config.JWT_SECRET);
+        if (decoded.role === 'buyer') {
+            const result = await db.execute({ sql: 'SELECT * FROM users WHERE user_id = ? AND account_status = "active"', args: [decoded.id] });
+            if (!result.rows.length) return next(new Error('User not found'));
+            socket.user = { ...decoded, ...result.rows[0] };
+        } else {
+            const result = await db.execute({ sql: 'SELECT * FROM sellers WHERE seller_id = ? AND is_visible = 1', args: [decoded.id] });
+            if (!result.rows.length) return next(new Error('Seller not found'));
+            socket.user = { ...decoded, ...result.rows[0] };
+        }
+        next();
+    } catch (error) {
+        next(new Error('Invalid authentication token'));
+    }
+});
+
 io.on('connection', (socket) => {
-    console.log('User connected:', socket.id);
-    
-    socket.on('join_conversation', (conversationId) => {
-        socket.join(`conv_${conversationId}`);
+    const identity = getSocketIdentity(socket.user);
+    console.log('Authenticated chat connection:', socket.id, identity.identifier);
+
+    socket.on('join_conversation', async (conversationId, acknowledge) => {
+        try {
+            const conversation = await db.execute({
+                sql: 'SELECT conversation_id FROM conversations WHERE conversation_id = ? AND participants LIKE ?',
+                args: [conversationId, `%"${identity.identifier}"%`]
+            });
+            if (!conversation.rows.length) return typeof acknowledge === 'function' && acknowledge({ ok: false, error: 'Not a conversation participant' });
+            socket.join(`conv_${conversationId}`);
+            if (typeof acknowledge === 'function') acknowledge({ ok: true });
+        } catch (error) {
+            if (typeof acknowledge === 'function') acknowledge({ ok: false, error: 'Unable to join conversation' });
+        }
     });
 
-    socket.on('send_message', async (data) => {
-        const { conversation_id, content, sender_id, sender_type } = data;
-        io.to(`conv_${conversation_id}`).emit('new_message', {
-            conversation_id,
-            content,
-            sender_id,
-            sender_type,
-            created_at: new Date().toISOString()
-        });
+    socket.on('send_message', async (data, acknowledge) => {
+        try {
+            const conversationId = Number(data?.conversation_id);
+            const content = String(data?.content || '').trim();
+            if (!conversationId || !content || content.length > 5000) throw new Error('Invalid message');
+            const conversation = await db.execute({
+                sql: 'SELECT conversation_id FROM conversations WHERE conversation_id = ? AND participants LIKE ?',
+                args: [conversationId, `%"${identity.identifier}"%`]
+            });
+            if (!conversation.rows.length) throw new Error('Not a conversation participant');
+            if (await moderateMessage(content)) throw new Error('Message flagged by AI moderation');
+            const inserted = await db.execute({
+                sql: 'INSERT INTO messages (conversation_id, sender_id, sender_type, content) VALUES (?, ?, ?, ?)',
+                args: [conversationId, identity.identifier, identity.type, content]
+            });
+            await db.execute({ sql: 'UPDATE conversations SET last_message_at = datetime("now") WHERE conversation_id = ?', args: [conversationId] });
+            const message = { message_id: inserted.lastInsertRowid, conversation_id: conversationId, content, sender_id: identity.identifier, sender_type: identity.type, created_at: new Date().toISOString() };
+            io.to(`conv_${conversationId}`).emit('new_message', message);
+            if (typeof acknowledge === 'function') acknowledge({ ok: true, message });
+        } catch (error) {
+            if (typeof acknowledge === 'function') acknowledge({ ok: false, error: error.message });
+        }
     });
 
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
-    });
+    socket.on('disconnect', () => console.log('Chat connection closed:', socket.id));
 });
 
 // Error handler

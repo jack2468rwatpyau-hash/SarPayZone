@@ -34,7 +34,7 @@ The frontend currently uses the deployed API URL in each static page. If the bac
 
 ## Database
 
-Apply the complete `database/schema.sql` to a new configured Turso database before starting the service. For an existing database created from an earlier revision, take a backup first and apply the schema changes through the Turso SQL console in a controlled migration; do not overwrite production data blindly. The complete schema includes product images, admin/agent seller roles and seeds, seller order retention, C2C markup fields, C2C order references, and district-level shipping. Change the seeded admin and agent credentials after first deployment. The application uses a small database adapter in `db.js` that normalizes empty query arguments for the current `@libsql/client` behavior.
+Apply the complete `database/schema.sql` to a new configured Turso database before starting the service. For an existing database created from an earlier revision, take a backup first and apply the schema changes through the Turso SQL console in a controlled migration; apply `database/migrations/003_agent_deposit_verification.sql` for the verified Agent cash-in table. Do not overwrite production data blindly. The complete schema includes product images, admin/agent seller roles and seeds, seller order retention, C2C markup fields, C2C order references, district-level shipping, and agent deposit audit records. Change the seeded admin and agent credentials after first deployment. Socket.io clients must send their JWT in `auth.token`; connections and conversation membership are verified server-side. The application uses a small database adapter in `db.js` that normalizes empty query arguments for the current `@libsql/client` behavior.
 
 ## Verification
 
