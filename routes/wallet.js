@@ -184,5 +184,37 @@ router.post('/seller/withdraw', authenticate, requireRole('publisher', 'bookstor
     }
 });
 
-module.exports = router;
+// Pay outstanding monthly commission (Seller)
+router.post('/seller/pay-commission', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
+    try {
+        const sellerId = req.user.seller_id;
+        const seller = await db.execute({
+            sql: 'SELECT wallet_balance, monthly_commission_due FROM sellers WHERE seller_id = ?',
+            args: [sellerId]
+        });
+        if (seller.rows.length === 0) return res.status(404).json({ error: 'Seller not found' });
 
+        const due = Number(seller.rows[0].monthly_commission_due || 0);
+        if (due <= 0) return res.json({ success: true, paid: 0 });
+        if (Number(seller.rows[0].wallet_balance || 0) < due) {
+            return res.status(400).json({ error: 'Insufficient wallet balance' });
+        }
+
+        await db.execute({
+            sql: 'UPDATE sellers SET wallet_balance = wallet_balance - ?, monthly_commission_due = 0 WHERE seller_id = ?',
+            args: [due, sellerId]
+        });
+        await db.execute({
+            sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id)
+                  VALUES ('seller', ?, 'commission_paid', ?, 0,
+                          (SELECT wallet_balance FROM sellers WHERE seller_id = ?), ?)`,
+            args: [sellerId, -due, sellerId, `Commission payment ${new Date().toISOString()}`]
+        });
+
+        res.json({ success: true, paid: due });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+module.exports = router;

@@ -45,6 +45,29 @@ router.get('/', async (req, res) => {
     }
 });
 
+// Get active home banners
+router.get('/banners', async (req, res) => {
+    try {
+        const banners = await db.execute({
+            sql: `SELECT banner_id, title, subtitle, image_url, target_link
+                  FROM banners WHERE is_active = 1 ORDER BY sort_order, created_at DESC`
+        });
+        res.json(banners.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get categories
+router.get('/categories/all', async (req, res) => {
+    try {
+        const cats = await db.execute({ sql: 'SELECT * FROM categories ORDER BY sort_order' });
+        res.json(cats.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Get single product
 router.get('/:id', async (req, res) => {
     try {
@@ -132,11 +155,4 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
     }
 });
 
-// Get categories
-router.get('/categories/all', async (req, res) => {
-    const cats = await db.execute({ sql: 'SELECT * FROM categories ORDER BY sort_order' });
-    res.json(cats.rows);
-});
-
 module.exports = router;
-

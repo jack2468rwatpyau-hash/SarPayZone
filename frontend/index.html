@@ -730,15 +730,137 @@
             if (totalEl) totalEl.textContent = total.toLocaleString();
         }
 
-        function addToCart(bookId) {
-            // Simplified - would fetch product details
-            alert('Added to cart!');
+        async function addToCart(bookId) {
+            try {
+                const res = await fetch(`${API_URL}/products/${bookId}`);
+                const p = await res.json();
+                if (!res.ok) throw new Error(p.error || 'Unable to load product');
+                const images = p.images ? JSON.parse(p.images) : [];
+                const price = Number(p.discounted_price || p.original_price || 0);
+                const existing = cart.find(item => item.book_id === bookId);
+                if (existing) existing.qty += 1;
+                else cart.push({ book_id: bookId, title: p.title, price, qty: 1, image: images[0] || '/assets/logo.png' });
+                localStorage.setItem('spz_cart', JSON.stringify(cart));
+                alert('Added to cart');
+            } catch (err) {
+                alert(err.message || 'Unable to add this book to cart');
+            }
         }
 
         function removeFromCart(index) {
             cart.splice(index, 1);
             localStorage.setItem('spz_cart', JSON.stringify(cart));
             renderCartItems();
+        }
+
+        async function buyNow(bookId) {
+            await addToCart(bookId);
+            navigateTo('cart');
+        }
+
+        async function checkout() {
+            if (!currentUser) { showAuthModal(); return; }
+            if (!cart.length) { alert('Your cart is empty'); return; }
+            const shipping_address = prompt('Enter delivery address');
+            if (!shipping_address) return;
+            const payment_method = prompt('Payment method: wallet or cash_on_delivery', 'wallet') || 'wallet';
+            for (const item of cart) {
+                const res = await fetch(`${API_URL}/orders`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ product_id: item.book_id, quantity: item.qty, shipping_address, payment_method })
+                });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Checkout failed'); return; }
+            }
+            cart = [];
+            localStorage.setItem('spz_cart', JSON.stringify(cart));
+            alert('Order placed successfully');
+            navigateTo('orders');
+        }
+
+        async function cancelOrder(orderId) {
+            const res = await fetch(`${API_URL}/orders/${orderId}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                body: JSON.stringify({ status: 'cancelled' })
+            });
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'Unable to cancel order');
+            renderOrders(document.getElementById('main-content'));
+        }
+
+        function filterOrders(status) {
+            document.querySelectorAll('.order-card').forEach(card => {
+                card.style.display = status === 'all' || card.querySelector('.order-status')?.classList.contains(`status-${status}`) ? '' : 'none';
+            });
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.toggle('active', btn.textContent.toLowerCase().includes(status)));
+        }
+
+        async function toggleWishlist(bookId) {
+            if (!currentUser) { showAuthModal(); return; }
+            const res = await fetch(`${API_URL}/buyer/wishlist`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                body: JSON.stringify({ book_id: bookId })
+            });
+            const data = await res.json();
+            alert(res.ok ? 'Added to wishlist' : (data.error || 'Unable to update wishlist'));
+        }
+
+        async function viewFestivalBooks(festivalId) {
+            const res = await fetch(`${API_URL}/voting/festival/${festivalId}/books`);
+            const books = await res.json();
+            const choice = prompt(books.map(b => `${b.book_id}: ${b.title}`).join('\n') + '\n\nEnter book ID to vote');
+            if (!choice) return;
+            const voteRes = await fetch(`${API_URL}/voting/vote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                body: JSON.stringify({ festival_id: festivalId, book_id: Number(choice) })
+            });
+            const data = await voteRes.json();
+            alert(voteRes.ok ? 'Vote submitted' : (data.error || 'Unable to vote'));
+        }
+
+        function showWithdrawForm() {
+            const amount = prompt('Withdrawal amount (Ks)');
+            const phone = prompt('Wallet phone number');
+            if (!amount || !phone) return;
+            fetch(`${API_URL}/wallet/withdraw`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                body: JSON.stringify({ amount: Number(amount), account_name: currentUser.name, wallet_phone: phone })
+            }).then(r => r.json().then(data => alert(r.ok ? 'Withdrawal submitted' : (data.error || 'Withdrawal failed'))));
+        }
+
+        function showP2PForm() {
+            const recipient_public_id = prompt('Recipient public ID');
+            const amount = prompt('Amount (Ks)');
+            const note = prompt('Note (optional)') || '';
+            if (!recipient_public_id || !amount) return;
+            fetch(`${API_URL}/wallet/p2p`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                body: JSON.stringify({ recipient_public_id, amount: Number(amount), note })
+            }).then(r => r.json().then(data => alert(r.ok ? 'Transfer completed' : (data.error || 'Transfer failed'))));
+        }
+
+        function showResellForm() {
+            const product_id = prompt('Book ID to resell');
+            const asking_price = prompt('Asking price (Ks)');
+            if (!product_id || !asking_price) return;
+            alert('Resell listing requires image upload. Use the seller form or API multipart upload to submit images.');
+        }
+
+        function openChat(conversationId) { alert(`Chat ${conversationId} is ready. Real-time messaging uses Socket.IO.`); }
+        function startChat(sellerId, bookId) { alert('Chat with this shop will open after the conversation endpoint is connected.'); }
+        function shareProduct(publicId) { navigator.clipboard?.writeText(`${location.origin}${location.pathname}?product=${publicId}`); alert('Product link copied'); }
+        function openReviewForm(orderId) {
+            const rating = Number(prompt('Rating from 1 to 5', '5'));
+            const comment = prompt('Review comment') || '';
+            if (!rating) return;
+            fetch(`${API_URL}/orders/${orderId}/review`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                body: JSON.stringify({ rating, comment })
+            }).then(r => r.json().then(data => alert(r.ok ? 'Review submitted' : (data.error || 'Review failed'))));
         }
 
         // ===== UTILITIES =====
@@ -816,4 +938,3 @@
     </script>
 </body>
 </html>
-
