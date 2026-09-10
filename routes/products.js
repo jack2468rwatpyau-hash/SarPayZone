@@ -135,7 +135,10 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create product (Seller only)
-router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), upload.array('images', 5), async (req, res) => {
+router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), upload.fields([
+    { name: 'images', maxCount: 5 },
+    { name: 'variation_images', maxCount: 25 }
+]), async (req, res) => {
     try {
         const { title, author_name, category_id, original_price, discounted_price, description, stock_quantity, variations } = req.body;
         
@@ -144,7 +147,7 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
 
         // Upload images
         const imageUrls = [];
-        for (const file of req.files || []) {
+        for (const file of req.files?.images || []) {
             const url = await uploadToCloudinary(file.buffer, `products/${publicId}`, 'product');
             imageUrls.push(url);
         }
@@ -161,11 +164,21 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
         // Insert variations
         if (variations) {
             const vars = JSON.parse(variations);
-            for (const v of vars) {
+            const imageMap = req.body.variation_image_map ? JSON.parse(req.body.variation_image_map) : [];
+            const variationFiles = req.files?.variation_images || [];
+            let imageOffset = 0;
+            for (let index = 0; index < vars.length; index += 1) {
+                const v = vars[index];
+                const variationImageUrls = [];
+                const imageCount = Number(imageMap[index] || 0);
+                for (const file of variationFiles.slice(imageOffset, imageOffset + imageCount)) {
+                    variationImageUrls.push(await uploadToCloudinary(file.buffer, `products/${publicId}/variation-${index + 1}`, 'product'));
+                }
+                imageOffset += imageCount;
                 await db.execute({
                     sql: `INSERT INTO product_variations (product_id, variation_name, price, stock_quantity, images) 
                           VALUES (?, ?, ?, ?, ?)`,
-                    args: [bookId, v.name, v.price, v.stock, JSON.stringify(v.images || [])]
+                    args: [bookId, v.name, v.price, v.stock, JSON.stringify(variationImageUrls)]
                 });
             }
         }

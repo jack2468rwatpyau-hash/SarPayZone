@@ -1374,3 +1374,59 @@ body::before { opacity: .02; }
 }
 
 .resell-buy-btn { margin-top: 10px; width: 100%; font-size: 12px; }
+
+
+/* Phone-first seller workspace */
+.store-dashboard-page, #store-app { min-height: 100vh; }
+.store-panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); }
+.variation-editor { margin-top: 4px; padding: 18px; border: 1px solid rgba(45,125,79,.18); border-radius: 18px; background: linear-gradient(145deg, rgba(45,125,79,.06), rgba(225,168,59,.06)); }
+.variation-editor-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+.variation-editor-header h3 { margin: 3px 0 5px; font-size: 17px; color: var(--secondary); }
+.variation-editor-header p { max-width: 390px; margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.55; }
+.form-eyebrow { color: var(--primary); font-family: var(--font-mono); font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+.add-variation-btn { flex: 0 0 auto; padding: 10px 12px; font-size: 12px; }
+.variation-card { margin-top: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); box-shadow: 0 5px 16px rgba(20,42,36,.06); }
+.variation-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.variation-number { color: var(--primary); font-family: var(--font-mono); font-size: 10px; font-weight: 800; letter-spacing: .1em; }
+.remove-variation { border: 0; background: rgba(190,61,48,.09); color: #a73d31; width: 30px; height: 30px; border-radius: 50%; }
+.variation-fields { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, .8fr); gap: 9px; }
+.variation-field { display: flex; flex-direction: column; gap: 6px; color: var(--text-secondary); font-size: 11px; font-weight: 700; }
+.variation-field input { width: 100%; min-width: 0; padding: 11px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); font-size: 14px; }
+.variation-image-drop { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 12px; border: 1px dashed rgba(45,125,79,.4); border-radius: 12px; color: var(--primary); font-size: 12px; cursor: pointer; }
+.variation-image-drop i { font-size: 18px; }
+.variation-image-drop small { color: var(--text-secondary); font-weight: 400; }
+.variation-image-drop input { display: none; }
+.variation-image-preview { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+.variation-image-preview > div { position: relative; width: 54px; height: 54px; }
+.variation-image-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 9px; border: 1px solid var(--border); }
+.variation-image-preview button { position: absolute; top: -6px; right: -6px; width: 19px; height: 19px; border: 0; border-radius: 50%; background: #a73d31; color: white; font-size: 13px; line-height: 1; }
+.variation-empty { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 24px 12px; color: var(--text-secondary); text-align: center; }
+.variation-empty i { color: var(--accent); font-size: 24px; margin-bottom: 3px; }
+.variation-empty span { color: var(--secondary); font-size: 13px; font-weight: 700; }
+.variation-empty small { font-size: 11px; }
+
+@media (max-width: 560px) {
+    #store-app { padding-bottom: 92px; }
+    #store-app .app-header { position: sticky; top: 0; z-index: 20; height: 58px; padding: 0 14px; }
+    #store-app .main-content { padding: 14px 12px 18px; }
+    #store-app .bottom-nav { position: fixed; z-index: 30; height: 66px; bottom: 8px; left: 10px; right: 10px; width: auto; padding: 5px 4px; border-radius: 18px; }
+    #store-app .nav-item { min-width: 0; padding: 7px 4px; font-size: 10px; }
+    #store-app .nav-item i { font-size: 17px; }
+    #store-app .store-header { margin: -14px -12px 14px; padding: 18px 14px; border-radius: 0 0 18px 18px; }
+    #store-app .metric-cards { gap: 8px; }
+    #store-app .metric-card { padding: 12px 8px; }
+    #store-app .metric-value { font-size: 20px; }
+    #store-app .store-tabs { position: sticky; top: 58px; z-index: 10; padding: 5px; margin: -2px 0 14px; border: 1px solid var(--border); border-radius: 13px; background: rgba(255,253,248,.95); backdrop-filter: blur(12px); }
+    #store-app .store-tab { padding: 10px 6px; font-size: 12px; border: 0; border-radius: 9px; }
+    #store-app .store-tab.active { background: rgba(45,125,79,.1); }
+    #store-app .product-form { gap: 13px; }
+    #store-app .form-group input, #store-app .form-group select, #store-app .form-group textarea { font-size: 16px; padding: 13px 12px; }
+    #store-app .image-upload-zone { padding: 24px 12px; }
+    .variation-editor { padding: 13px; }
+    .variation-editor-header { display: block; }
+    .add-variation-btn { width: 100%; margin-top: 12px; }
+    .variation-fields { grid-template-columns: 1fr 1fr; }
+    .variation-name-field { grid-column: 1 / -1; }
+    #store-app .product-form > .btn-primary { position: sticky; bottom: 83px; z-index: 15; width: 100%; box-shadow: 0 8px 22px rgba(20,42,36,.18); }
+    #store-app .excel-table { display: block; overflow-x: auto; white-space: nowrap; }
+}
