@@ -63,6 +63,12 @@ CREATE TABLE IF NOT EXISTS sellers (
     last_commission_notified_at DATETIME,
     telegram_user_id TEXT,
     is_visible INTEGER NOT NULL DEFAULT 1 CHECK (is_visible IN (0, 1)),
+    is_open INTEGER NOT NULL DEFAULT 1 CHECK (is_open IN (0, 1)),
+    accepting_orders INTEGER NOT NULL DEFAULT 1 CHECK (accepting_orders IN (0, 1)),
+    reply_time_minutes INTEGER NOT NULL DEFAULT 60 CHECK (reply_time_minutes >= 0),
+    reply_time_text TEXT DEFAULT 'Usually replies within 1 hour',
+    closed_message TEXT DEFAULT 'ဆိုင်ခေတ္တပိတ်ထားပါတယ်။ ပြန်ဖွင့်ချိန်တွင် အော်ဒါလက်ခံပါမယ်။',
+    auto_reply_message TEXT DEFAULT 'မင်္ဂလာပါ။ စာပေဇုန်ဆိုင်မှ မကြာမီ ပြန်လည်ဖြေကြားပေးပါမယ်။',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

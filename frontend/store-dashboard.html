@@ -445,6 +445,10 @@
         async function renderStoreSettings(container) {
             container.innerHTML = `
                 <h2>Store Settings</h2>
+                <section class="settings-section store-availability-card">
+                    <div class="settings-section-heading"><div><span class="form-eyebrow">CUSTOMER-FACING</span><h3>Store availability</h3><p class="small text-secondary">Let buyers know when you are open and how quickly you usually reply.</p></div><span id="store-status-badge" class="availability-badge">Loading</span></div>
+                    <div id="store-availability-form" class="availability-form"><div class="loading">Loading store settings...</div></div>
+                </section>
                 <div class="settings-section">
                     <h3>Shipping Rates</h3>
                     <p class="small text-secondary">Default: 5,000 Ks for all Myanmar</p>
@@ -470,7 +474,43 @@
                     <button onclick="toggleNightMode()" class="btn-secondary"><i class="fas fa-moon"></i> Night Mode</button>
                 </div>
             `;
-            await loadShippingConfig();
+            await Promise.all([loadStoreSettings(), loadShippingConfig()]);
+        }
+
+        async function loadStoreSettings() {
+            try {
+                const res = await fetch(`${API_URL}/store/settings`, { headers: { 'Authorization': `Bearer ${storeToken}` } });
+                const settings = await res.json();
+                if (!res.ok) throw new Error(settings.error || 'Unable to load store settings');
+                document.getElementById('store-status-badge').textContent = settings.is_open && settings.accepting_orders ? 'OPEN' : 'CLOSED';
+                document.getElementById('store-status-badge').className = `availability-badge ${settings.is_open && settings.accepting_orders ? 'is-open' : 'is-closed'}`;
+                document.getElementById('store-availability-form').innerHTML = `
+                    <label class="availability-toggle"><input type="checkbox" id="store-is-open" ${settings.is_open ? 'checked' : ''}><span class="toggle-track"></span><span><strong>Store is open</strong><small>Show the catalog while you are available.</small></span></label>
+                    <label class="availability-toggle"><input type="checkbox" id="store-accepting-orders" ${settings.accepting_orders ? 'checked' : ''}><span class="toggle-track"></span><span><strong>Accept new orders</strong><small>Turn this off when you need a break or are fully booked.</small></span></label>
+                    <div class="availability-grid"><label class="form-group"><span>Typical reply time</span><select id="reply-time-minutes"><option value="15" ${settings.reply_time_minutes === 15 ? 'selected' : ''}>Within 15 minutes</option><option value="60" ${settings.reply_time_minutes === 60 ? 'selected' : ''}>Within 1 hour</option><option value="240" ${settings.reply_time_minutes === 240 ? 'selected' : ''}>Within 4 hours</option><option value="1440" ${settings.reply_time_minutes === 1440 ? 'selected' : ''}>Within 1 day</option><option value="10080" ${settings.reply_time_minutes === 10080 ? 'selected' : ''}>Within 1 week</option></select></label><label class="form-group"><span>Buyer-facing reply text</span><input id="reply-time-text" maxlength="100" value="${settings.reply_time_text || ''}" placeholder="Usually replies within 1 hour"></label></div>
+                    <label class="form-group"><span>Closed-store message</span><textarea id="closed-message" maxlength="300" rows="2" placeholder="ဆိုင်ခေတ္တပိတ်ထားပါတယ်။">${settings.closed_message || ''}</textarea></label>
+                    <label class="form-group"><span>Auto-reply message</span><textarea id="auto-reply-message" maxlength="300" rows="2" placeholder="မကြာမီ ပြန်လည်ဖြေကြားပေးပါမယ်။">${settings.auto_reply_message || ''}</textarea></label>
+                    <button onclick="saveStoreSettings()" class="btn-primary"><i class="fas fa-save"></i> Save availability</button>
+                `;
+            } catch (err) {
+                document.getElementById('store-availability-form').innerHTML = `<p class="error-text">${err.message}</p>`;
+            }
+        }
+
+        async function saveStoreSettings() {
+            const payload = {
+                is_open: document.getElementById('store-is-open').checked ? 1 : 0,
+                accepting_orders: document.getElementById('store-accepting-orders').checked ? 1 : 0,
+                reply_time_minutes: Number(document.getElementById('reply-time-minutes').value),
+                reply_time_text: document.getElementById('reply-time-text').value.trim(),
+                closed_message: document.getElementById('closed-message').value.trim(),
+                auto_reply_message: document.getElementById('auto-reply-message').value.trim()
+            };
+            const res = await fetch(`${API_URL}/store/settings`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${storeToken}` }, body: JSON.stringify(payload) });
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'Unable to save store settings');
+            alert('Store availability saved');
+            loadStoreSettings();
         }
 
         async function loadShippingConfig() {

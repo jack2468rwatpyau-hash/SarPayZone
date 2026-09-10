@@ -79,6 +79,7 @@ router.post('/', authenticate, async (req, res) => {
 
         // Create conversation if new
         let convId = conversation_id;
+        let storeReply = null;
         if (!convId) {
             const participantList = Array.from(new Set([senderIdentifier, ...(Array.isArray(participants) ? participants : [])]));
             const participantsJson = JSON.stringify(participantList);
@@ -88,6 +89,15 @@ router.post('/', authenticate, async (req, res) => {
                 args: [conversation_type || 'buyer_shop', participantsJson, related_order_id || null]
             });
             convId = conv.lastInsertRowid;
+            const sellerIdentifier = participantList.find((participant) => participant.startsWith('S'));
+            if (sellerIdentifier) {
+                const seller = await db.execute({
+                    sql: `SELECT store_name, reply_time_text, auto_reply_message, is_open
+                          FROM sellers WHERE seller_id = ?`,
+                    args: [Number(sellerIdentifier.slice(1))]
+                });
+                if (seller.rows.length) storeReply = seller.rows[0];
+            }
         } else if (!await getConversationForUser(convId, req.user)) {
             return res.status(403).json({ error: 'Not a conversation participant' });
         }
@@ -103,7 +113,7 @@ router.post('/', authenticate, async (req, res) => {
             args: [convId]
         });
 
-        res.json({ success: true, conversation_id: convId });
+        res.json({ success: true, conversation_id: convId, store_reply: storeReply });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

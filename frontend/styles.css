@@ -1430,3 +1430,49 @@ body::before { opacity: .02; }
     #store-app .product-form > .btn-primary { position: sticky; bottom: 83px; z-index: 15; width: 100%; box-shadow: 0 8px 22px rgba(20,42,36,.18); }
     #store-app .excel-table { display: block; overflow-x: auto; white-space: nowrap; }
 }
+
+
+/* Store availability settings */
+.settings-section-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom:16px; }
+.settings-section-heading h3 { margin:3px 0 4px; }
+.settings-section-heading p { margin:0; line-height:1.5; }
+.availability-badge { flex:0 0 auto; padding:6px 10px; border-radius:999px; font-family:var(--font-mono); font-size:10px; font-weight:800; letter-spacing:.08em; background:var(--surface); color:var(--text-secondary); }
+.availability-badge.is-open { color:var(--success); background:rgba(44,139,91,.12); }
+.availability-badge.is-closed { color:#a73d31; background:rgba(190,61,48,.1); }
+.availability-form { display:flex; flex-direction:column; gap:13px; }
+.availability-toggle { display:flex; align-items:center; gap:11px; padding:13px; border:1px solid var(--border); border-radius:13px; background:var(--bg); cursor:pointer; }
+.availability-toggle input { position:absolute; opacity:0; pointer-events:none; }
+.availability-toggle > span:last-child { display:flex; flex-direction:column; gap:3px; }
+.availability-toggle strong { font-size:13px; color:var(--secondary); }
+.availability-toggle small { color:var(--text-secondary); font-size:11px; line-height:1.4; }
+.toggle-track { position:relative; flex:0 0 auto; width:40px; height:23px; border-radius:999px; background:#c7c9c4; transition:background .18s ease-out; }
+.toggle-track::after { content:""; position:absolute; top:3px; left:3px; width:17px; height:17px; border-radius:50%; background:#fff; box-shadow:0 2px 5px rgba(0,0,0,.15); transition:transform .18s ease-out; }
+.availability-toggle input:checked + .toggle-track { background:var(--primary); }
+.availability-toggle input:checked + .toggle-track::after { transform:translateX(17px); }
+.availability-grid { display:grid; grid-template-columns:1fr 1.4fr; gap:10px; }
+.availability-form .form-group { display:flex; flex-direction:column; gap:6px; color:var(--text-secondary); font-size:11px; font-weight:700; }
+.availability-form .form-group input, .availability-form .form-group select, .availability-form .form-group textarea { padding:11px 10px; border:1px solid var(--border); border-radius:10px; background:var(--bg); color:var(--text); font-size:14px; font-family:inherit; }
+.store-availability-card { background:linear-gradient(145deg, rgba(45,125,79,.055), rgba(225,168,59,.045)); }
+@media (max-width:560px) {
+    .settings-section-heading { display:block; }
+    .settings-section-heading .availability-badge { display:inline-block; margin-top:10px; }
+    .availability-grid { grid-template-columns:1fr; }
+    .availability-form .btn-primary { width:100%; }
+}
+
+
+/* Buyer-facing store availability */
+.store-status-line { margin-top:8px; font-size:11px; font-weight:700; }
+.store-status-line i { margin-right:5px; font-size:7px; vertical-align:middle; }
+.store-status-line.is-open { color:var(--success); }
+.store-status-line.is-closed { color:#a73d31; }
+.shop-response-card { display:flex; align-items:flex-start; gap:10px; padding:11px 12px; margin:14px 0; border-radius:12px; font-size:12px; }
+.shop-response-card > i { margin-top:2px; font-size:15px; }
+.shop-response-card div { display:flex; flex-direction:column; gap:3px; }
+.shop-response-card strong { color:var(--secondary); font-size:12px; }
+.shop-response-card small { color:var(--text-secondary); line-height:1.45; }
+.shop-response-card.is-open { background:rgba(44,139,91,.08); border:1px solid rgba(44,139,91,.18); }
+.shop-response-card.is-open > i { color:var(--success); }
+.shop-response-card.is-closed { background:rgba(190,61,48,.08); border:1px solid rgba(190,61,48,.18); }
+.shop-response-card.is-closed > i { color:#a73d31; }
+.btn-primary:disabled, .btn-secondary:disabled { opacity:.55; cursor:not-allowed; box-shadow:none; }

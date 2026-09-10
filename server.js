@@ -25,6 +25,7 @@ const votingRoutes = require('./routes/voting');
 const resellRoutes = require('./routes/resell');
 const adminRoutes = require('./routes/admin');
 const buyerRoutes = require('./routes/buyer');
+const storeRoutes = require('./routes/store');
 
 const app = express();
 const server = http.createServer(app);
@@ -59,6 +60,7 @@ app.use('/api/voting', votingRoutes);
 app.use('/api/resell', resellRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/buyer', buyerRoutes);
+app.use('/api/store', storeRoutes);
 
 // Web Push subscription
 app.post('/api/push/subscribe', authenticate, async (req, res) => {

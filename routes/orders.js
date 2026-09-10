@@ -20,18 +20,24 @@ router.post('/', authenticate, async (req, res) => {
         const product = resell_listing_id
             ? await db.execute({
                 sql: `SELECT r.listing_id, r.seller_id AS resell_seller_id, r.final_price, r.asking_price,
-                             p.*, 'resell' AS role, NULL AS telegram_user_id, NULL AS store_seller_id
+                             p.*, 'resell' AS role, NULL AS telegram_user_id, NULL AS store_seller_id,
+                             1 AS store_is_open, 1 AS store_accepting_orders
                       FROM resell_listings r JOIN products p ON r.product_id = p.book_id
                       WHERE r.listing_id = ? AND r.status = 'approved'`,
                 args: [resell_listing_id]
             })
             : await db.execute({
-                sql: 'SELECT p.*, s.role, s.telegram_user_id, s.seller_id AS store_seller_id FROM products p JOIN sellers s ON p.seller_id = s.seller_id WHERE p.book_id = ?',
+                sql: `SELECT p.*, s.role, s.telegram_user_id, s.seller_id AS store_seller_id,
+                             s.is_open AS store_is_open, s.accepting_orders AS store_accepting_orders
+                      FROM products p JOIN sellers s ON p.seller_id = s.seller_id WHERE p.book_id = ?`,
                 args: [product_id]
             });
         if (product.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
 
         const prod = product.rows[0];
+        if (!Number(prod.store_is_open) || !Number(prod.store_accepting_orders)) {
+            return res.status(409).json({ error: 'This store is currently closed or not accepting orders' });
+        }
         const resolvedProductId = prod.book_id;
         const unitPrice = resell_listing_id ? Number(prod.final_price || prod.asking_price) : Number(prod.discounted_price || prod.original_price);
         if (!resell_listing_id && Number(prod.stock_quantity || 0) < parsedQuantity) return res.status(400).json({ error: 'Insufficient stock' });
@@ -139,13 +145,17 @@ router.post('/bulk', authenticate, async (req, res) => {
         for (const item of items) {
             const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
             const product = await db.execute({
-                sql: `SELECT p.*, s.role, s.telegram_user_id, s.seller_id
+                sql: `SELECT p.*, s.role, s.store_name, s.telegram_user_id, s.seller_id,
+                             s.is_open AS store_is_open, s.accepting_orders AS store_accepting_orders
                       FROM products p JOIN sellers s ON p.seller_id = s.seller_id
                       WHERE p.book_id = ? AND p.is_active = 1 AND p.approved = 1`,
                 args: [item.product_id]
             });
             if (product.rows.length === 0) return res.status(404).json({ error: `Product ${item.product_id} not found` });
             const prod = product.rows[0];
+            if (!Number(prod.store_is_open) || !Number(prod.store_accepting_orders)) {
+                return res.status(409).json({ error: `${prod.store_name || 'This store'} is currently closed or not accepting orders` });
+            }
             if (Number(prod.stock_quantity || 0) < quantity) return res.status(400).json({ error: `${prod.title} has insufficient stock` });
             const unitPrice = Number(prod.discounted_price || prod.original_price);
             const subtotal = unitPrice * quantity;

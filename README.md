@@ -38,6 +38,8 @@ Apply the complete `database/schema.sql` to a new configured Turso database befo
 
 Payment policy: an Agent only adds verified cash to a Buyer wallet. The Buyer then pays from `My Wallet`; direct `agent` order payment is intentionally disabled. Normal books support Wallet or COD, while C2C resell orders require Wallet payment. Buyer cancellation restores product stock or reopens a resell listing and refunds the wallet payment (minus the documented cancellation fee).
 
+Store owners can use `Store Dashboard → Settings → Store availability` to open or close the storefront, pause new orders, set a buyer-facing reply time, configure a closed-store message, and configure the first-chat auto-reply. Apply `database/migrations/004_store_availability_settings.sql` to an existing Turso database before using this panel. Closed stores remain visible to buyers, but new orders are rejected by the API and purchase buttons are disabled in the product detail view.
+
 ## Verification
 
 ```bash

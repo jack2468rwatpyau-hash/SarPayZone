@@ -283,6 +283,7 @@
         }
 
         function renderProductCard(p) {
+            const storeOpen = p.store_is_open !== 0 && p.store_accepting_orders !== 0;
             return `
                 <div class="product-card" onclick="openProductDetail(${p.book_id})">
                     <div class="product-image">
@@ -299,6 +300,7 @@
                             <span><i class="fas fa-eye"></i> ${p.view_count}</span>
                             <span><i class="fas fa-store"></i> ${p.store_name || 'SPZ'}</span>
                         </div>
+                        <div class="store-status-line ${storeOpen ? 'is-open' : 'is-closed'}"><i class="fas fa-circle"></i> ${storeOpen ? 'Open for orders' : 'ဆိုင်ခေတ္တပိတ်ထားသည်'}</div>
                     </div>
                 </div>
             `;
@@ -316,6 +318,7 @@
             
             const images = p.images ? JSON.parse(p.images) : [];
             const variations = p.variations || [];
+            const storeOpen = p.store_is_open !== 0 && p.store_accepting_orders !== 0;
             
             content.innerHTML = `
                 <div class="product-detail">
@@ -337,6 +340,7 @@
                             <span class="current-price">${p.discounted_price || p.original_price} Ks</span>
                             ${p.discounted_price ? `<span class="original-price">${p.original_price} Ks</span>` : ''}
                         </div>
+                        <div class="shop-response-card ${storeOpen ? 'is-open' : 'is-closed'}"><i class="fas fa-${storeOpen ? 'clock' : 'store-slash'}"></i><div><strong>${storeOpen ? (p.reply_time_text || 'Usually replies within 1 hour') : 'ဆိုင်ခေတ္တပိတ်ထားပါတယ်'}</strong><small>${storeOpen ? 'ဆိုင်ဖွင့်နေပြီး အော်ဒါလက်ခံနေပါတယ်' : (p.closed_message || 'ပြန်ဖွင့်ချိန်တွင် အော်ဒါလက်ခံပါမယ်')}</small></div></div>
                         
                         <div class="variation-selector">
                             <label>Variation</label>
@@ -358,8 +362,8 @@
                         </div>
 
                         <div class="detail-actions">
-                            <button onclick="addToCart(${p.book_id})" class="btn-secondary"><i class="fas fa-cart-plus"></i> Add to Cart</button>
-                            <button onclick="buyNow(${p.book_id})" class="btn-primary"><i class="fas fa-bolt"></i> Buy Now</button>
+                            <button ${storeOpen ? '' : 'disabled'} onclick="addToCart(${p.book_id})" class="btn-secondary"><i class="fas fa-cart-plus"></i> ${storeOpen ? 'Add to Cart' : 'Store Closed'}</button>
+                            <button ${storeOpen ? '' : 'disabled'} onclick="buyNow(${p.book_id})" class="btn-primary"><i class="fas fa-bolt"></i> ${storeOpen ? 'Buy Now' : 'Unavailable'}</button>
                             <button onclick="toggleWishlist(${p.book_id})" class="btn-icon"><i class="far fa-heart"></i></button>
                         </div>
 
@@ -924,6 +928,9 @@
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Unable to start chat');
+                if (data.store_reply?.auto_reply_message || data.store_reply?.reply_time_text) {
+                    alert(`${data.store_reply.auto_reply_message || 'Message sent.'}\n\n${data.store_reply.reply_time_text || ''}`);
+                }
                 navigateTo('chat');
             } catch (err) {
                 alert(err.message || 'Unable to start chat');

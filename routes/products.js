@@ -10,7 +10,9 @@ const { uploadToCloudinary } = require('../utils/cloudinary');
 router.get('/', async (req, res) => {
     try {
         const { category, search, sort = 'newest', page = 1, limit = 20, type, seller_id } = req.query;
-        let sql = `SELECT p.*, s.store_name, s.public_id as seller_public_id, c.name as category_name 
+        let sql = `SELECT p.*, s.store_name, s.public_id as seller_public_id, s.is_open as store_is_open,
+                          s.accepting_orders as store_accepting_orders, s.reply_time_minutes, s.reply_time_text,
+                          s.closed_message, s.auto_reply_message, c.name as category_name
                    FROM products p 
                    LEFT JOIN sellers s ON p.seller_id = s.seller_id 
                    LEFT JOIN categories c ON p.category_id = c.category_id 
@@ -93,7 +95,9 @@ router.get('/mine', authenticate, requireRole('publisher', 'bookstore', 'commiss
 router.get('/:id', async (req, res) => {
     try {
         const product = await db.execute({
-            sql: `SELECT p.*, s.store_name, s.logo, c.name as category_name 
+            sql: `SELECT p.*, s.store_name, s.logo, s.is_open as store_is_open,
+                          s.accepting_orders as store_accepting_orders, s.reply_time_minutes, s.reply_time_text,
+                          s.closed_message, s.auto_reply_message, c.name as category_name
                   FROM products p 
                   LEFT JOIN sellers s ON p.seller_id = s.seller_id 
                   LEFT JOIN categories c ON p.category_id = c.category_id
