@@ -70,6 +70,8 @@ CREATE TABLE IF NOT EXISTS sellers (
     reply_time_text TEXT DEFAULT 'Usually replies within 1 hour',
     closed_message TEXT DEFAULT 'ဆိုင်ခေတ္တပိတ်ထားပါတယ်။ ပြန်ဖွင့်ချိန်တွင် အော်ဒါလက်ခံပါမယ်။',
     auto_reply_message TEXT DEFAULT 'မင်္ဂလာပါ။ စာပေဇုန်ဆိုင်မှ မကြာမီ ပြန်လည်ဖြေကြားပေးပါမယ်။',
+    store_password_code TEXT,
+    store_password_code_changed_at DATETIME,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

@@ -16,10 +16,10 @@
                 <img src="/assets/logo.png" alt="Sar Pay Zone" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" width="200">
                 <div class="logo-fallback" style="display:none;"><i class="fas fa-book-open"></i></div>
             </div>
-            <h2>Welcome to Sar Pay Zone</h2>
-            <p class="gate-subtitle">Myanmar's Premier Literature Marketplace</p>
-            <input type="password" id="password-code" placeholder="Enter Access Code" maxlength="20">
-            <button onclick="checkPasswordCode()" class="btn-primary">Enter Platform</button>
+            <h2>ဆိုင်သို့ ဝင်ရောက်ရန်</h2>
+            <p class="gate-subtitle">ဆိုင်စာမျက်နှာတွင် ပြသထားသော ၆ လုံး Password Code ကို ထည့်ပါ</p>
+            <input type="password" id="password-code" placeholder="၆ လုံးကုဒ်" maxlength="6" inputmode="numeric" pattern="[0-9]{6}">
+            <button onclick="checkPasswordCode()" class="btn-primary">ဆိုင်ထဲသို့ ဝင်မည်</button>
             <p id="gate-error" class="error-text"></p>
         </div>
     </div>

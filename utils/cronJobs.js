@@ -2,8 +2,14 @@ const cron = require('node-cron');
 const db = require('../db');
 const { sendDailySummary } = require('./telegram');
 const { sendPushNotification } = require('./webpush');
+const { ensureStorePasswordCode } = require('../middleware/auth');
 
 const initCronJobs = () => {
+    // Rotate every expired seller store access code; each code remains valid for 15 days.
+    cron.schedule('15 0 * * *', async () => {
+        const sellers = await db.execute({ sql: "SELECT seller_id FROM sellers WHERE role != 'admin' AND is_visible = 1" });
+        for (const seller of sellers.rows) await ensureStorePasswordCode(seller.seller_id);
+    });
     // Daily summary at 11:59 PM
     cron.schedule('59 23 * * *', async () => {
         console.log('Running daily summary cron...');

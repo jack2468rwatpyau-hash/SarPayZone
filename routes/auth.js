@@ -4,14 +4,23 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const db = require('../db');
 const config = require('../config');
-const { authenticate, requirePasswordCode } = require('../middleware/auth');
+const { authenticate, requirePasswordCode, ensureStorePasswordCode } = require('../middleware/auth');
 
 const normalizePhone = (value) => String(value || '').replace(/[\s-]/g, '');
 const sellerRoles = new Set(['publisher', 'bookstore', 'commission_store', 'agent', 'admin']);
 
 // Buyer: Check Password Code
 router.post('/buyer/check-code', requirePasswordCode, (req, res) => {
-    res.json({ valid: true });
+    res.json({ valid: true, store_id: req.store_id || null });
+});
+
+// Seller store access code: six digits, regenerated automatically every 15 days.
+router.get('/seller/store-code', authenticate, async (req, res) => {
+    try {
+        if (req.user.userType !== 'seller' || req.user.role === 'admin') return res.status(403).json({ error: 'Seller store only' });
+        const code = await ensureStorePasswordCode(req.user.seller_id);
+        res.json({ code: code.code, changed_at: code.changed_at, next_rotation_at: new Date(new Date(`${code.changed_at}Z`).getTime() + 15 * 24 * 60 * 60 * 1000).toISOString() });
+    } catch (err) { res.status(500).json({ error: 'Unable to load store code' }); }
 });
 
 // Buyer Register

@@ -87,6 +87,7 @@
         const API_URL = 'https://sarpayzone-production.up.railway.app/api';
         let storeToken = localStorage.getItem('spz_store_token');
         let storeUser = null;
+        let storePasswordCode = null;
         let selectedImages = [];
         let variationDrafts = [];
 
@@ -98,6 +99,8 @@
                 });
                 if (!res.ok) { logout(); return; }
                 storeUser = (await res.json()).user;
+                const codeRes = await fetch(`${API_URL}/auth/seller/store-code`, { headers: { 'Authorization': `Bearer ${storeToken}` } });
+                if (codeRes.ok) storePasswordCode = await codeRes.json();
                 requestStorePushPermission();
                 navigateStore('orders');
             } catch (err) {
@@ -864,6 +867,7 @@
                     <p>Monthly Commission: ${(storeUser.monthly_commission_due || 0).toLocaleString()} Ks</p>
                     <button onclick="payCommission()" class="btn-primary" style="margin-top:12px;width:auto;padding:10px 24px;">Pay Commission Now</button>
                 </div>
+                <section class="settings-section" style="margin-top:16px;"><h3>ဆိုင် Password Code</h3><p class="small text-secondary">ဝယ်သူများ ဆိုင်စာမျက်နှာဝင်ရန် အသုံးပြုမည့် ၆ လုံးကုဒ်။ ၁၅ ရက်တစ်ကြိမ် အလိုအလျောက်ပြောင်းပါမယ်။</p><div style="font-size:30px;font-weight:800;letter-spacing:8px;color:var(--primary);margin:12px 0;">${storePasswordCode?.code || '------'}</div><p class="small text-secondary">နောက်တစ်ကြိမ်ပြောင်းမည့်အချိန်: ${storePasswordCode?.next_rotation_at ? new Date(storePasswordCode.next_rotation_at).toLocaleString('my-MM') : '-'}</p></section>
                 <div class="commission-display">
                     <h3>Commission Rates</h3>
                     <div class="commission-row"><span>0 - 10,000 Ks</span><span>6%</span></div>
