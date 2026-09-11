@@ -886,6 +886,17 @@
         }
 
         // ===== STORE TAB =====
+        async function saveStoreProfile(event) {
+            event.preventDefault();
+            const form = event.target;
+            const body = Object.fromEntries(new FormData(form));
+            const res = await fetch(`${API_URL}/store/profile`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${storeToken}` }, body: JSON.stringify(body) });
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'Unable to save store profile');
+            Object.assign(storeUser, body);
+            alert('Store profile saved successfully');
+        }
+
         async function renderStoreProfile(container) {
             container.innerHTML = `
                 <div class="store-header">
@@ -893,6 +904,7 @@
                     <p>Monthly Commission: ${(storeUser.monthly_commission_due || 0).toLocaleString()} Ks</p>
                     <button onclick="payCommission()" class="btn-primary" style="margin-top:12px;width:auto;padding:10px 24px;">Pay Commission Now</button>
                 </div>
+                <section class="settings-section"><h3>Store Profile & Information</h3><p class="small text-secondary">ဒီနေရာမှ ဆိုင်အမည်၊ ဆိုင်ပိုင်ရှင်အချက်အလက်နှင့် ဆိုင်ပုံများကို ပြင်ဆင်နိုင်ပါတယ်။</p><form onsubmit="saveStoreProfile(event)" class="product-form"><div class="form-group"><label>ဆိုင်အမည်</label><input name="store_name" required maxlength="160" value="${storeUser.store_name || ''}"></div><div class="form-group"><label>ဆိုင်ပိုင်ရှင်အမည်</label><input name="name" required maxlength="120" value="${storeUser.name || ''}"></div><div class="form-group"><label>Email</label><input name="email" type="email" maxlength="160" value="${storeUser.email || ''}"></div><div class="form-group"><label>ဆိုင် Logo URL</label><input name="logo" type="url" placeholder="https://..." value="${storeUser.logo || ''}"></div><div class="form-group"><label>ဆိုင် Banner URL</label><input name="banner" type="url" placeholder="https://..." value="${storeUser.banner || ''}"></div><p class="small text-secondary">Phone: ${storeUser.phone || '-'} (Login phone ကို ဒီနေရာမှ မပြောင်းနိုင်ပါ)</p><button class="btn-primary" type="submit">Save Store Profile</button></form></section>
                 <section class="settings-section" style="margin-top:16px;"><h3>ဆိုင် Password Code</h3><p class="small text-secondary">ဝယ်သူများ ဆိုင်စာမျက်နှာဝင်ရန် အသုံးပြုမည့် ၆ လုံးကုဒ်။ ၁၅ ရက်တစ်ကြိမ် အလိုအလျောက်ပြောင်းပါမယ်။</p><div style="font-size:30px;font-weight:800;letter-spacing:8px;color:var(--primary);margin:12px 0;">${storePasswordCode?.code || '------'}</div><p class="small text-secondary">နောက်တစ်ကြိမ်ပြောင်းမည့်အချိန်: ${storePasswordCode?.next_rotation_at ? new Date(storePasswordCode.next_rotation_at).toLocaleString('my-MM') : '-'}</p></section>
                 <div class="commission-display">
                     <h3>Commission Rates</h3>
