@@ -71,6 +71,9 @@
             <button onclick="navigateStore('orders')" class="nav-item active" data-store="orders">
                 <i class="fas fa-clipboard-list"></i><span>Orders</span>
             </button>
+            <button onclick="navigateStore('chat')" class="nav-item" data-store="chat">
+                <i class="fas fa-comments"></i><span>Chat</span>
+            </button>
             <button onclick="navigateStore('products')" class="nav-item" data-store="products">
                 <i class="fas fa-book"></i><span>Products</span>
             </button>
@@ -132,6 +135,7 @@
 
             switch(page) {
                 case 'orders': renderStoreOrders(content); break;
+                case 'chat': renderStoreChat(content); break;
                 case 'products': renderStoreProducts(content); break;
                 case 'settings': renderStoreSettings(content); break;
                 case 'store': renderStoreProfile(content); break;
@@ -468,6 +472,28 @@
             } catch (err) {
                 alert('Error: ' + err.message);
             }
+        }
+
+        async function renderStoreChat(container) {
+            container.innerHTML = `<div class="chat-page"><h2>Shop Messages</h2><div id="store-conversation-list" class="conversation-list"><p class="loading">Loading messages...</p></div></div>`;
+            const res = await fetch(`${API_URL}/chat/conversations`, { headers: { 'Authorization': `Bearer ${storeToken}` } });
+            const convs = await res.json();
+            document.getElementById('store-conversation-list').innerHTML = convs.map(c => `<div class="conversation-item" onclick="openStoreChat(${c.conversation_id})"><div class="conv-avatar"><i class="fas fa-user"></i></div><div class="conv-info"><h4>Conversation #${c.conversation_id}</h4><p>${String(c.last_message || 'No messages yet').replace(/[&<>"']/g, '')}</p><span>${c.last_message_time ? new Date(c.last_message_time).toLocaleString() : ''}</span></div></div>`).join('') || '<p class="empty-text">No conversations yet</p>';
+        }
+
+        async function openStoreChat(conversationId) {
+            const main = document.getElementById('store-content');
+            main.innerHTML = `<div class="chat-page"><button class="btn-text" onclick="navigateStore('chat')"><i class="fas fa-arrow-left"></i> Back</button><h2>Conversation #${conversationId}</h2><div id="store-message-list" class="message-list">Loading...</div><form onsubmit="sendStoreChat(event, ${conversationId})" class="chat-compose"><input id="store-chat-input" required maxlength="2000" placeholder="Write a reply..."><button class="btn-primary">Send</button></form></div>`;
+            const res = await fetch(`${API_URL}/chat/${conversationId}`, { headers: { 'Authorization': `Bearer ${storeToken}` } });
+            const messages = await res.json();
+            if (!res.ok) return document.getElementById('store-message-list').textContent = messages.error || 'Unable to load messages';
+            document.getElementById('store-message-list').innerHTML = messages.map(m => `<div class="message-bubble"><div>${String(m.content || '').replace(/[&<>"']/g, '')}</div><small>${String(m.sender_name || '')}</small></div>`).join('') || 'No messages yet';
+        }
+
+        async function sendStoreChat(event, conversationId) {
+            event.preventDefault(); const input = document.getElementById('store-chat-input'); const content = input.value.trim(); if (!content) return;
+            const res = await fetch(`${API_URL}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${storeToken}` }, body: JSON.stringify({ conversation_id: conversationId, content }) });
+            const data = await res.json(); if (!res.ok) return alert(data.error || 'Unable to send message'); openStoreChat(conversationId);
         }
 
         // ===== SETTINGS TAB =====

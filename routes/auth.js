@@ -6,7 +6,12 @@ const db = require('../db');
 const config = require('../config');
 const { authenticate, requirePasswordCode, ensureStorePasswordCode } = require('../middleware/auth');
 
-const normalizePhone = (value) => String(value || '').replace(/[\s-]/g, '');
+const normalizePhone = (value) => {
+    let phone = String(value || '').replace(/[\s-]/g, '');
+    if (phone.startsWith('+95')) phone = '0' + phone.slice(3);
+    else if (phone.startsWith('95')) phone = '0' + phone.slice(2);
+    return phone;
+};
 const sellerRoles = new Set(['publisher', 'bookstore', 'commission_store', 'agent', 'admin']);
 
 // Buyer: Check Password Code

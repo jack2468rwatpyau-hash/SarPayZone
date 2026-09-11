@@ -145,6 +145,10 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
 ]), async (req, res) => {
     try {
         const { title, author_name, category_id, original_price, discounted_price, description, stock_quantity, variations } = req.body;
+        const numericOriginal = Number(original_price);
+        const numericDiscounted = discounted_price === undefined || discounted_price === '' ? numericOriginal : Number(discounted_price);
+        const numericStock = stock_quantity === undefined || stock_quantity === '' ? 0 : Number(stock_quantity);
+        if (!String(title || '').trim() || !Number.isFinite(numericOriginal) || numericOriginal < 0 || !Number.isFinite(numericDiscounted) || numericDiscounted < 0 || !Number.isInteger(numericStock) || numericStock < 0) return res.status(400).json({ error: 'Title, price, discount price, and whole-number stock are required.' });
         
         const count = await db.execute({ sql: 'SELECT COUNT(*) as c FROM products' });
         const publicId = `SPFbk#${String(count.rows[0].c + 1).padStart(4, '0')}`;
@@ -160,7 +164,7 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
             sql: `INSERT INTO products (public_id, seller_id, product_type, title, author_name, category_id,
                   original_price, discounted_price, description, stock_quantity, images)
                   VALUES (?, ?, 'store_book', ?, ?, ?, ?, ?, ?, ?, ?)`,
-            args: [publicId, req.user.seller_id, title, author_name, category_id, original_price, discounted_price || original_price, description, stock_quantity || 0, JSON.stringify(imageUrls)]
+            args: [publicId, req.user.seller_id, title.trim(), author_name || null, category_id || null, numericOriginal, numericDiscounted, description || null, numericStock, JSON.stringify(imageUrls)]
         });
 
         const bookId = result.lastInsertRowid;

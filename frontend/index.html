@@ -449,6 +449,10 @@
             loadConversations('all');
         }
 
+        function escapeChatText(value) {
+            return String(value || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[ch]));
+        }
+
         async function loadConversations(type) {
             const res = await fetch(`${API_URL}/chat/conversations`, {
                 headers: { 'Authorization': `Bearer ${authToken}` }
@@ -461,11 +465,33 @@
                     <div class="conv-avatar"><i class="fas fa-user-circle"></i></div>
                     <div class="conv-info">
                         <h4>Conversation #${c.conversation_id}</h4>
-                        <p class="conv-preview">${c.last_message || 'No messages yet'}</p>
+                        <p class="conv-preview">${escapeChatText(c.last_message || 'No messages yet')}</p>
                         <span class="conv-time">${c.last_message_time ? new Date(c.last_message_time).toLocaleDateString() : ''}</span>
                     </div>
                 </div>
             `).join('') || '<p class="empty-text">No conversations yet</p>';
+        }
+
+        async function openChat(conversationId) {
+            const main = document.getElementById('main-content');
+            main.innerHTML = `<div class="chat-page"><button class="btn-text" onclick="navigateTo('chat')"><i class="fas fa-arrow-left"></i> Back to messages</button><h2>Conversation #${conversationId}</h2><div id="message-list" class="message-list"><p class="loading">Loading messages...</p></div><form class="chat-compose" onsubmit="sendChatMessage(event, ${conversationId})"><input id="chat-message-input" required maxlength="2000" placeholder="Write a message..."><button class="btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Send</button></form></div>`;
+            try {
+                const res = await fetch(`${API_URL}/chat/${conversationId}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+                const messages = await res.json();
+                if (!res.ok) throw new Error(messages.error || 'Unable to load messages');
+                const myId = `U${currentUser.user_id || currentUser.id}`;
+                document.getElementById('message-list').innerHTML = messages.map(m => `<div class="message-bubble ${String(m.sender_id) === myId ? 'mine' : 'theirs'}"><div>${m.message_type === 'image' ? `<img src="${escapeChatText(m.content)}" alt="Chat image">` : escapeChatText(m.content)}</div><small>${escapeChatText(m.sender_name || '')} · ${m.created_at ? new Date(m.created_at).toLocaleString() : ''}</small></div>`).join('') || '<p class="empty-text">No messages yet</p>';
+            } catch (err) { document.getElementById('message-list').innerHTML = `<p class="error-text">${escapeChatText(err.message)}</p>`; }
+        }
+
+        async function sendChatMessage(event, conversationId) {
+            event.preventDefault();
+            const input = document.getElementById('chat-message-input');
+            const content = input.value.trim(); if (!content) return;
+            const res = await fetch(`${API_URL}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ conversation_id: conversationId, content }) });
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'Unable to send message');
+            openChat(conversationId);
         }
 
         // ===== PROFILE =====
@@ -969,10 +995,6 @@
             photoInput.click();
         }
 
-        function openChat(conversationId) {
-            navigateTo('chat');
-            setTimeout(() => alert(`Conversation ${conversationId} loaded. Real-time messaging uses Socket.IO.`), 0);
-        }
         async function startChat(sellerId, bookId) {
             if (!currentUser) { showAuthModal(); return; }
             try {
@@ -986,7 +1008,7 @@
                 if (data.store_reply?.auto_reply_message || data.store_reply?.reply_time_text) {
                     alert(`${data.store_reply.auto_reply_message || 'Message sent.'}\n\n${data.store_reply.reply_time_text || ''}`);
                 }
-                navigateTo('chat');
+                openChat(data.conversation_id);
             } catch (err) {
                 alert(err.message || 'Unable to start chat');
             }
