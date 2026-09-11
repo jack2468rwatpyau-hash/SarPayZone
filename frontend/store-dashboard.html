@@ -56,38 +56,71 @@
         .order-actions .btn-text { font-size: 13px; }
         .image-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; margin-top: 8px; }
         .image-preview-grid img { width: 100%; height: 80px; object-fit: cover; border-radius: var(--radius-sm); border: 2px solid var(--border); }
+        .store-shell { min-height: 100vh; }
+        .menu-toggle { display:flex; align-items:center; gap:8px; }
+        .store-drawer-backdrop { position:fixed; inset:0; background:rgba(20,30,24,.4); z-index:500; opacity:0; pointer-events:none; transition:opacity .2s; }
+        .store-drawer { position:fixed; top:0; bottom:0; left:0; width:min(310px,86vw); background:var(--card); z-index:501; transform:translateX(-102%); transition:transform .22s ease-out; padding:20px 14px; overflow:auto; box-shadow:var(--shadow-lg); }
+        .store-drawer.open { transform:translateX(0); }
+        .store-drawer-backdrop.open { opacity:1; pointer-events:auto; }
+        .drawer-brand { padding:10px 12px 20px; border-bottom:1px solid var(--border); margin-bottom:10px; }
+        .drawer-nav { display:grid; gap:4px; }
+        .drawer-nav button { width:100%; border:0; background:transparent; color:var(--text); padding:13px 12px; text-align:left; border-radius:10px; font:600 14px var(--font-sans); display:flex; gap:12px; align-items:center; cursor:pointer; }
+        .drawer-nav button:hover,.drawer-nav button.active { background:var(--surface); color:var(--primary); }
+        .drawer-footer { border-top:1px solid var(--border); margin-top:18px; padding-top:14px; display:grid; gap:10px; }
+        .language-switch { display:flex; gap:6px; }
+        .language-switch button { flex:1; padding:9px; border:1px solid var(--border); background:var(--surface); border-radius:8px; cursor:pointer; color:var(--text); }
+        .language-switch button.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+        .product-tab-panel { display:none; }
+        .product-tab-panel.active { display:block; }
+        .product-form-actions { display:flex; gap:10px; position:sticky; bottom:8px; background:var(--card); padding:10px 0; z-index:2; }
+        .product-form-actions button { flex:1; }
+        .store-subnav { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin:14px 0; }
+        .store-subnav button { padding:14px 10px; text-align:left; border:1px solid var(--border); border-radius:12px; background:var(--card); color:var(--text); cursor:pointer; }
+        .store-subnav button.active { border-color:var(--primary); color:var(--primary); box-shadow:var(--shadow); }
+        @media (min-width:800px) { .store-drawer { width:280px; } .main-content { margin-left:280px; } .menu-toggle { display:none; } .store-drawer { transform:none; } .store-drawer-backdrop { display:none; } }
+        .settings-accordion { background:var(--card); border:1px solid var(--border); border-radius:14px; margin:12px 0; overflow:hidden; }
+        .settings-accordion summary { cursor:pointer; list-style:none; padding:16px; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
+        .settings-accordion summary::-webkit-details-marker { display:none; }
+        .settings-accordion summary::after { content:'+'; color:var(--primary); font-size:20px; }
+        .settings-accordion[open] summary::after { content:'−'; }
+        .settings-accordion .settings-section { border:0; border-top:1px solid var(--border); border-radius:0; margin:0; }
+        .product-form-tabs { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-bottom:16px; background:var(--surface); border-radius:12px; padding:4px; position:sticky; top:56px; z-index:5; }
+        .product-form-tabs .store-tab { border:0; border-radius:9px; padding:10px 4px; font-size:12px; }
+        .product-form-tabs .store-tab.active { background:var(--card); box-shadow:var(--shadow); }
     </style>
 </head>
 <body>
-    <div id="store-app">
+    <div id="store-app" class="store-shell">
         <header class="app-header">
-            <div class="logo-slot-header"><i class="fas fa-store"></i> Store Portal</div>
+            <button class="icon-btn menu-toggle" onclick="toggleStoreMenu()" aria-label="Open menu"><i class="fas fa-bars"></i><span data-i18n="nav.menu">Menu</span></button>
+            <div class="logo-slot-header"><i class="fas fa-store"></i> <span data-i18n="app.store_portal">Store Portal</span></div>
             <button onclick="logout()" class="icon-btn"><i class="fas fa-sign-out-alt"></i></button>
         </header>
 
-        <main id="store-content" class="main-content"></main>
+        <div id="store-drawer-backdrop" class="store-drawer-backdrop" onclick="toggleStoreMenu(false)"></div>
+        <aside id="store-drawer" class="store-drawer" aria-label="Store navigation">
+            <div class="drawer-brand"><strong>Sar Pay Zone</strong><p id="drawer-store-name" class="small text-secondary">Store Portal</p></div>
+            <nav class="drawer-nav">
+                <button onclick="navigateStore('orders');toggleStoreMenu(false)"><i class="fas fa-chart-line"></i><span data-i18n="nav.dashboard">ဒက်ရှ်ဘုတ်</span></button>
+                <button onclick="navigateStore('orders');toggleStoreMenu(false)"><i class="fas fa-clipboard-list"></i><span data-i18n="nav.orders">အော်ဒါများ</span></button>
+                <button onclick="navigateStore('products');toggleStoreMenu(false)"><i class="fas fa-book"></i><span data-i18n="nav.products">ပစ္စည်းများ</span></button>
+                <button onclick="navigateStore('settings');toggleStoreMenu(false)"><i class="fas fa-cog"></i><span data-i18n="nav.settings">ဆက်တင်</span></button>
+                <button onclick="navigateStore('store');toggleStoreMenu(false)"><i class="fas fa-shop"></i><span data-i18n="nav.store">ဆိုင်</span></button>
+                <button onclick="navigateStore('chat');toggleStoreMenu(false)"><i class="fas fa-comments"></i><span data-i18n="nav.messages">စာတိုများ</span></button>
+            </nav>
+            <div class="drawer-footer"><span class="small text-secondary" data-i18n="lang.select">ဘာသာစကား</span><div class="language-switch"><button id="lang-my" onclick="setStoreLanguage('my')">မြန်မာ</button><button id="lang-en" onclick="setStoreLanguage('en')">English</button></div><button class="btn-text danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i><span data-i18n="nav.logout">ထွက်မည်</span></button></div>
+        </aside>
 
-        <nav class="bottom-nav">
-            <button onclick="navigateStore('orders')" class="nav-item active" data-store="orders">
-                <i class="fas fa-clipboard-list"></i><span>Orders</span>
-            </button>
-            <button onclick="navigateStore('chat')" class="nav-item" data-store="chat">
-                <i class="fas fa-comments"></i><span>Chat</span>
-            </button>
-            <button onclick="navigateStore('products')" class="nav-item" data-store="products">
-                <i class="fas fa-book"></i><span>Products</span>
-            </button>
-            <button onclick="navigateStore('settings')" class="nav-item" data-store="settings">
-                <i class="fas fa-cog"></i><span>Settings</span>
-            </button>
-            <button onclick="navigateStore('store')" class="nav-item" data-store="store">
-                <i class="fas fa-shop"></i><span>Store</span>
-            </button>
-        </nav>
+        <main id="store-content" class="main-content"></main>
     </div>
 
     <script>
         const API_URL = 'https://sarpayzone-production.up.railway.app/api';
+        const SPZ_TRANSLATIONS = { my: { 'app.store_portal':'ဆိုင်ပေါ်တယ်','nav.menu':'မီနူး','nav.dashboard':'ဒက်ရှ်ဘုတ်','nav.orders':'အော်ဒါများ','nav.products':'ပစ္စည်းများ','nav.settings':'ဆက်တင်','nav.store':'ဆိုင်','nav.messages':'စာတိုများ','nav.logout':'ထွက်မည်','lang.select':'ဘာသာစကား','common.next':'ရှေ့သို့','common.back':'နောက်သို့','form.basic':'အခြေခံ','form.pricing':'ဈေးနှုန်း','form.images':'ပုံများ','form.options':'ရွေးချယ်စရာများ' }, en: { 'app.store_portal':'Store Portal','nav.menu':'Menu','nav.dashboard':'Dashboard','nav.orders':'Orders','nav.products':'Products','nav.settings':'Settings','nav.store':'Store','nav.messages':'Messages','nav.logout':'Logout','lang.select':'Language','common.next':'Next','common.back':'Back','form.basic':'Basic','form.pricing':'Pricing','form.images':'Images','form.options':'Options' } };
+        let storeLanguage = localStorage.getItem('spz_lang') || 'my';
+        function t(key) { return SPZ_TRANSLATIONS[storeLanguage]?.[key] || SPZ_TRANSLATIONS.en[key] || key; }
+        function setStoreLanguage(language) { storeLanguage = language === 'en' ? 'en' : 'my'; localStorage.setItem('spz_lang', storeLanguage); document.documentElement.lang = storeLanguage; document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); }); document.getElementById('lang-my')?.classList.toggle('active', storeLanguage === 'my'); document.getElementById('lang-en')?.classList.toggle('active', storeLanguage === 'en'); }
+        function toggleStoreMenu(force) { const open = typeof force === 'boolean' ? force : !document.getElementById('store-drawer').classList.contains('open'); document.getElementById('store-drawer').classList.toggle('open', open); document.getElementById('store-drawer-backdrop').classList.toggle('open', open); }
         let storeToken = localStorage.getItem('spz_store_token');
         let storeUser = null;
         let storePasswordCode = null;
@@ -102,6 +135,8 @@
                 });
                 if (!res.ok) { logout(); return; }
                 storeUser = (await res.json()).user;
+                document.getElementById('drawer-store-name').textContent = storeUser.store_name || storeUser.name || 'Store Portal';
+                setStoreLanguage(storeLanguage);
                 const codeRes = await fetch(`${API_URL}/auth/seller/store-code`, { headers: { 'Authorization': `Bearer ${storeToken}` } });
                 if (codeRes.ok) storePasswordCode = await codeRes.json();
                 requestStorePushPermission();
@@ -311,69 +346,24 @@
 
         function showAddProduct() {
             document.querySelectorAll('.store-tab').forEach(t => t.classList.remove('active'));
-            document.querySelector('.store-tab:last-child')?.classList.add('active');
             selectedImages = [];
             variationDrafts = [];
-            
             document.getElementById('product-section').innerHTML = `
+                <div class="product-form-tabs"><button type="button" class="store-tab active" onclick="setProductTab(0)"><span data-i18n="form.basic">Basic</span></button><button type="button" class="store-tab" onclick="setProductTab(1)"><span data-i18n="form.pricing">Pricing</span></button><button type="button" class="store-tab" onclick="setProductTab(2)"><span data-i18n="form.images">Images</span></button><button type="button" class="store-tab" onclick="setProductTab(3)"><span data-i18n="form.options">Options</span></button></div>
                 <form id="add-product-form" class="product-form" onsubmit="submitProduct(event)">
-                    <div class="form-group">
-                        <label>Title *</label>
-                        <input type="text" name="title" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Author</label>
-                        <input type="text" name="author_name">
-                    </div>
-                    <div class="form-group">
-                        <label>Category</label>
-                        <select name="category_id" id="cat-select"></select>
-                    </div>
-                    <div class="form-group">
-                        <label>Original Price (Ks) *</label>
-                        <input type="number" name="original_price" required step="0.01">
-                    </div>
-                    <div class="form-group">
-                        <label>Discounted Price (Ks)</label>
-                        <input type="number" name="discounted_price" step="0.01">
-                    </div>
-                    <div class="form-group">
-                        <label>Stock Quantity</label>
-                        <input type="number" name="stock_quantity" value="0">
-                    </div>
-                    <div class="form-group">
-                        <label>Description</label>
-                        <textarea name="description" rows="4"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Product Images (Max 5)</label>
-                        <div class="image-upload-zone" onclick="document.getElementById('prod-images').click()">
-                            <i class="fas fa-cloud-upload-alt fa-2x"></i>
-                            <p>Click to upload images</p>
-                        </div>
-                        <input type="file" id="prod-images" multiple accept="image/*" style="display:none" onchange="handleImageSelect(this)">
-                        <div id="image-preview" class="image-preview-grid"></div>
-                    </div>
-                    <section class="variation-editor" aria-labelledby="variation-heading">
-                        <div class="variation-editor-header">
-                            <div><span class="form-eyebrow">OPTIONAL</span><h3 id="variation-heading">Book options</h3><p>Add Box Set, Single, Set, or any format with its own price, stock, and images.</p></div>
-                            <button type="button" class="btn-secondary add-variation-btn" onclick="addVariation()"><i class="fas fa-plus"></i> Add option</button>
-                        </div>
-                        <div id="variations-list" class="variations-list"><div class="variation-empty"><i class="fas fa-layer-group"></i><span>No options added yet</span><small>Use one when the same book has different formats.</small></div></div>
-                    </section>
-                    <button type="submit" class="btn-primary">Publish Product</button>
-                </form>
-            `;
+                    <div class="product-tab-panel active" data-product-tab="0"><div class="form-group"><label>Title *</label><input type="text" name="title" required></div><div class="form-group"><label>Author</label><input type="text" name="author_name"></div><div class="form-group"><label>Category</label><select name="category_id" id="cat-select"></select></div><div class="form-group"><label>Description</label><textarea name="description" rows="5"></textarea></div><div class="product-form-actions"><button type="button" class="btn-primary" onclick="setProductTab(1)">Next <i class="fas fa-arrow-right"></i></button></div></div>
+                    <div class="product-tab-panel" data-product-tab="1"><div class="form-group"><label>Original Price (Ks) *</label><input type="number" name="original_price" required step="0.01" min="0"></div><div class="form-group"><label>Discounted Price (Ks)</label><input type="number" name="discounted_price" step="0.01" min="0"></div><div class="form-group"><label>Stock Quantity</label><input type="number" name="stock_quantity" value="0" min="0"></div><div class="product-form-actions"><button type="button" class="btn-secondary" onclick="setProductTab(0)">Back</button><button type="button" class="btn-primary" onclick="setProductTab(2)">Next <i class="fas fa-arrow-right"></i></button></div></div>
+                    <div class="product-tab-panel" data-product-tab="2"><div class="form-group"><label>Product Images (Max 5)</label><div class="image-upload-zone" onclick="document.getElementById('prod-images').click()"><i class="fas fa-cloud-upload-alt fa-2x"></i><p>Click to upload images</p></div><input type="file" id="prod-images" multiple accept="image/*" style="display:none" onchange="handleImageSelect(this)"><div id="image-preview" class="image-preview-grid"></div></div><div class="product-form-actions"><button type="button" class="btn-secondary" onclick="setProductTab(1)">Back</button><button type="button" class="btn-primary" onclick="setProductTab(3)">Next <i class="fas fa-arrow-right"></i></button></div></div>
+                    <div class="product-tab-panel" data-product-tab="3"><section class="variation-editor" aria-labelledby="variation-heading"><div class="variation-editor-header"><div><span class="form-eyebrow">OPTIONAL</span><h3 id="variation-heading">Book options</h3><p>Add Box Set, Single, Set, or any format with its own price, stock, and images.</p></div><button type="button" class="btn-secondary add-variation-btn" onclick="addVariation()"><i class="fas fa-plus"></i> Add option</button></div><div id="variations-list" class="variations-list"><div class="variation-empty"><i class="fas fa-layer-group"></i><span>No options added yet</span><small>Use one when the same book has different formats.</small></div></div></section><div class="product-form-actions"><button type="button" class="btn-secondary" onclick="setProductTab(2)">Back</button><button type="submit" class="btn-primary">Publish Product</button></div></div>
+                </form>`;
+            setStoreLanguage(storeLanguage);
+            fetch(`${API_URL}/products/categories/all`).then(r => r.json()).then(cats => { document.getElementById('cat-select').innerHTML = cats.map(c => `<option value="${c.category_id}">${c.name}</option>`).join(''); }).catch(err => console.error('Error loading categories:', err));
+        }
 
-            // Load categories
-            fetch(`${API_URL}/products/categories/all`)
-                .then(r => r.json())
-                .then(cats => {
-                    document.getElementById('cat-select').innerHTML = cats.map(c => 
-                        `<option value="${c.category_id}">${c.name}</option>`
-                    ).join('');
-                })
-                .catch(err => console.error('Error loading categories:', err));
+        function setProductTab(index) {
+            document.querySelectorAll('[data-product-tab]').forEach(panel => panel.classList.toggle('active', Number(panel.dataset.productTab) === index));
+            document.querySelectorAll('.product-form-tabs .store-tab').forEach((tab, i) => tab.classList.toggle('active', i === index));
+            document.getElementById('product-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         function addVariation() {
@@ -500,35 +490,37 @@
         async function renderStoreSettings(container) {
             container.innerHTML = `
                 <h2>Store Settings</h2>
-                <section class="settings-section store-availability-card">
+                <p class="small text-secondary">Open one section at a time to keep the settings screen clear.</p>
+                <details class="settings-accordion" open><summary>Store Availability</summary><section class="settings-section store-availability-card">
                     <div class="settings-section-heading"><div><span class="form-eyebrow">CUSTOMER-FACING</span><h3>Store availability</h3><p class="small text-secondary">Let buyers know when you are open and how quickly you usually reply.</p></div><span id="store-status-badge" class="availability-badge">Loading</span></div>
                     <div id="store-availability-form" class="availability-form"><div class="loading">Loading store settings...</div></div>
-                </section>
-                <div class="settings-section">
+                </section></details>
+                <details class="settings-accordion"><summary>Shipping Rates</summary><div class="settings-section">
                     <h3>Shipping Rates</h3>
                     <p class="small text-secondary">Default: 5,000 Ks for all Myanmar</p>
                     <div id="shipping-config"></div>
-                </div>
-                <div class="settings-section">
+                </div></details>
+                <details class="settings-accordion"><summary>Telegram Notifications</summary><div class="settings-section">
                     <h3>Telegram Notifications</h3>
                     <div class="form-group">
                         <label>Telegram User ID (for notifications)</label>
                         <input type="text" id="telegram-id" value="${storeUser.telegram_user_id || ''}" placeholder="e.g. 123456789">
                         <button onclick="updateTelegramId()" class="btn-primary" style="margin-top:8px;width:auto;padding:10px 20px;">Update Telegram ID</button>
                     </div>
-                </div>
-                <div class="settings-section">
+                </div></details>
+                <details class="settings-accordion"><summary>Prepay Percentage</summary><div class="settings-section">
                     <h3>Prepay Percentage</h3>
                     <div class="form-group">
                         <label>Prepay Percentage</label>
                         <input type="number" id="prepay-percent" placeholder="e.g. 50 for 50%" value="100">
                         <small>Default: 100% (full prepay)</small>
                     </div>
-                </div>
-                <div class="settings-section">
+                </div></details>
+                <details class="settings-accordion"><summary>Appearance</summary><div class="settings-section">
                     <button onclick="toggleNightMode()" class="btn-secondary"><i class="fas fa-moon"></i> Night Mode</button>
-                </div>
+                </div></details>
             `;
+            document.querySelectorAll(".settings-accordion").forEach(item => item.addEventListener("toggle", () => { if (item.open) document.querySelectorAll(".settings-accordion").forEach(other => { if (other !== item) other.open = false; }); }));
             await Promise.all([loadStoreSettings(), loadShippingConfig()]);
         }
 
@@ -904,9 +896,10 @@
                     <p>Monthly Commission: ${(storeUser.monthly_commission_due || 0).toLocaleString()} Ks</p>
                     <button onclick="payCommission()" class="btn-primary" style="margin-top:12px;width:auto;padding:10px 24px;">Pay Commission Now</button>
                 </div>
-                <section class="settings-section"><h3>Store Profile & Information</h3><p class="small text-secondary">ဒီနေရာမှ ဆိုင်အမည်၊ ဆိုင်ပိုင်ရှင်အချက်အလက်နှင့် ဆိုင်ပုံများကို ပြင်ဆင်နိုင်ပါတယ်။</p><form onsubmit="saveStoreProfile(event)" class="product-form"><div class="form-group"><label>ဆိုင်အမည်</label><input name="store_name" required maxlength="160" value="${storeUser.store_name || ''}"></div><div class="form-group"><label>ဆိုင်ပိုင်ရှင်အမည်</label><input name="name" required maxlength="120" value="${storeUser.name || ''}"></div><div class="form-group"><label>Email</label><input name="email" type="email" maxlength="160" value="${storeUser.email || ''}"></div><div class="form-group"><label>ဆိုင် Logo URL</label><input name="logo" type="url" placeholder="https://..." value="${storeUser.logo || ''}"></div><div class="form-group"><label>ဆိုင် Banner URL</label><input name="banner" type="url" placeholder="https://..." value="${storeUser.banner || ''}"></div><p class="small text-secondary">Phone: ${storeUser.phone || '-'} (Login phone ကို ဒီနေရာမှ မပြောင်းနိုင်ပါ)</p><button class="btn-primary" type="submit">Save Store Profile</button></form></section>
-                <section class="settings-section" style="margin-top:16px;"><h3>ဆိုင် Password Code</h3><p class="small text-secondary">ဝယ်သူများ ဆိုင်စာမျက်နှာဝင်ရန် အသုံးပြုမည့် ၆ လုံးကုဒ်။ ၁၅ ရက်တစ်ကြိမ် အလိုအလျောက်ပြောင်းပါမယ်။</p><div style="font-size:30px;font-weight:800;letter-spacing:8px;color:var(--primary);margin:12px 0;">${storePasswordCode?.code || '------'}</div><p class="small text-secondary">နောက်တစ်ကြိမ်ပြောင်းမည့်အချိန်: ${storePasswordCode?.next_rotation_at ? new Date(storePasswordCode.next_rotation_at).toLocaleString('my-MM') : '-'}</p></section>
-                <div class="commission-display">
+                <div class="store-subnav"><button class="active" onclick="showStoreSubpage('overview')">Overview</button><button onclick="showStoreSubpage('commission')">Commission Rates</button><button onclick="showStoreSubpage('cod')">COD Settlement</button><button onclick="showStoreSubpage('withdrawal')">Withdrawal</button><button onclick="showStoreSubpage('password')">Password Code</button></div>
+                <section data-store-subpage="overview" class="settings-section"><h3>Store Profile & Information</h3><p class="small text-secondary">ဒီနေရာမှ ဆိုင်အမည်၊ ဆိုင်ပိုင်ရှင်အချက်အလက်နှင့် ဆိုင်ပုံများကို ပြင်ဆင်နိုင်ပါတယ်။</p><form onsubmit="saveStoreProfile(event)" class="product-form"><div class="form-group"><label>ဆိုင်အမည်</label><input name="store_name" required maxlength="160" value="${storeUser.store_name || ''}"></div><div class="form-group"><label>ဆိုင်ပိုင်ရှင်အမည်</label><input name="name" required maxlength="120" value="${storeUser.name || ''}"></div><div class="form-group"><label>Email</label><input name="email" type="email" maxlength="160" value="${storeUser.email || ''}"></div><div class="form-group"><label>ဆိုင် Logo URL</label><input name="logo" type="url" placeholder="https://..." value="${storeUser.logo || ''}"></div><div class="form-group"><label>ဆိုင် Banner URL</label><input name="banner" type="url" placeholder="https://..." value="${storeUser.banner || ''}"></div><p class="small text-secondary">Phone: ${storeUser.phone || '-'} (Login phone ကို ဒီနေရာမှ မပြောင်းနိုင်ပါ)</p><button class="btn-primary" type="submit">Save Store Profile</button></form></section>
+                <section data-store-subpage="password" class="settings-section" style="display:none;margin-top:16px;"><h3>ဆိုင် Password Code</h3><p class="small text-secondary">ဝယ်သူများ ဆိုင်စာမျက်နှာဝင်ရန် အသုံးပြုမည့် ၆ လုံးကုဒ်။ ၁၅ ရက်တစ်ကြိမ် အလိုအလျောက်ပြောင်းပါမယ်။</p><div style="font-size:30px;font-weight:800;letter-spacing:8px;color:var(--primary);margin:12px 0;">${storePasswordCode?.code || '------'}</div><p class="small text-secondary">နောက်တစ်ကြိမ်ပြောင်းမည့်အချိန်: ${storePasswordCode?.next_rotation_at ? new Date(storePasswordCode.next_rotation_at).toLocaleString('my-MM') : '-'}</p></section>
+                <div data-store-subpage="commission" class="commission-display" style="display:none;">
                     <h3>Commission Rates</h3>
                     <div class="commission-row"><span>0 - 10,000 Ks</span><span>6%</span></div>
                     <div class="commission-row"><span>10,001 - 20,000 Ks</span><span>5%</span></div>
@@ -915,12 +908,12 @@
                     <div class="commission-row" style="border-bottom:none;"><span>Bookstore</span><span>2%</span></div>
                     <div class="commission-row" style="border-bottom:none;"><span>Commission Store</span><span>0%</span></div>
                 </div>
-                <section class="settings-section cod-settlement-card">
+                <section data-store-subpage="cod" class="settings-section cod-settlement-card" style="display:none;">
                     <h3>COD Platform Settlement</h3>
                     <p class="small text-secondary">Buyer pays cash to you. Submit the platform commission every 25 days.</p>
                     <div id="cod-settlement-panel"><p class="small text-secondary">Loading COD settlement...</p></div>
                 </section>
-                <div class="settings-section">
+                <div data-store-subpage="withdrawal" class="settings-section" style="display:none;">
                     <h3>Withdrawal</h3>
                     <div class="form-group"><label>Account Name</label><input type="text" id="wd-name" placeholder="Your name"></div>
                     <div class="form-group"><label>Wallet</label><select id="wd-method"><option value="kpay">K Pay</option><option value="wavepay">Wave Pay</option><option value="ayapay">AYA Pay</option></select></div>
@@ -929,8 +922,11 @@
                     <button onclick="requestWithdrawal()" class="btn-primary" style="margin-top:8px;width:auto;padding:10px 24px;">Request Withdrawal</button>
                 </div>
             `;
+            document.querySelectorAll('.store-subnav button').forEach((button, index) => button.addEventListener('click', () => document.querySelectorAll('.store-subnav button').forEach((b, i) => b.classList.toggle('active', i === index))));
             loadCodSettlement();
         }
+
+        function showStoreSubpage(page) { document.querySelectorAll('[data-store-subpage]').forEach(section => section.style.display = section.dataset.storeSubpage === page ? '' : 'none'); }
 
         async function loadCodSettlement() {
             const panel = document.getElementById('cod-settlement-panel');
