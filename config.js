@@ -1,17 +1,14 @@
 require('dotenv').config();
 
+// JWT_SECRET စစ်ဆေးမှု (Production အတွက်)
 if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32)) {
     throw new Error('A JWT_SECRET of at least 32 characters must be configured in production');
 }
-const corsOrigins = (process.env.CORS_ORIGINS || (process.env.NODE_ENV === 'production' ? '' : '*'))
-    .split(',').map(value => value.trim()).filter(Boolean);
-if (process.env.NODE_ENV === 'production' && corsOrigins.length === 0) throw new Error('CORS_ORIGINS must be configured in production');
 
 module.exports = {
     PORT: process.env.PORT || 3000,
     JWT_SECRET: process.env.JWT_SECRET || 'local-development-only-secret',
     JWT_EXPIRES_IN: '7d',
-    CORS_ORIGINS: corsOrigins,
     
     TURSO_URL: process.env.TURSO_URL,
     TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN,
@@ -45,5 +42,3 @@ module.exports = {
     VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
     VAPID_SUBJECT: process.env.VAPID_SUBJECT || 'mailto:admin@sarpayzone.site'
 };
-
-;
