@@ -152,11 +152,12 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
         
         const count = await db.execute({ sql: `SELECT COUNT(*) as c FROM products` });
         const publicId = `SPFbk#${String(count.rows[0].c + 1).padStart(4, '0')}`;
+        const cloudinaryFolderId = publicId.replace(/[^a-zA-Z0-9_-]/g, '_');
 
         // Upload images
         const imageUrls = [];
         for (const file of req.files?.images || []) {
-            const url = await uploadToCloudinary(file.buffer, `products/${publicId}`, 'product');
+            const url = await uploadToCloudinary(file.buffer, `products/${cloudinaryFolderId}`, 'product');
             imageUrls.push(url);
         }
 
@@ -180,7 +181,7 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
                 const variationImageUrls = [];
                 const imageCount = Number(imageMap[index] || 0);
                 for (const file of variationFiles.slice(imageOffset, imageOffset + imageCount)) {
-                    variationImageUrls.push(await uploadToCloudinary(file.buffer, `products/${publicId}/variation-${index + 1}`, 'product'));
+                    variationImageUrls.push(await uploadToCloudinary(file.buffer, `products/${cloudinaryFolderId}/variation-${index + 1}`, 'product'));
                 }
                 imageOffset += imageCount;
                 await db.execute({
