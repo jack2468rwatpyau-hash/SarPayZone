@@ -389,7 +389,7 @@
                         <div class="share-row">
                             <button onclick="showShareOptions('${p.public_id}', this)" class="btn-text"><i class="fas fa-share-alt"></i> Share</button>
                             <button onclick="startChat(${Number(p.seller_id) || 0}, ${Number(p.book_id) || 0})" class="btn-text"><i class="fas fa-comment"></i> Contact Shop</button>
-                            <button onclick="navigateTo('shop', {sellerId: '${p.seller_id || ''}'})" class="btn-text"><i class="fas fa-store"></i> Visit Shop</button>
+                            <button onclick="closeModal('product-modal'); navigateTo('shop', {sellerId: '${p.seller_id || ''}'})" class="btn-text"><i class="fas fa-store"></i> Visit Shop</button>
                         </div>
                     </div>
 
@@ -1201,9 +1201,6 @@
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Unable to start chat');
-                if (data.store_reply?.auto_reply_message || data.store_reply?.reply_time_text) {
-                    alert(`${data.store_reply.auto_reply_message || 'Message sent.'}\n\n${data.store_reply.reply_time_text || ''}`);
-                }
                 closeModal('product-modal');
                 navigateTo('chat');
                 openChat(Number(data.conversation_id));
