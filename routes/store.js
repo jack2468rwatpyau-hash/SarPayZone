@@ -9,6 +9,34 @@ const profileFields = 'seller_id, name, email, phone, store_name, logo, banner';
 const settingsFields = `seller_id, store_name, is_open, accepting_orders, reply_time_minutes,
                         reply_time_text, closed_message, auto_reply_message`;
 
+// Public buyer-facing shop page data. Only visible sellers and active products
+// are exposed; seller credentials and private contact fields are excluded.
+router.get('/public/:sellerId', async (req, res) => {
+    try {
+        const seller = await db.execute({
+            sql: `SELECT seller_id, public_id, store_name, logo, banner, role, is_open,
+                         accepting_orders, reply_time_text, closed_message, auto_reply_message
+                  FROM sellers WHERE (seller_id = ? OR public_id = ?) AND is_visible = 1`,
+            args: [req.params.sellerId, req.params.sellerId]
+        });
+        if (!seller.rows.length) return res.status(404).json({ error: 'Shop not found' });
+
+        const shop = seller.rows[0];
+        const products = await db.execute({
+            sql: `SELECT p.book_id, p.public_id, p.title, p.author_name, p.original_price,
+                         p.discounted_price, p.stock_quantity, p.images, p.view_count,
+                         p.product_type, c.name AS category_name
+                  FROM products p LEFT JOIN categories c ON p.category_id = c.category_id
+                  WHERE p.seller_id = ? AND p.is_active = 1 AND (p.approved = 1 OR p.product_type = 'store_book')
+                  ORDER BY p.created_at DESC`,
+            args: [shop.seller_id]
+        });
+        res.json({ shop, products: products.rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.get('/profile', authenticate, sellerRoles, async (req, res) => {
     try {
         const result = await db.execute({ sql: `SELECT ${profileFields} FROM sellers WHERE seller_id = ?`, args: [req.user.seller_id] });

@@ -231,6 +231,7 @@
                 case 'home': renderHome(main); break;
                 case 'categories': renderCategories(main); break;
                 case 'chat': renderChat(main); break;
+                case 'shop': renderShop(main, params.sellerId); break;
                 case 'profile': renderProfile(main); break;
                 case 'search': renderSearch(main); break;
                 case 'cart': renderCart(main); break;
@@ -311,7 +312,7 @@
                         </div>
                         <div class="product-meta">
                             <span><i class="fas fa-eye"></i> ${p.view_count}</span>
-                            <span><i class="fas fa-store"></i> ${p.store_name || 'SPZ'}</span>
+                            <button class="store-link" onclick="event.stopPropagation(); navigateTo('shop', {sellerId: '${p.seller_id || ''}'})"><i class="fas fa-store"></i> ${escapeChatText(p.store_name || 'SPZ')}</button>
                         </div>
                         <div class="store-status-line ${storeOpen ? 'is-open' : 'is-closed'}"><i class="fas fa-circle"></i> ${storeOpen ? 'Open for orders' : 'ဆိုင်ခေတ္တပိတ်ထားသည်'}</div>
                     </div>
@@ -382,7 +383,8 @@
 
                         <div class="share-row">
                             <button onclick="shareProduct('${p.public_id}')" class="btn-text"><i class="fas fa-share-alt"></i> Share</button>
-                            <button onclick="startChat(${p.seller_id}, ${p.book_id})" class="btn-text"><i class="fas fa-comment"></i> Contact Shop</button>
+                            <button onclick="startChat(${Number(p.seller_id) || 0}, ${Number(p.book_id) || 0})" class="btn-text"><i class="fas fa-comment"></i> Contact Shop</button>
+                            <button onclick="navigateTo('shop', {sellerId: '${p.seller_id || ''}'})" class="btn-text"><i class="fas fa-store"></i> Visit Shop</button>
                         </div>
                     </div>
 
@@ -458,6 +460,7 @@
                 headers: { 'Authorization': `Bearer ${authToken}` }
             });
             const convs = await res.json();
+            if (!res.ok || !Array.isArray(convs)) throw new Error(convs.error || 'Unable to load conversations');
             const filtered = type === 'all' ? convs : convs.filter(c => c.conversation_type === type);
             
             document.getElementById('conversation-list').innerHTML = filtered.map(c => `
@@ -479,6 +482,7 @@
                 const res = await fetch(`${API_URL}/chat/${conversationId}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
                 const messages = await res.json();
                 if (!res.ok) throw new Error(messages.error || 'Unable to load messages');
+                if (!Array.isArray(messages)) throw new Error('Unable to load messages');
                 const myId = `U${currentUser.user_id || currentUser.id}`;
                 document.getElementById('message-list').innerHTML = messages.map(m => `<div class="message-bubble ${String(m.sender_id) === myId ? 'mine' : 'theirs'}"><div>${m.message_type === 'image' ? `<img src="${escapeChatText(m.content)}" alt="Chat image">` : escapeChatText(m.content)}</div><small>${escapeChatText(m.sender_name || '')} · ${m.created_at ? new Date(m.created_at).toLocaleString() : ''}</small></div>`).join('') || '<p class="empty-text">No messages yet</p>';
             } catch (err) { document.getElementById('message-list').innerHTML = `<p class="error-text">${escapeChatText(err.message)}</p>`; }
@@ -487,11 +491,34 @@
         async function sendChatMessage(event, conversationId) {
             event.preventDefault();
             const input = document.getElementById('chat-message-input');
-            const content = input.value.trim(); if (!content) return;
+            const content = String(input.value || '').trim(); if (!content) return;
+            input.disabled = true;
             const res = await fetch(`${API_URL}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ conversation_id: conversationId, content }) });
             const data = await res.json();
+            input.disabled = false;
             if (!res.ok) return alert(data.error || 'Unable to send message');
             openChat(conversationId);
+        }
+
+        async function renderShop(container, sellerId) {
+            if (!sellerId) { container.innerHTML = '<p class="error-text">Shop information is unavailable.</p>'; return; }
+            container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading shop...</div>';
+            try {
+                const res = await fetch(`${API_URL}/store/public/${encodeURIComponent(sellerId)}`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Unable to load shop');
+                const shop = data.shop;
+                container.innerHTML = `
+                    <div class="shop-page">
+                        <button class="btn-text shop-back" onclick="navigateTo('home')"><i class="fas fa-arrow-left"></i> Back</button>
+                        <div class="shop-hero" style="${shop.banner ? `background-image:url('${escapeChatText(shop.banner)}')` : ''}">
+                            <div class="shop-identity"><img src="${escapeChatText(shop.logo || '/assets/logo.png')}" alt="${escapeChatText(shop.store_name || 'Shop')}"><div><h2>${escapeChatText(shop.store_name || 'Shop')}</h2><p>${escapeChatText(shop.public_id || '')}</p></div></div>
+                        </div>
+                        <div class="shop-summary"><span class="shop-status ${Number(shop.is_open) && Number(shop.accepting_orders) ? 'is-open' : 'is-closed'}"><i class="fas fa-circle"></i> ${Number(shop.is_open) && Number(shop.accepting_orders) ? 'Open for orders' : 'Temporarily closed'}</span><span>${data.products.length} products</span></div>
+                        <div class="section-header"><h3>Books from this shop</h3></div>
+                        <div class="product-grid">${data.products.map(product => renderProductCard({ ...product, seller_id: shop.seller_id, store_name: shop.store_name, store_is_open: shop.is_open, store_accepting_orders: shop.accepting_orders })).join('') || '<p class="empty-text">This shop has no products yet.</p>'}</div>
+                    </div>`;
+            } catch (err) { container.innerHTML = `<p class="error-text">${escapeChatText(err.message)}</p>`; }
         }
 
         // ===== PROFILE =====
@@ -997,11 +1024,13 @@
 
         async function startChat(sellerId, bookId) {
             if (!currentUser) { showAuthModal(); return; }
+            const numericSellerId = Number(sellerId);
+            if (!Number.isSafeInteger(numericSellerId) || numericSellerId <= 0) { alert('Shop contact is unavailable for this product.'); return; }
             try {
                 const res = await fetch(`${API_URL}/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                    body: JSON.stringify({ conversation_type: 'buyer_shop', participants: [`U${currentUser.user_id || currentUser.id}`, `S${sellerId}`] })
+                    body: JSON.stringify({ conversation_type: 'buyer_shop', participants: [`U${Number(currentUser.user_id || currentUser.id)}`, `S${numericSellerId}`] })
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Unable to start chat');

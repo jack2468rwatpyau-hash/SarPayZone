@@ -69,20 +69,25 @@ router.get('/:conversationId', authenticate, async (req, res) => {
 router.post('/', authenticate, async (req, res) => {
     try {
         const { conversation_id, content, conversation_type, participants, related_order_id } = req.body;
+        const normalizedContent = String(content || '').trim();
+        if (!normalizedContent || normalizedContent.length > 2000) return res.status(400).json({ error: 'Message must be between 1 and 2000 characters' });
+        const normalizedConversationId = conversation_id === undefined || conversation_id === null || conversation_id === '' ? null : Number(conversation_id);
+        if (normalizedConversationId !== null && !Number.isSafeInteger(normalizedConversationId)) return res.status(400).json({ error: 'Invalid conversation' });
+        const normalizedParticipants = Array.isArray(participants) ? participants.map(value => String(value)).filter(Boolean) : [];
         const identity = getIdentity(req.user);
         const senderIdentifier = identity.identifier;
 
         // AI Moderation
-        const isFlagged = await moderateMessage(content);
+        const isFlagged = await moderateMessage(normalizedContent);
         if (isFlagged) {
             return res.status(400).json({ error: 'Message flagged by AI moderation. Please rephrase.' });
         }
 
         // Create conversation if new
-        let convId = conversation_id;
+        let convId = normalizedConversationId;
         let storeReply = null;
         if (!convId) {
-            const participantList = Array.from(new Set([senderIdentifier, ...(Array.isArray(participants) ? participants : [])]));
+            const participantList = Array.from(new Set([senderIdentifier, ...normalizedParticipants]));
             const participantsJson = JSON.stringify(participantList);
             const conv = await db.execute({
                 sql: `INSERT INTO conversations (conversation_type, participants, related_order_id) 
@@ -106,7 +111,7 @@ router.post('/', authenticate, async (req, res) => {
         await db.execute({
             sql: `INSERT INTO messages (conversation_id, sender_id, sender_type, content) 
                   VALUES (?, ?, ?, ?)`,
-            args: [convId, senderIdentifier, identity.type, content]
+            args: [convId, senderIdentifier, identity.type, normalizedContent]
         });
 
         await db.execute({
@@ -117,8 +122,8 @@ router.post('/', authenticate, async (req, res) => {
         const conversation = await db.execute({ sql: `SELECT participants FROM conversations WHERE conversation_id = ?`, args: [convId] });
         for (const participant of JSON.parse(conversation.rows[0]?.participants || '[]')) {
             if (participant === senderIdentifier) continue;
-            if (participant.startsWith('U')) await sendPushNotification(Number(participant.slice(1)), 'buyer', { title: 'New chat message', body: String(content).slice(0, 120), tag: `chat-${convId}`, url: `/index.html#chat?conversation=${convId}` });
-            if (participant.startsWith('S')) await sendPushNotification(Number(participant.slice(1)), 'seller', { title: 'New chat message', body: String(content).slice(0, 120), tag: `chat-${convId}`, url: `/store-dashboard.html#chat?conversation=${convId}` });
+            if (participant.startsWith('U')) await sendPushNotification(Number(participant.slice(1)), 'buyer', { title: 'New chat message', body: normalizedContent.slice(0, 120), tag: `chat-${convId}`, url: `/index.html#chat?conversation=${convId}` });
+            if (participant.startsWith('S')) await sendPushNotification(Number(participant.slice(1)), 'seller', { title: 'New chat message', body: normalizedContent.slice(0, 120), tag: `chat-${convId}`, url: `/store-dashboard.html#chat?conversation=${convId}` });
         }
 
         res.json({ success: true, conversation_id: convId, store_reply: storeReply });

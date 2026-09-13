@@ -1579,3 +1579,33 @@ button, .btn-primary, .btn-secondary, .filter-btn, .nav-item { min-height: 40px;
     #app, #store-app, #agent-app, #admin-app { padding-top: 52px; }
     .btn-primary, .btn-secondary { padding-top: 10px; padding-bottom: 10px; }
 }
+
+/* Buyer chat and shop browsing polish. */
+.message-list { direction: ltr; }
+.message-bubble { direction: ltr; unicode-bidi: plaintext; text-align: left; overflow-wrap: anywhere; }
+.message-bubble.mine { margin-left: auto; margin-right: 0; }
+.chat-compose { direction: ltr; align-items: center; }
+.chat-compose input { direction: ltr; unicode-bidi: plaintext; text-align: left; }
+.chat-compose .btn-primary, .chat-compose button { width: auto; min-width: 76px; padding: 8px 11px; min-height: 36px; font-size: 12px !important; box-shadow: none; }
+.btn-text { padding: 5px 7px; min-height: 32px; font-size: 12px !important; }
+.store-link { border: 0; background: transparent; color: var(--text-secondary); padding: 0; font: inherit; cursor: pointer; text-align: left; }
+.store-link:hover { color: var(--primary); }
+.product-image { aspect-ratio: 1 / 1; }
+.product-image img { object-fit: cover; }
+.shop-page { max-width: 1100px; margin: 0 auto; }
+.shop-back { margin-bottom: 8px; }
+.shop-hero { min-height: 150px; display: flex; align-items: flex-end; padding: 18px; border-radius: 18px; background: linear-gradient(135deg, rgba(45,125,79,.18), rgba(225,168,59,.18)); background-size: cover; background-position: center; overflow: hidden; }
+.shop-identity { display: flex; align-items: center; gap: 12px; width: min(100%, 520px); padding: 12px; border-radius: 14px; background: rgba(255,253,248,.92); backdrop-filter: blur(8px); }
+.shop-identity img { width: 56px; height: 56px; border-radius: 12px; object-fit: cover; background: var(--surface); }
+.shop-identity h2, .shop-identity p { margin: 0; }
+.shop-identity p { color: var(--text-secondary); font-size: 12px; }
+.shop-summary { display: flex; justify-content: space-between; gap: 12px; padding: 12px 2px; color: var(--text-secondary); font-size: 12px; }
+.shop-status { font-weight: 700; }
+.shop-status i { font-size: 7px; margin-right: 5px; vertical-align: middle; }
+.shop-status.is-open { color: var(--success); }
+.shop-status.is-closed { color: #a73d31; }
+@media (max-width: 560px) {
+    .shop-hero { min-height: 132px; padding: 12px; }
+    .shop-identity img { width: 48px; height: 48px; }
+    .product-grid { gap: 10px; }
+}
