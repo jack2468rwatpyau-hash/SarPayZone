@@ -34,7 +34,9 @@
         .seller-product-status.is-inactive { color: #8a3027; }
         .seller-product-actions { display: flex; justify-content: flex-end; gap: 22px; margin-top: auto; padding-top: 10px; }
         .seller-product-actions button { border: 0; background: transparent; color: #165c3a; font-family: var(--font-sans); font-size: 15px; font-weight: 800; cursor: pointer; }
-        .seller-product-actions button:disabled { color: rgba(22,92,58,.72); cursor: not-allowed; }
+        .seller-product-actions button:hover { color: #073a36; text-decoration: underline; }
+        .seller-product-edit-form { padding: 18px; border: 1px solid var(--border); border-radius: 18px; background: var(--card); box-shadow: var(--shadow); }
+        .seller-product-edit-form h3 { margin: 0 0 16px; }
         @media (max-width: 420px) { .seller-product-card { grid-template-columns: 72px minmax(0, 1fr); gap: 11px; padding: 11px; } .seller-product-cover { width: 72px; height: 96px; } .seller-product-title { font-size: 15px; } .seller-product-meta { font-size: 12px; } .seller-product-actions { gap: 13px; } }
         .product-form { display: flex; flex-direction: column; gap: 16px; }
         .form-group { display: flex; flex-direction: column; gap: 6px; }
@@ -141,6 +143,7 @@
         let storePasswordCode = null;
         let selectedImages = [];
         let variationDrafts = [];
+        let sellerProductsCache = [];
 
         async function initStore() {
             if (!storeToken) { window.location.href = '/publisherlogin.html'; return; }
@@ -347,6 +350,7 @@
                 });
                 const products = await res.json();
                 if (!res.ok) throw new Error(products.error || 'Unable to load products');
+                sellerProductsCache = Array.isArray(products) ? products : [];
 
                 document.getElementById('product-section').innerHTML = `
                     <div class="seller-product-list" aria-live="polite">
@@ -368,8 +372,8 @@
                                         <div class="seller-product-meta"><span>Price - <strong>${price} Ks</strong></span><span>Stock - <strong>${stock}</strong></span></div>
                                         <span class="seller-product-status ${p.is_active ? '' : 'is-inactive'}">${status}</span>
                                         <div class="seller-product-actions" aria-label="Product actions">
-                                            <button type="button" disabled title="Product editing is not available yet">Edit</button>
-                                            <button type="button" disabled title="Product deletion is not available yet">Delete</button>
+                                            <button type="button" onclick="editProduct(${Number(p.book_id)})">Edit</button>
+                                            <button type="button" onclick="deleteProduct(${Number(p.book_id)})">Delete</button>
                                         </div>
                                     </div>
                                 </article>
@@ -383,6 +387,65 @@
                 document.querySelector('.store-tab:first-child')?.classList.add('active');
             } catch (err) {
                 document.getElementById('product-section').innerHTML = `<p class="error-text">Error: ${err.message}</p>`;
+            }
+        }
+
+        function editProduct(bookId) {
+            const product = sellerProductsCache.find(item => Number(item.book_id) === Number(bookId));
+            if (!product) return alert('Product details are unavailable. Please refresh the list.');
+            document.querySelectorAll('.store-tab').forEach(t => t.classList.remove('active'));
+            const selectedPrice = product.discounted_price ?? product.original_price ?? 0;
+            document.getElementById('product-section').innerHTML = `
+                <form class="seller-product-edit-form" onsubmit="saveProductEdit(event, ${Number(bookId)})">
+                    <h3>Edit product</h3>
+                    <div class="form-group"><label for="edit-product-title">Title *</label><input id="edit-product-title" name="title" value="${escapeSellerProductText(product.title)}" required maxlength="200"></div>
+                    <div class="form-group"><label for="edit-product-author">Author</label><input id="edit-product-author" name="author_name" value="${escapeSellerProductText(product.author_name || '')}" maxlength="160"></div>
+                    <div class="form-group"><label for="edit-product-category">Category</label><select id="edit-product-category" name="category_id"><option value="">Loading categories...</option></select></div>
+                    <div class="form-row"><div class="form-group"><label for="edit-product-original">Original price (Ks) *</label><input id="edit-product-original" name="original_price" type="number" min="0" step="0.01" value="${Number(product.original_price || 0)}" required></div><div class="form-group"><label for="edit-product-discounted">Discounted price (Ks)</label><input id="edit-product-discounted" name="discounted_price" type="number" min="0" step="0.01" value="${Number(selectedPrice)}"></div></div>
+                    <div class="form-group"><label for="edit-product-stock">Stock quantity</label><input id="edit-product-stock" name="stock_quantity" type="number" min="0" step="1" value="${Number(product.stock_quantity || 0)}" required></div>
+                    <div class="form-group"><label for="edit-product-description">Description</label><textarea id="edit-product-description" name="description" rows="5">${escapeSellerProductText(product.description || '')}</textarea></div>
+                    <div class="product-form-actions"><button type="button" class="btn-secondary" onclick="showProductList()">Cancel</button><button type="submit" class="btn-primary">Save changes</button></div>
+                </form>`;
+            fetch(`${API_URL}/products/categories/all`).then(res => res.json()).then(categories => {
+                const select = document.getElementById('edit-product-category');
+                if (!select) return;
+                select.innerHTML = `<option value="">Select category</option>${categories.map(category => `<option value="${Number(category.category_id)}" ${Number(category.category_id) === Number(product.category_id) ? 'selected' : ''}>${escapeSellerProductText(category.name)}</option>`).join('')}`;
+            }).catch(() => {});
+        }
+
+        async function saveProductEdit(event, bookId) {
+            event.preventDefault();
+            const form = event.target;
+            const body = Object.fromEntries(new FormData(form).entries());
+            body.category_id = body.category_id || null;
+            body.original_price = Number(body.original_price);
+            body.discounted_price = body.discounted_price === '' ? body.original_price : Number(body.discounted_price);
+            body.stock_quantity = Number(body.stock_quantity);
+            const submit = form.querySelector('button[type="submit"]');
+            submit.disabled = true;
+            try {
+                const res = await fetch(`${API_URL}/products/${bookId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${storeToken}` }, body: JSON.stringify(body) });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Unable to save product');
+                alert('Product updated successfully.');
+                await showProductList();
+            } catch (err) {
+                submit.disabled = false;
+                alert(err.message);
+            }
+        }
+
+        async function deleteProduct(bookId) {
+            const product = sellerProductsCache.find(item => Number(item.book_id) === Number(bookId));
+            if (!product || !confirm(`Remove "${product.title || 'this product'}" from the storefront?`)) return;
+            try {
+                const res = await fetch(`${API_URL}/products/${bookId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${storeToken}` } });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Unable to delete product');
+                alert('Product removed from the storefront.');
+                await showProductList();
+            } catch (err) {
+                alert(err.message);
             }
         }
 

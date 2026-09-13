@@ -91,6 +91,51 @@ router.get('/mine', authenticate, requireRole('publisher', 'bookstore', 'commiss
     }
 });
 
+// Update product details (Seller only; ownership is enforced in the query)
+router.patch('/:id', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
+    try {
+        const { title, author_name, category_id, original_price, discounted_price, description, stock_quantity } = req.body;
+        const numericOriginal = Number(original_price);
+        const numericDiscounted = discounted_price === undefined || discounted_price === '' ? numericOriginal : Number(discounted_price);
+        const numericStock = Number(stock_quantity);
+        if (!String(title || '').trim() || !Number.isFinite(numericOriginal) || numericOriginal < 0 || !Number.isFinite(numericDiscounted) || numericDiscounted < 0 || !Number.isInteger(numericStock) || numericStock < 0) {
+            return res.status(400).json({ error: 'Title, price, discount price, and whole-number stock are required.' });
+        }
+
+        const existing = await db.execute({
+            sql: 'SELECT book_id FROM products WHERE book_id = ? AND seller_id = ?',
+            args: [req.params.id, req.user.seller_id]
+        });
+        if (!existing.rows.length) return res.status(404).json({ error: 'Product not found' });
+
+        await db.execute({
+            sql: `UPDATE products
+                  SET title = ?, author_name = ?, category_id = ?, original_price = ?,
+                      discounted_price = ?, description = ?, stock_quantity = ?, updated_at = CURRENT_TIMESTAMP
+                  WHERE book_id = ? AND seller_id = ?`,
+            args: [String(title).trim(), String(author_name || '').trim() || null, category_id || null, numericOriginal, numericDiscounted, String(description || '').trim() || null, numericStock, req.params.id, req.user.seller_id]
+        });
+        res.json({ success: true, book_id: Number(req.params.id) });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Soft-delete a product so historical orders and foreign-key references remain intact
+router.delete('/:id', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
+    try {
+        const result = await db.execute({
+            sql: `UPDATE products SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+                  WHERE book_id = ? AND seller_id = ?`,
+            args: [req.params.id, req.user.seller_id]
+        });
+        if (!result.rowsAffected) return res.status(404).json({ error: 'Product not found' });
+        res.json({ success: true, book_id: Number(req.params.id) });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Get single product
 router.get('/:id', async (req, res) => {
     try {
