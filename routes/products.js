@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
                    FROM products p 
                    LEFT JOIN sellers s ON p.seller_id = s.seller_id 
                    LEFT JOIN categories c ON p.category_id = c.category_id 
-                   WHERE p.is_active = 1 AND p.approved = 1`;
+                   WHERE p.is_active = 1 AND (p.approved = 1 OR p.product_type = 'store_book')`;
         const args = [];
 
         if (category) {
@@ -101,7 +101,7 @@ router.get('/:id', async (req, res) => {
                   FROM products p 
                   LEFT JOIN sellers s ON p.seller_id = s.seller_id 
                   LEFT JOIN categories c ON p.category_id = c.category_id
-                  WHERE p.book_id = ? AND p.is_active = 1 AND p.approved = 1`,
+                  WHERE p.book_id = ? AND p.is_active = 1 AND (p.approved = 1 OR p.product_type = 'store_book')`,
             args: [req.params.id]
         });
 
@@ -163,8 +163,8 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
 
         const result = await db.execute({
             sql: `INSERT INTO products (public_id, seller_id, product_type, title, author_name, category_id,
-                  original_price, discounted_price, description, stock_quantity, images)
-                  VALUES (?, ?, 'store_book', ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  original_price, discounted_price, description, stock_quantity, images, approved)
+                  VALUES (?, ?, 'store_book', ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
             args: [publicId, req.user.seller_id, title.trim(), author_name || null, category_id || null, numericOriginal, numericDiscounted, description || null, numericStock, JSON.stringify(imageUrls)]
         });
 
