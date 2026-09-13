@@ -421,6 +421,11 @@ router.patch('/:id/status', authenticate, async (req, res) => {
                 sql: `UPDATE orders SET order_status = ?, updated_at = datetime('now') WHERE order_id = ?`,
                 args: [status, req.params.id]
             });
+            if (['approved', 'shipping', 'delivered'].includes(status)) {
+                await sendPushNotification(ord.buyer_id, 'buyer', {
+                    title: `Order ${status}`, body: `${ord.order_number} is now ${status}.`, tag: `order-status-${ord.order_id}-${status}`, url: '/index.html#orders'
+                });
+            }
 
             // On delivery, transfer merchandise revenue plus seller-defined shipping, minus commission.
             if (status === 'delivered' && ord.payment_method === 'cod') {

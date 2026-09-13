@@ -175,8 +175,10 @@
         async function requestStorePushPermission() {
             if (!('serviceWorker' in navigator) || !('PushManager' in window) || Notification.permission === 'denied') return;
             try {
+                if (Notification.permission === 'default') await Notification.requestPermission();
+                if (Notification.permission !== 'granted') return;
                 const reg = await navigator.serviceWorker.register('/service-worker.js');
-                const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: storeUrlBase64ToUint8Array('BB4adKD_jrSODVxxlh9R4-OOm0Bu8NIAfv507H6ZC0_12nvjVyQO0yjkRwIJnzUHhuQ8YV9W6ZLhdZNVS2dsmx0') });
+                const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: storeUrlBase64ToUint8Array('BB4adKD_jrSODVxxlh9R4-OOm0Bu8NIAfv507H6ZC0_12nvjVyQO0yjkRwIJnzUHhuQ8YV9W6ZLhdZNVS2dsmx0') });
                 await fetch(`${API_URL}/push/subscribe`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${storeToken}` }, body: JSON.stringify({ endpoint: sub.endpoint, keys: { p256dh: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))), auth: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth')))) } }) });
             } catch (err) { console.log('Store push permission denied'); }
         }

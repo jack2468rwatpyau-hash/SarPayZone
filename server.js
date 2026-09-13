@@ -75,6 +75,9 @@ app.use('/api/settlements', settlementRoutes);
 app.post('/api/push/subscribe', authenticate, async (req, res) => {
     try {
         const { endpoint, keys } = req.body;
+        if (typeof endpoint !== 'string' || !endpoint.startsWith('https://') || !keys || typeof keys.p256dh !== 'string' || typeof keys.auth !== 'string') {
+            return res.status(400).json({ error: 'Invalid push subscription' });
+        }
         const isBuyer = req.user.role === 'buyer';
         await db.execute({
             sql: `INSERT INTO push_subscriptions (user_id, seller_id, endpoint, keys_p256dh, keys_auth)

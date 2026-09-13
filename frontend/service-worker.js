@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sarpayzone-v2';
+const CACHE_NAME = 'sarpayzone-v3';
 const urlsToCache = ['/', '/styles.css', '/index.html'];
 
 self.addEventListener('install', event => {
@@ -16,7 +16,7 @@ self.addEventListener('push', event => {
     try { data = event.data ? event.data.json() : {}; } catch (_) { data = { title: 'Sar Pay Zone', body: event.data?.text() || 'You have a new notification.' }; }
     event.waitUntil(self.registration.showNotification(data.title || 'Sar Pay Zone', {
         body: data.body || '', tag: data.tag || 'sar-pay-zone', renotify: true,
-        icon: '/assets/logo-192.png', badge: '/assets/badge-72.png',
+        icon: '/assets/logo.png', badge: '/assets/logo.png',
         data: { url: data.url || data.data?.url || '/index.html' }
     }));
 });

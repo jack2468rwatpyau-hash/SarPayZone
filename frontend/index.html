@@ -1235,13 +1235,12 @@
         }
 
         async function requestPushPermission() {
-            if ('serviceWorker' in navigator && 'PushManager' in window) {
+            if ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && Notification.permission !== 'denied') {
                 try {
+                    if (Notification.permission === 'default') await Notification.requestPermission();
+                    if (Notification.permission !== 'granted') return;
                     const reg = await navigator.serviceWorker.register('/service-worker.js');
-                    const sub = await reg.pushManager.subscribe({
-                        userVisibleOnly: true,
-                        applicationServerKey: urlBase64ToUint8Array('BB4adKD_jrSODVxxlh9R4-OOm0Bu8NIAfv507H6ZC0_12nvjVyQO0yjkRwIJnzUHhuQ8YV9W6ZLhdZNVS2dsmx0')
-                    });
+                    const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array('BB4adKD_jrSODVxxlh9R4-OOm0Bu8NIAfv507H6ZC0_12nvjVyQO0yjkRwIJnzUHhuQ8YV9W6ZLhdZNVS2dsmx0') });
                     await fetch(`${API_URL}/push/subscribe`, {
                         method: 'POST',
                         headers: { 
