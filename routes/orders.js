@@ -87,6 +87,9 @@ router.post('/', authenticate, async (req, res) => {
                    shipping_state || null, shipping_district || null, shipping_township || null, p2p_friend_id || null]
         });
 
+        const orderId = Number(result.lastInsertRowid);
+        if (!Number.isSafeInteger(orderId)) throw new Error('Order ID could not be generated safely');
+
         if (!resell_listing_id) {
             await db.execute({
                 sql: `UPDATE products SET stock_quantity = stock_quantity - ? WHERE book_id = ? AND stock_quantity >= ?`,
@@ -113,7 +116,7 @@ router.post('/', authenticate, async (req, res) => {
         }
 
         await sendPushNotification(req.user.user_id || req.user.id, 'buyer', {
-            title: 'Order placed successfully', body: `Your order ${orderNumber} has been placed.`, tag: `order-${result.lastInsertRowid}`, url: '/index.html#orders'
+            title: 'Order placed successfully', body: `Your order ${orderNumber} has been placed.`, tag: `order-${orderId}`, url: '/index.html#orders'
         });
 
         // Send Telegram notification
@@ -130,10 +133,10 @@ router.post('/', authenticate, async (req, res) => {
         if (prod.seller_id) await sendPushNotification(prod.seller_id, 'seller', {
             title: 'New Order Received',
             body: `Order ${orderNumber} - ${prod.title}`,
-            data: { order_id: result.lastInsertRowid }
+            data: { order_id: orderId }
         });
 
-        res.json({ success: true, order_id: result.lastInsertRowid, order_number: orderNumber });
+        res.json({ success: true, order_id: orderId, order_number: orderNumber });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -207,7 +210,9 @@ router.post('/bulk', authenticate, async (req, res) => {
                     subtotal, shippingFee, commission, payment_method, payment_method === 'wallet' ? 'paid' : 'pending', shipping_address,
                     shipping_state, shipping_district, shipping_township, p2p_friend_id || null]
             });
-            orderIds.push(result.lastInsertRowid);
+            const orderId = Number(result.lastInsertRowid);
+            if (!Number.isSafeInteger(orderId)) throw new Error('Order ID could not be generated safely');
+            orderIds.push(orderId);
             await db.execute({
                 sql: `UPDATE products SET stock_quantity = stock_quantity - ? WHERE book_id = ? AND stock_quantity >= ?`,
                 args: [quantity, item.product_id, quantity]
@@ -218,7 +223,7 @@ router.post('/bulk', authenticate, async (req, res) => {
                 buyer_name: req.user.name, shipping_address
             });
             await sendPushNotification(prod.seller_id, 'seller', {
-                title: 'New order received', body: `${prod.title} · ${orderNumber}`, tag: `order-${result.lastInsertRowid}`, url: '/store-dashboard.html#orders'
+                title: 'New order received', body: `${prod.title} · ${orderNumber}`, tag: `order-${orderId}`, url: '/store-dashboard.html#orders'
             });
         }
 
