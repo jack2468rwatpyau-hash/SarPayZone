@@ -252,16 +252,18 @@
         async function renderHome(container) {
             container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
             
-            const [bannersRes, popularRes, categoriesRes] = await Promise.all([
+            const [bannersRes, popularRes, categoriesRes, resellRes] = await Promise.all([
                 fetch(`${API_URL}/products/banners`),
                 fetch(`${API_URL}/products?sort=popular&limit=10`),
-                fetch(`${API_URL}/products/categories/all`)
+                fetch(`${API_URL}/products/categories/all`),
+                fetch(`${API_URL}/resell/listings`)
             ]);
             
             const bannersPayload = await bannersRes.json().catch(() => []);
             const banners = Array.isArray(bannersPayload) ? bannersPayload : [];
             const popular = await popularRes.json().catch(() => []);
             const categories = await categoriesRes.json().catch(() => []);
+            const resellListings = await resellRes.json().catch(() => []);
 
             container.innerHTML = `
                 <div class="home-page">
@@ -285,6 +287,8 @@
                         ${popular.map(p => renderProductCard(p)).join('')}
                     </div>
 
+                    ${Array.isArray(resellListings) && resellListings.length ? `<div class="section-header"><h3>Resell Books</h3><button onclick="navigateTo('resell')" class="link-btn">See All</button></div><div class="product-grid">${resellListings.slice(0, 10).map(renderResellCard).join('')}</div>` : ''}
+
                     <div class="section-header">
                         <h3>Browse Categories</h3>
                     </div>
@@ -300,6 +304,12 @@
             `;
             
             initBannerSlider();
+        }
+
+        function renderResellCard(l) {
+            let image = '/assets/logo.png'; try { image = JSON.parse(l.condition_images || '[]')[0] || image; } catch (_) {}
+            const price = Number(l.final_price || l.asking_price || 0);
+            return `<div class="product-card resell-product-card"><div class="product-image"><span class="resell-badge">RESELL</span><img src="${escapeChatText(image)}" alt="${escapeChatText(l.title || 'Resell book')}"></div><div class="product-info"><h4 class="product-title">${escapeChatText(l.title || 'Resell book')}</h4><p class="product-author">${escapeChatText(l.author_name || '')}</p><div class="product-price-row"><span class="price">${price.toLocaleString()} Ks</span></div><div class="product-meta"><span>Stock: ${Number(l.stock_quantity || 0)}</span><span>${escapeChatText(l.seller_name || 'User seller')}</span></div><button class="btn-primary resell-buy-btn" onclick="event.stopPropagation(); buyResell(${Number(l.listing_id)})">Buy</button></div></div>`;
         }
 
         function renderProductCard(p) {
@@ -781,35 +791,16 @@
 
         // ===== RESELL =====
         async function renderResell(container) {
-            container.innerHTML = `
-                <div class="resell-page">
-                    <h2>Resell Center</h2>
-                    <button onclick="navigateTo('resell-add')" class="btn-primary"><i class="fas fa-plus"></i> List Book for Resell</button>
-                    <h3>Marketplace</h3>
-                    <div id="resell-listings" class="product-grid"></div>
-                </div>
-            `;
+            container.innerHTML = `<div class="resell-page"><h2>Resell Center</h2><button onclick="navigateTo('resell-add')" class="btn-primary"><i class="fas fa-plus"></i> List Book for Resell</button>${authToken ? '<h3>My Resell Listings</h3><div id="my-resell-listings" class="my-resell-list"></div>' : ''}<h3>Marketplace</h3><div id="resell-listings" class="product-grid"></div></div>`;
             
-            const res = await fetch(`${API_URL}/resell/listings`);
-            const listings = await res.json();
-            document.getElementById('resell-listings').innerHTML = listings.map(l => `
-                <div class="product-card">
-                    <div class="product-image">
-                        <img src="${l.condition_images ? JSON.parse(l.condition_images)[0] : '/assets/logo.png'}" alt="${l.title}">
-                    </div>
-                    <div class="product-info">
-                        <h4>${l.title}</h4>
-                        <p class="condition">Condition: Resell</p>
-                        <div class="product-price-row">
-                            <span class="price">${Number(l.final_price || l.asking_price).toLocaleString()} Ks</span>
-                            ${l.final_price ? `<small class="resell-markup">Seller price ${Number(l.asking_price).toLocaleString()} Ks + platform markup</small>` : ''}
-                        </div>
-                        <p class="seller-info"><i class="fas fa-user"></i> ${l.seller_name} (${l.city || 'N/A'})</p>
-                        <button class="btn-primary resell-buy-btn" onclick="buyResell(${l.listing_id})">Buy with Platform Payment</button>
-                    </div>
-                </div>
-            `).join('') || '<p class="empty-text">No resell listings available</p>';
+            const res = await fetch(`${API_URL}/resell/listings`); const listings = await res.json();
+            document.getElementById('resell-listings').innerHTML = Array.isArray(listings) ? listings.map(renderResellCard).join('') || '<p class="empty-text">No resell listings available</p>' : '<p class="error-text">Unable to load resell listings</p>';
+            if (authToken) { const mineRes = await fetch(`${API_URL}/resell/mine`, { headers: { 'Authorization': `Bearer ${authToken}` } }); const mine = await mineRes.json(); document.getElementById('my-resell-listings').innerHTML = Array.isArray(mine) ? mine.map(renderMyResellRow).join('') || '<p class="empty-text">You have no resell listings.</p>' : '<p class="error-text">Unable to load your listings</p>'; }
         }
+
+        function renderMyResellRow(l) { return `<div class="my-resell-row"><div><strong>${escapeChatText(l.title)}</strong><span>Stock: ${Number(l.stock_quantity || 0)} · ${escapeChatText(l.status)}</span></div><div class="my-resell-actions">${l.status !== 'sold' ? `<button class="btn-text" onclick="editResellListing(${Number(l.listing_id)}, ${Number(l.stock_quantity || 1)}, ${Number(l.asking_price || 0)})">Edit</button><button class="btn-text danger" onclick="deleteResellListing(${Number(l.listing_id)})">Delete</button>` : '<span class="small text-secondary">Sold</span>'}</div></div>`; }
+        async function editResellListing(id, currentStock, currentPrice) { const stock = Number(prompt('New stock quantity', currentStock)); const price = Number(prompt('New asking price (Ks)', currentPrice)); if (!Number.isInteger(stock) || stock < 1 || !Number.isFinite(price) || price <= 0) return alert('Enter valid stock and price'); const res = await fetch(`${API_URL}/resell/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ stock_quantity: stock, asking_price: price }) }); const data = await res.json(); if (!res.ok) return alert(data.error || 'Unable to update listing'); renderResell(document.getElementById('main-content')); }
+        async function deleteResellListing(id) { if (!confirm('Delete this resell listing?')) return; const res = await fetch(`${API_URL}/resell/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } }); const data = await res.json(); if (!res.ok) return alert(data.error || 'Unable to delete listing'); renderResell(document.getElementById('main-content')); }
 
         function renderResellForm(container) {
             if (!currentUser) { showAuthModal(); return; }
@@ -821,7 +812,7 @@
                         <div class="form-group"><label for="resell-title">Book title *</label><input id="resell-title" required maxlength="200" placeholder="စာအုပ်အမည်"></div>
                         <div class="form-grid-two"><div class="form-group"><label for="resell-author">Author</label><input id="resell-author" maxlength="120" placeholder="စာရေးသူ"></div><div class="form-group"><label for="resell-isbn">ISBN</label><input id="resell-isbn" maxlength="40" placeholder="ISBN (optional)"></div></div>
                         <div class="form-group"><label for="resell-publisher">Publisher</label><input id="resell-publisher" maxlength="120" placeholder="ထုတ်ဝေသူ (optional)"></div>
-                        <div class="form-grid-two"><div class="form-group"><label for="resell-condition">Book condition *</label><select id="resell-condition"><option value="new">New</option><option value="like_new">Like new</option><option value="good" selected>Good</option><option value="fair">Fair</option><option value="poor">Poor</option></select></div><div class="form-group"><label for="resell-price">Asking price (Ks) *</label><input id="resell-price" type="number" min="1" step="1" required placeholder="ဥပမာ 10000"></div></div>
+                        <div class="form-grid-two"><div class="form-group"><label for="resell-condition">Book condition *</label><select id="resell-condition"><option value="new">New</option><option value="like_new">Like new</option><option value="good" selected>Good</option><option value="fair">Fair</option><option value="poor">Poor</option></select></div><div class="form-group"><label for="resell-price">Asking price (Ks) *</label><input id="resell-price" type="number" min="1" step="1" required placeholder="ဥပမာ 10000"></div></div><div class="form-group"><label for="resell-stock">Stock quantity *</label><input id="resell-stock" type="number" min="1" max="10000" step="1" value="1" required><small class="text-secondary">တူညီသောစာအုပ် အရေအတွက်ကို ထည့်ပါ။</small></div>
                         <div class="form-group"><label for="resell-note">Condition details *</label><textarea id="resell-note" required minlength="5" maxlength="1000" rows="4" placeholder="စာအုပ်အခြေအနေ၊ ခြစ်ရာ၊ စာရေးထားမှု၊ စာမျက်နှာပျက်စီးမှုများကို ဖော်ပြပါ"></textarea></div>
                         <div class="resell-photo-instructions"><i class="fas fa-camera"></i><strong>စာအုပ်ပုံ ၅ မျိုးကို ပုံမှန် Upload ဖြင့် ထည့်ပါ</strong><span>ပုံများ၌ မိမိ၏ အကောင့် ID ပါသော စာရွက်ဖြင့် တွဲတင်ပါ</span><small>ဖုန်း Camera မှ တိုက်ရိုက်ရိုက်ထည့်နိုင်သလို ဖုန်း/ကွန်ပျူတာထဲရှိ ပုံကိုလည်း ရွေးထည့်နိုင်ပါသည်။</small></div><div class="resell-photo-fields"><label>စာအုပ်အရှေ့ *<input id="resell-front" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required></label><label>စာအုပ်အနောက် *<input id="resell-back" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required></label><label>စာအုပ်ကျောရိုး *<input id="resell-spine" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required></label><label>စာအုပ်အတွင်း *<input id="resell-inside" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required></label><label>စာအုပ်ပုံ *<input id="resell-cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required></label></div><div id="resell-photo-preview" class="resell-photo-preview"></div>
                         <p id="resell-form-error" class="error-text"></p><button id="resell-submit" class="btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Submit for Admin Review</button>
@@ -847,7 +838,7 @@
             form.append('publisher', document.getElementById('resell-publisher').value.trim());
             form.append('condition_status', document.getElementById('resell-condition').value);
             form.append('condition_note', document.getElementById('resell-note').value.trim());
-            form.append('asking_price', document.getElementById('resell-price').value);
+            form.append('asking_price', document.getElementById('resell-price').value); form.append('stock_quantity', document.getElementById('resell-stock').value);
             ['front', 'back', 'spine', 'inside', 'cover'].forEach((name, index) => form.append(name, files[index]));
             submit.disabled = true; error.textContent = '';
             try {

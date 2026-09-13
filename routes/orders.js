@@ -23,7 +23,7 @@ router.post('/', authenticate, async (req, res) => {
 
         const product = resell_listing_id
             ? await db.execute({
-                sql: `SELECT r.listing_id, r.seller_id AS resell_seller_id, r.final_price, r.asking_price,
+                sql: `SELECT r.listing_id, r.seller_id AS resell_seller_id, r.final_price, r.asking_price, r.stock_quantity,
                              r.title, r.author_name, r.condition_images AS images, NULL AS book_id,
                              'resell' AS role, NULL AS telegram_user_id, NULL AS store_seller_id,
                              NULL AS seller_id, 1 AS store_is_open, 1 AS store_accepting_orders
@@ -44,6 +44,7 @@ router.post('/', authenticate, async (req, res) => {
         }
         const resolvedProductId = prod.book_id;
         const unitPrice = resell_listing_id ? Number(prod.final_price || prod.asking_price) : Number(prod.discounted_price || prod.original_price);
+        if (resell_listing_id && Number(prod.stock_quantity || 0) < parsedQuantity) return res.status(400).json({ error: 'This resell listing does not have enough stock' });
         if (!resell_listing_id && Number(prod.stock_quantity || 0) < parsedQuantity) return res.status(400).json({ error: 'Insufficient stock' });
         const total = unitPrice * parsedQuantity;
 
@@ -98,10 +99,14 @@ router.post('/', authenticate, async (req, res) => {
                 args: [parsedQuantity, resolvedProductId, parsedQuantity]
             });
         } else {
-            await db.execute({
-                sql: `UPDATE resell_listings SET status = 'sold', updated_at = datetime('now') WHERE listing_id = ?`,
-                args: [resell_listing_id]
+            const stockUpdate = await db.execute({
+                sql: `UPDATE resell_listings SET stock_quantity = stock_quantity - ?, status = CASE WHEN stock_quantity - ? <= 0 THEN 'sold' ELSE 'approved' END, updated_at = datetime('now') WHERE listing_id = ? AND status = 'approved' AND stock_quantity >= ?`,
+                args: [parsedQuantity, parsedQuantity, resell_listing_id, parsedQuantity]
             });
+            if (!stockUpdate.rowsAffected) {
+                await db.execute({ sql: `DELETE FROM orders WHERE order_id = ?`, args: [orderId] });
+                return res.status(409).json({ error: 'Resell stock changed. Please try again.' });
+            }
         }
 
         // Deduct wallet if wallet payment
@@ -481,8 +486,8 @@ router.patch('/:id/status', authenticate, async (req, res) => {
 
             if (ord.resell_listing_id) {
                 await db.execute({
-                    sql: `UPDATE resell_listings SET status = 'approved', updated_at = datetime('now') WHERE listing_id = ? AND status = 'sold'`,
-                    args: [ord.resell_listing_id]
+                    sql: `UPDATE resell_listings SET stock_quantity = stock_quantity + ?, status = 'approved', updated_at = datetime('now') WHERE listing_id = ? AND status = 'sold'`,
+                    args: [ord.quantity, ord.resell_listing_id]
                 });
             } else {
                 await db.execute({

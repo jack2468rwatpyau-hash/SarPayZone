@@ -1700,6 +1700,14 @@ button, .btn-primary, .btn-secondary, .filter-btn, .nav-item { min-height: 40px;
 .cod-proof-input { display:block; width:100%; max-width:280px; margin:5px 0 8px; padding:5px; font-size:11px; }
 .product-card { position:relative; padding:8px; border-radius:12px; }
 .product-card .product-image { height:150px; border-radius:8px; }
+.resell-product-card .product-image { position:relative; }
+.resell-badge { position:absolute; top:7px; left:7px; z-index:2; padding:4px 7px; border-radius:5px; background:var(--primary); color:#fff; font-size:10px; font-weight:700; letter-spacing:.05em; }
+.resell-product-card .resell-buy-btn { margin-top:8px; padding:8px; font-size:12px; }
+.my-resell-list { display:grid; gap:7px; margin:10px 0 18px; }
+.my-resell-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px; border:1px solid var(--border); border-radius:9px; background:var(--card); font-size:12px; }
+.my-resell-row > div:first-child { display:grid; gap:3px; }
+.my-resell-row span { color:var(--text-secondary); font-size:11px; }
+.my-resell-actions { display:flex; gap:8px; }
 .product-card .product-info { padding:7px 3px 3px; }
 .product-card .product-title { font-size:13px !important; line-height:1.3; }
 .product-card .product-author, .product-card .product-meta, .product-card .store-status-line { font-size:11px !important; }

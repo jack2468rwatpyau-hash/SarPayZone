@@ -7,15 +7,18 @@ const upload = require('../middleware/upload');
 const { uploadToCloudinary } = require('../utils/cloudinary');
 
 const conditionStatuses = ['new', 'like_new', 'good', 'fair', 'poor'];
+const validStock = (value) => Number.isInteger(value) && value >= 1 && value <= 10000;
 
 // Create an independent C2C book listing. No platform Product ID is required.
 router.post('/list', authenticate, requireRole('buyer'), upload.fields(['front', 'back', 'spine', 'inside', 'cover'].map(name => ({ name, maxCount: 1 }))), async (req, res) => {
     try {
-        const { title, author_name, isbn, publisher, condition_status = 'good', condition_note, asking_price } = req.body;
+        const { title, author_name, isbn, publisher, condition_status = 'good', condition_note, asking_price, stock_quantity = 1 } = req.body;
         const userId = req.user.user_id || req.user.id;
         const price = Number(asking_price);
+        const stock = Number(stock_quantity);
         if (!String(title || '').trim()) return res.status(400).json({ error: 'Book title is required' });
         if (!Number.isFinite(price) || price <= 0) return res.status(400).json({ error: 'A valid asking price is required' });
+        if (!validStock(stock)) return res.status(400).json({ error: 'Stock quantity must be a whole number between 1 and 10,000' });
         if (!conditionStatuses.includes(condition_status)) return res.status(400).json({ error: 'Invalid book condition' });
         if (!condition_note || String(condition_note).trim().length < 5) return res.status(400).json({ error: 'Please describe the book condition' });
         const photoFields = ['front', 'back', 'spine', 'inside', 'cover'];
@@ -26,11 +29,48 @@ router.post('/list', authenticate, requireRole('buyer'), upload.fields(['front',
         const count = await db.execute({ sql: `SELECT COUNT(*) AS c FROM resell_listings` });
         const publicId = `REbk#${String(Number(count.rows[0].c) + 1).padStart(4, '0')}`;
         const result = await db.execute({
-            sql: `INSERT INTO resell_listings (public_id, seller_id, product_id, title, author_name, isbn, publisher, condition_status, condition_images, condition_note, asking_price, status)
-                  VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-            args: [publicId, userId, String(title).trim(), author_name?.trim() || null, isbn?.trim() || null, publisher?.trim() || null, condition_status, JSON.stringify(imageUrls), String(condition_note).trim(), price]
+            sql: `INSERT INTO resell_listings (public_id, seller_id, product_id, title, author_name, isbn, publisher, condition_status, condition_images, condition_note, asking_price, stock_quantity, status)
+                  VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+            args: [publicId, userId, String(title).trim(), author_name?.trim() || null, isbn?.trim() || null, publisher?.trim() || null, condition_status, JSON.stringify(imageUrls), String(condition_note).trim(), price, stock]
         });
         res.json({ success: true, listing_id: result.lastInsertRowid, public_id: publicId, status: 'pending' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/mine', authenticate, requireRole('buyer'), async (req, res) => {
+    try {
+        const result = await db.execute({ sql: `SELECT * FROM resell_listings WHERE seller_id = ? ORDER BY created_at DESC`, args: [req.user.user_id || req.user.id] });
+        res.json(result.rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.patch('/:id', authenticate, requireRole('buyer'), async (req, res) => {
+    try {
+        const userId = req.user.user_id || req.user.id;
+        const listing = await db.execute({ sql: `SELECT * FROM resell_listings WHERE listing_id = ? AND seller_id = ?`, args: [req.params.id, userId] });
+        if (!listing.rows.length) return res.status(404).json({ error: 'Resell listing not found' });
+        if (listing.rows[0].status === 'sold') return res.status(400).json({ error: 'Sold listings cannot be edited' });
+        const current = listing.rows[0];
+        const title = String(req.body.title ?? current.title).trim();
+        const price = Number(req.body.asking_price ?? current.asking_price);
+        const stock = Number(req.body.stock_quantity ?? current.stock_quantity);
+        const conditionNote = String(req.body.condition_note ?? current.condition_note ?? '').trim();
+        const condition = req.body.condition_status || current.condition_status;
+        if (!title || !Number.isFinite(price) || price <= 0 || !validStock(stock) || !conditionStatuses.includes(condition) || conditionNote.length < 5) return res.status(400).json({ error: 'Enter a valid title, price, stock quantity, condition, and details' });
+        await db.execute({
+            sql: `UPDATE resell_listings SET title = ?, author_name = ?, isbn = ?, publisher = ?, condition_status = ?, condition_note = ?, asking_price = ?, stock_quantity = ?, status = CASE WHEN status = 'rejected' THEN 'pending' ELSE status END, updated_at = datetime('now') WHERE listing_id = ? AND seller_id = ?`,
+            args: [title, String(req.body.author_name ?? current.author_name ?? '').trim() || null, String(req.body.isbn ?? current.isbn ?? '').trim() || null, String(req.body.publisher ?? current.publisher ?? '').trim() || null, condition, conditionNote, price, stock, req.params.id, userId]
+        });
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/:id', authenticate, requireRole('buyer'), async (req, res) => {
+    try {
+        const userId = req.user.user_id || req.user.id;
+        const result = await db.execute({ sql: `DELETE FROM resell_listings WHERE listing_id = ? AND seller_id = ? AND status <> 'sold'`, args: [req.params.id, userId] });
+        if (!result.rowsAffected) return res.status(404).json({ error: 'Listing not found or already sold' });
+        res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -48,8 +88,9 @@ router.patch('/:id/approve', authenticate, requireRole('admin'), async (req, res
     try {
         const { status, markup_percentage } = req.body;
         if (!['approved', 'rejected'].includes(status)) return res.status(400).json({ error: 'Status must be approved or rejected' });
-        const listing = await db.execute({ sql: `SELECT asking_price FROM resell_listings WHERE listing_id = ?`, args: [req.params.id] });
+        const listing = await db.execute({ sql: `SELECT asking_price, stock_quantity FROM resell_listings WHERE listing_id = ?`, args: [req.params.id] });
         if (!listing.rows.length) return res.status(404).json({ error: 'Resell listing not found' });
+        if (status === 'approved' && Number(listing.rows[0].stock_quantity) < 1) return res.status(400).json({ error: 'Cannot approve a listing with zero stock' });
         const configured = await db.execute({ sql: `SELECT config_value FROM system_config WHERE config_key = 'markup_percentage'` });
         const markup = Math.max(0, Number(markup_percentage ?? configured.rows[0]?.config_value ?? 10));
         const finalPrice = Number(listing.rows[0].asking_price) * (1 + markup / 100);
@@ -62,7 +103,7 @@ router.get('/listings', async (_req, res) => {
     try {
         const listings = await db.execute({
             sql: `SELECT r.*, u.name AS seller_name, u.public_id AS seller_public_id, u.city
-                  FROM resell_listings r JOIN users u ON r.seller_id = u.user_id WHERE r.status = 'approved' ORDER BY r.created_at DESC`
+                  FROM resell_listings r JOIN users u ON r.seller_id = u.user_id WHERE r.status = 'approved' AND r.stock_quantity > 0 ORDER BY r.created_at DESC`
         });
         res.json(listings.rows);
     } catch (err) { res.status(500).json({ error: err.message }); }

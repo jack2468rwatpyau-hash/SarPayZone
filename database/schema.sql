@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS resell_listings (
     condition_images TEXT DEFAULT '[]',
     condition_note TEXT,
     asking_price REAL NOT NULL CHECK (asking_price >= 0),
+    stock_quantity INTEGER NOT NULL DEFAULT 1 CHECK (stock_quantity >= 0),
     markup_percentage REAL NOT NULL DEFAULT 10 CHECK (markup_percentage >= 0),
     final_price REAL,
     status TEXT NOT NULL DEFAULT 'pending'
