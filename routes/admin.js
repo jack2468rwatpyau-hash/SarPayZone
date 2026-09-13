@@ -20,7 +20,7 @@ router.post('/banners', authenticate, requireRole('admin'), upload.single('image
         const { title, subtitle, target_link, sort_order = 0 } = req.body;
         if (!req.file) return res.status(400).json({ error: 'Banner image is required' });
         const imageUrl = await uploadToCloudinary(req.file.buffer, 'sarpayzone/banners', 'product');
-        await db.execute({ sql: `INSERT INTO banners (title, subtitle, image_url, target_link, sort_order) VALUES (?, ?, ?, ?, ?)`, args: [String(title || '').trim() || null, String(subtitle || '').trim() || null, imageUrl, String(target_link || '').trim() || null, Number(sort_order) || 0] });
+        await db.execute({ sql: `INSERT INTO banners (title, subtitle, image_url, target_link, is_active, sort_order) VALUES (?, ?, ?, ?, 1, ?)`, args: [String(title || '').trim() || null, String(subtitle || '').trim() || null, imageUrl, String(target_link || '').trim() || null, Number(sort_order) || 0] });
         res.json({ success: true, image_url: imageUrl });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });

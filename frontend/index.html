@@ -721,7 +721,7 @@
                     </div>
                     <div class="order-actions">
                         ${o.order_status === 'new' ? `<button onclick="cancelOrder(${o.order_id})" class="btn-text danger">Cancel</button>` : ''}
-                        ${o.payment_method === 'cod' && o.order_status === 'shipping' && !o.buyer_delivery_confirmed_at ? `<label class="btn-text success cod-proof-picker"><i class="fas fa-camera"></i> စာအုပ်ရောက်ပြီ + ပုံတင်ရန်<input type="file" accept="image/*" capture="environment" onchange="uploadCodProof(this, ${Number(o.order_id)})"></label>` : ''}
+                        ${o.payment_method === 'cod' && o.order_status === 'shipping' && !o.buyer_delivery_confirmed_at ? `<button type="button" class="btn-text success cod-proof-picker" onclick="document.getElementById('cod-proof-${Number(o.order_id)}').click()"><i class="fas fa-camera"></i> စာအုပ်ရောက်ပြီ + ပုံတင်ရန်</button><input id="cod-proof-${Number(o.order_id)}" class="cod-proof-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onchange="uploadCodProof(this, ${Number(o.order_id)})">` : ''}
                         ${o.payment_method === 'cod' && o.buyer_delivery_confirmed_at && !o.seller_delivery_confirmed_at ? `<span class="small text-secondary">Waiting for shop confirmation</span>` : ''}
                         ${o.order_status === 'delivered' ? `<button onclick="openReviewForm(${o.order_id})" class="btn-text">Review</button>` : ''}
                         ${['approved', 'shipping', 'delivered'].includes(o.order_status) ? `<button onclick="navigateTo('receipt', {orderId: ${Number(o.order_id)}})" class="btn-text"><i class="fas fa-receipt"></i> Receipt</button>` : ''}<button onclick="navigateTo('chat')" class="btn-text">Contact</button>
@@ -747,7 +747,7 @@
 
         async function uploadCodProof(input, orderId) {
             if (!input.files[0]) return;
-            const button = input.closest('label'); if (button) button.classList.add('is-uploading');
+            const button = input.previousElementSibling; if (button) { button.disabled = true; button.classList.add('is-uploading'); }
             try {
                 const form = new FormData(); form.append('proof', input.files[0]);
                 const res = await fetch(`${API_URL}/orders/${Number(orderId)}/cod/buyer-confirm`, { method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` }, body: form });
@@ -755,7 +755,7 @@
                 if (!res.ok) throw new Error(data.error || 'Unable to confirm delivery');
                 alert('စာအုပ်ရောက်ရှိကြောင်း အတည်ပြုပြီးပါပြီ။ ဆိုင်ဘက်က ငွေစာရင်းအတည်ပြုပါမယ်။');
                 navigateTo('orders');
-            } catch (err) { alert(err.message); if (button) button.classList.remove('is-uploading'); input.value = ''; }
+            } catch (err) { alert(err.message); if (button) { button.disabled = false; button.classList.remove('is-uploading'); } input.value = ''; }
         }
 
         // ===== VOTING =====
@@ -823,7 +823,7 @@
                         <div class="form-group"><label for="resell-publisher">Publisher</label><input id="resell-publisher" maxlength="120" placeholder="ထုတ်ဝေသူ (optional)"></div>
                         <div class="form-grid-two"><div class="form-group"><label for="resell-condition">Book condition *</label><select id="resell-condition"><option value="new">New</option><option value="like_new">Like new</option><option value="good" selected>Good</option><option value="fair">Fair</option><option value="poor">Poor</option></select></div><div class="form-group"><label for="resell-price">Asking price (Ks) *</label><input id="resell-price" type="number" min="1" step="1" required placeholder="ဥပမာ 10000"></div></div>
                         <div class="form-group"><label for="resell-note">Condition details *</label><textarea id="resell-note" required minlength="5" maxlength="1000" rows="4" placeholder="စာအုပ်အခြေအနေ၊ ခြစ်ရာ၊ စာရေးထားမှု၊ စာမျက်နှာပျက်စီးမှုများကို ဖော်ပြပါ"></textarea></div>
-                        <div class="resell-photo-instructions"><i class="fas fa-camera"></i><strong>စာအုပ်ပုံ ၅ မျိုးကို Camera ဖြင့် ရိုက်တင်ပါ</strong><span>ပုံများ၌ မိမိ၏ အကောင့် ID ပါသော စာရွက်ဖြင့် တွဲတင်ပါ</span><small>ဖုန်းထဲရှိ ယခင်ရိုက်ထားသောပုံများကို မသုံးဘဲ ယခု Camera ဖြင့်သာ ရိုက်ပါ။</small></div><div class="resell-photo-fields"><label>စာအုပ်အရှေ့ *<input id="resell-front" type="file" accept="image/*" capture="environment" required></label><label>စာအုပ်အနောက် *<input id="resell-back" type="file" accept="image/*" capture="environment" required></label><label>စာအုပ်ကျောရိုး *<input id="resell-spine" type="file" accept="image/*" capture="environment" required></label><label>စာအုပ်အတွင်း *<input id="resell-inside" type="file" accept="image/*" capture="environment" required></label><label>စာအုပ်ပုံ *<input id="resell-cover" type="file" accept="image/*" capture="environment" required></label></div><div id="resell-photo-preview" class="resell-photo-preview"></div>
+                        <div class="resell-photo-instructions"><i class="fas fa-camera"></i><strong>စာအုပ်ပုံ ၅ မျိုးကို ပုံမှန် Upload ဖြင့် ထည့်ပါ</strong><span>ပုံများ၌ မိမိ၏ အကောင့် ID ပါသော စာရွက်ဖြင့် တွဲတင်ပါ</span><small>ဖုန်း Camera မှ တိုက်ရိုက်ရိုက်ထည့်နိုင်သလို ဖုန်း/ကွန်ပျူတာထဲရှိ ပုံကိုလည်း ရွေးထည့်နိုင်ပါသည်။</small></div><div class="resell-photo-fields"><label>စာအုပ်အရှေ့ *<input id="resell-front" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required></label><label>စာအုပ်အနောက် *<input id="resell-back" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required></label><label>စာအုပ်ကျောရိုး *<input id="resell-spine" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required></label><label>စာအုပ်အတွင်း *<input id="resell-inside" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required></label><label>စာအုပ်ပုံ *<input id="resell-cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required></label></div><div id="resell-photo-preview" class="resell-photo-preview"></div>
                         <p id="resell-form-error" class="error-text"></p><button id="resell-submit" class="btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Submit for Admin Review</button>
                     </form>
                 </div>`;
@@ -1174,29 +1174,7 @@
             } catch (err) { error.textContent = err.message; button.disabled = false; }
         }
 
-        async function showResellForm() {
-            const title = prompt('Book title');
-            const author_name = prompt('Author name (optional)') || '';
-            const isbn = prompt('ISBN (optional)') || '';
-            const publisher = prompt('Publisher (optional)') || '';
-            const condition_status = prompt('Condition: new, like_new, good, fair, or poor', 'good') || 'good';
-            const condition_note = prompt('Describe the book condition, damage, writing, or missing pages');
-            const asking_price = prompt('Asking price (Ks)');
-            if (!title || !condition_note || !asking_price) return;
-            const photoInput = document.createElement('input');
-            photoInput.type = 'file'; photoInput.accept = 'image/*'; photoInput.multiple = true;
-            photoInput.onchange = async () => {
-                if (!photoInput.files.length || photoInput.files.length > 5) return alert('Please choose between 1 and 5 condition photos');
-                const form = new FormData();
-                form.append('title', title); form.append('author_name', author_name); form.append('isbn', isbn); form.append('publisher', publisher);
-                form.append('condition_status', condition_status); form.append('condition_note', condition_note); form.append('asking_price', asking_price);
-                [...photoInput.files].forEach(file => form.append('condition_images', file));
-                const res = await fetch(`${API_URL}/resell/list`, { method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` }, body: form });
-                const data = await res.json();
-                alert(res.ok ? 'Standalone resell book submitted for Admin review' : (data.error || 'Unable to create resell listing'));
-            };
-            photoInput.click();
-        }
+        function showResellForm() { navigateTo('resell-add'); }
 
         async function startChat(sellerId, bookId) {
             if (!currentUser) { showAuthModal(); return; }

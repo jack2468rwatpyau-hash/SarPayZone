@@ -56,7 +56,7 @@ router.get('/banners', async (req, res) => {
     try {
         const banners = await db.execute({
             sql: `SELECT banner_id, title, subtitle, image_url, target_link
-                  FROM banners WHERE is_active = 1 ORDER BY sort_order, created_at DESC`
+                  FROM banners WHERE COALESCE(is_active, 1) = 1 ORDER BY sort_order, created_at DESC`
         });
         res.json(banners.rows);
     } catch (err) {
