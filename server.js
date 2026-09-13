@@ -33,6 +33,10 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
+// LibSQL returns SQLite integer values such as inserted row IDs as BigInt.
+// Express' supported JSON replacer keeps every API response serializable.
+app.set('json replacer', (_, item) => typeof item === 'bigint' ? Number(item) : item);
+
 app.get('/health', (req, res) => {
     res.json({ ok: true, service: 'sar-pay-zone-api' });
 });
