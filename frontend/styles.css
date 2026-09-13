@@ -1548,3 +1548,34 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .chat-compose { display: flex; gap: 8px; position: sticky; bottom: 8px; padding: 8px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
 .chat-compose input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); padding: 10px; }
 @media (max-width: 520px) { .chat-compose .btn-primary { padding-inline: 12px; } .message-bubble { max-width: 90%; } }
+
+/* --------------------------------------------------------------------------
+   Calm compact UI pass: keep interface text between 12px and 15px.
+   Icons remain larger where needed, while labels and content stay scannable.
+   -------------------------------------------------------------------------- */
+html { font-size: 14px; }
+body { font-size: 14px; line-height: 1.45; }
+h1, h2, h3, h4, h5, h6 { font-size: 15px !important; line-height: 1.4; letter-spacing: 0; }
+p, li, label, legend, td, th, a, button, input, select, textarea { font-size: 14px !important; }
+small, .small, .text-secondary.small, .metric-label, .gate-subtitle { font-size: 12px !important; }
+.logo-slot-header, .gate-box h2, .page-heading-row h2, .section-header h3, .checkout-form-card h2 { font-size: 15px !important; }
+.btn-primary, .btn-secondary, .btn-text { font-size: 14px !important; }
+.gate-box input, .search-box input { font-size: 15px !important; }
+.metric-value, .seller-product-title { font-size: 15px !important; }
+.seller-product-author, .seller-product-meta, .seller-product-actions button { font-size: 14px !important; }
+.seller-product-id, .seller-product-status, .badge, .order-status { font-size: 12px !important; }
+.data-table { font-size: 13px !important; }
+[style*="font-size:30px"] { font-size: 15px !important; }
+.app-header { padding-left: 12px; padding-right: 12px; }
+.main-content { padding-left: 14px; padding-right: 14px; }
+.product-grid, .category-grid, .conversation-list { gap: 12px; }
+.card, .admin-card, .review-card, .festival-card { border-radius: 14px; }
+button, input, select, textarea { line-height: 1.4; }
+button, .btn-primary, .btn-secondary, .filter-btn, .nav-item { min-height: 40px; }
+
+@media (max-width: 560px) {
+    .main-content { padding-left: 12px; padding-right: 12px; }
+    .app-header { height: 52px; }
+    #app, #store-app, #agent-app, #admin-app { padding-top: 52px; }
+    .btn-primary, .btn-secondary { padding-top: 10px; padding-bottom: 10px; }
+}
