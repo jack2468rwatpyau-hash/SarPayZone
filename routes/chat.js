@@ -89,7 +89,7 @@ router.post('/', authenticate, async (req, res) => {
                       VALUES (?, ?, ?)`,
                 args: [conversation_type || 'buyer_shop', participantsJson, related_order_id || null]
             });
-            convId = conv.lastInsertRowid;
+            convId = Number(conv.lastInsertRowid);
             const sellerIdentifier = participantList.find((participant) => participant.startsWith('S'));
             if (sellerIdentifier) {
                 const seller = await db.execute({

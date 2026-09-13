@@ -168,7 +168,8 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
             args: [publicId, req.user.seller_id, title.trim(), author_name || null, category_id || null, numericOriginal, numericDiscounted, description || null, numericStock, JSON.stringify(imageUrls)]
         });
 
-        const bookId = result.lastInsertRowid;
+        const bookId = Number(result.lastInsertRowid);
+        if (!Number.isSafeInteger(bookId)) throw new Error('Product ID could not be generated safely');
 
         // Insert variations
         if (variations) {
