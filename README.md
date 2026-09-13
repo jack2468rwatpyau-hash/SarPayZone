@@ -52,4 +52,4 @@ The public buyer entry point is `frontend/index.html`; seller and admin entry po
 
 ## Security note
 
-The `.env` file is now excluded from the current repository state and `.env.example` contains placeholders only. Earlier Git history contains commits that included `.env`; rotate the Turso, Cloudinary, Telegram, Gemini, VAPID, and JWT credentials before treating the deployment as secure. Removing those historical blobs completely would require an approved history rewrite and force-push.
+The `.env` file is excluded from the repository and `.env.example` contains placeholders only. Any credentials that were previously committed in `.env.example` or earlier Git history must be considered exposed: rotate the Turso, Cloudinary, Telegram, Gemini, VAPID private, and JWT credentials before treating the deployment as secure. Removing historical blobs completely would require an approved history rewrite and force-push.
