@@ -1236,13 +1236,13 @@
             // Simple auto-slide
             const slides = document.querySelectorAll('.banner-slide');
             let current = 0;
+            slides.forEach((s, i) => s.style.display = i === 0 ? 'block' : 'none');
             if (slides.length <= 1) return;
             
             setInterval(() => {
                 slides.forEach((s, i) => s.style.display = i === current ? 'block' : 'none');
                 current = (current + 1) % slides.length;
             }, 5000);
-            slides.forEach((s, i) => s.style.display = i === 0 ? 'block' : 'none');
         }
 
         function urlBase64ToUint8Array(base64String) {
