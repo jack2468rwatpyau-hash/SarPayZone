@@ -153,6 +153,7 @@
                 });
                 if (!res.ok) { logout(); return; }
                 storeUser = (await res.json()).user;
+                if (!['publisher', 'bookstore', 'commission_store'].includes(storeUser?.role)) { logout(); return; }
                 document.getElementById('drawer-store-name').textContent = storeUser.store_name || storeUser.name || 'Store Portal';
                 setStoreLanguage(storeLanguage);
                 const codeRes = await fetch(`${API_URL}/auth/seller/store-code`, { headers: { 'Authorization': `Bearer ${storeToken}` } });
@@ -205,6 +206,7 @@
                     headers: { 'Authorization': `Bearer ${storeToken}` }
                 });
                 const orders = await res.json();
+                if (!res.ok || !Array.isArray(orders)) throw new Error(orders.error || 'Insufficient permissions. Please sign in with a seller account.');
 
                 const metrics = {
                     total: orders.length,

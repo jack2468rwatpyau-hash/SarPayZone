@@ -38,6 +38,7 @@
                 const data = await res.json();
                 if (res.ok) {
                     localStorage.setItem('spz_store_token', data.token);
+                    localStorage.removeItem('spz_agent_token');
                     window.location.href = '/store-dashboard.html';
                 } else {
                     document.getElementById('login-error').textContent = data.error;

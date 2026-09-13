@@ -49,13 +49,21 @@
 
     <script>
         const API_URL = 'https://sarpayzone-production.up.railway.app/api';
-        let agentToken = localStorage.getItem('spz_store_token');
+        let agentToken = localStorage.getItem('spz_agent_token');
         let currentBuyer = null;
 
         async function initAgent() {
             if (!agentToken) { window.location.href = '/agentlogin.html'; return; }
-            loadDailySummary();
-            loadTransactions();
+            try {
+                const res = await fetch(`${API_URL}/auth/me`, { headers: { 'Authorization': `Bearer ${agentToken}` } });
+                const data = await res.json();
+                if (!res.ok || data.user?.role !== 'agent') throw new Error('Please sign in with an Agent account.');
+                await Promise.all([loadDailySummary(), loadTransactions()]);
+            } catch (err) {
+                localStorage.removeItem('spz_agent_token');
+                alert(err.message || 'Agent session expired. Please sign in again.');
+                window.location.href = '/agentlogin.html';
+            }
         }
 
         async function searchBuyer() {
@@ -135,7 +143,7 @@
         }
 
         function logout() {
-            localStorage.removeItem('spz_store_token');
+            localStorage.removeItem('spz_agent_token');
             location.href = '/agentlogin.html';
         }
 
