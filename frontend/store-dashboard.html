@@ -207,6 +207,9 @@
                 });
                 const orders = await res.json();
                 if (!res.ok || !Array.isArray(orders)) throw new Error(orders.error || 'Insufficient permissions. Please sign in with a seller account.');
+                const analyticsRes = await fetch(`${API_URL}/orders/seller/analytics`, { headers: { 'Authorization': `Bearer ${storeToken}` } });
+                const analytics = await analyticsRes.json();
+                if (!analyticsRes.ok) throw new Error(analytics.error || 'Unable to load analytics');
 
                 const metrics = {
                     total: orders.length,
@@ -225,6 +228,7 @@
                         <div class="metric-card"><div class="metric-value">${metrics.revenue.toLocaleString()}</div><div class="metric-label">Revenue (Ks)</div></div>
                         <div class="metric-card"><div class="metric-value">${(storeUser.monthly_commission_due || 0).toLocaleString()}</div><div class="metric-label">Commission Due</div></div>
                     </div>
+                    ${renderSellerAnalytics(analytics)}
                     <div class="order-filter-bar">
                         <button onclick="filterStoreOrders('all')" class="filter-btn active" data-filter="all">All</button>
                         <button onclick="filterStoreOrders('new')" class="filter-btn" data-filter="new">New</button>
@@ -243,6 +247,23 @@
             } catch (err) {
                 container.innerHTML = `<p class="error-text">Error loading orders: ${err.message}</p>`;
             }
+        }
+
+        function renderSellerAnalytics(data) {
+            const series = [{ key: 'daily', title: 'Sales — Day', type: 'line' }, { key: 'monthly', title: 'Sales — Month', type: 'column' }, { key: 'yearly', title: 'Sales — Year', type: 'line' }];
+            const charts = series.map(seriesItem => {
+                const values = Array.isArray(data[seriesItem.key]) ? data[seriesItem.key] : [];
+                if (!values.length) return `<div class="analytics-card"><h3>${seriesItem.title}</h3><p class="empty-text">No paid sales data yet</p></div>`;
+                const max = Math.max(...values.map(value => Number(value.sales || 0)), 1);
+                if (seriesItem.type === 'column') {
+                    return `<div class="analytics-card"><h3>${seriesItem.title}</h3><div class="sales-column-chart">${values.map(value => `<div class="chart-column" style="height:${Math.max(4, Math.round(Number(value.sales || 0) / max * 126))}px" title="${value.label}: ${Number(value.sales || 0).toLocaleString()} Ks"><span>${Number(value.sales || 0).toLocaleString()}</span></div>`).join('')}</div><div class="chart-labels">${values.map(value => `<span>${value.label}</span>`).join('')}</div></div>`;
+                }
+                const width = 640; const height = 180; const points = values.map((value, index) => `${values.length > 1 ? Math.round(index * width / (values.length - 1)) : width / 2},${Math.round(height - (Number(value.sales || 0) / max) * 162)}`).join(' ');
+                return `<div class="analytics-card"><h3>${seriesItem.title}</h3><svg class="sales-line-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${seriesItem.title}"><polyline points="${points}" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></polyline>${values.map((value, index) => `<circle cx="${values.length > 1 ? Math.round(index * width / (values.length - 1)) : width / 2}" cy="${Math.round(height - (Number(value.sales || 0) / max) * 162)}" r="4" fill="currentColor"><title>${value.label}: ${Number(value.sales || 0).toLocaleString()} Ks</title></circle>`).join('')}</svg><div class="chart-labels">${values.map(value => `<span>${value.label}</span>`).join('')}</div></div>`;
+            }).join('');
+            const best = data.top_products?.[0]?.quantity || 1;
+            const topProducts = (data.top_products || []).map((product, index) => `<div class="top-product-row"><div class="top-product-name">${index + 1}. ${escapeSellerProductText(product.title || 'Product')}</div><strong>${Number(product.quantity || 0).toLocaleString()} sold</strong><div class="top-product-bar"><i style="width:${Math.min(100, Number(product.quantity || 0) / best * 100)}%"></i></div></div>`).join('') || '<p class="empty-text">No paid sales data yet</p>';
+            return `<section class="seller-analytics"><div class="analytics-heading"><h2>Sales Dashboard</h2><span>Paid orders only</span></div><div class="analytics-grid">${charts}</div><div class="analytics-card top-products-card"><h3>Best-selling products</h3>${topProducts}</div></section>`;
         }
 
         function renderOrderCard(o) {
@@ -456,8 +477,7 @@
             selectedImages = [];
             variationDrafts = [];
             document.getElementById('product-section').innerHTML = `
-                <div class="product-form-tabs"><button type="button" class="store-tab active" onclick="setProductTab(0)"><span data-i18n="form.basic">Basic</span></button><button type="button" class="store-tab" onclick="setProductTab(1)"><span data-i18n="form.pricing">Pricing</span></button><button type="button" class="store-tab" onclick="setProductTab(2)"><span data-i18n="form.images">Images</span></button><button type="button" class="store-tab" onclick="setProductTab(3)"><span data-i18n="form.options">Options</span></button></div>
-                <form id="add-product-form" class="product-form" onsubmit="submitProduct(event)">
+                <form id="add-product-form" class="product-form single-view-product-form" onsubmit="submitProduct(event)">
                     <div class="product-tab-panel active" data-product-tab="0"><div class="form-group"><label>Title *</label><input type="text" name="title" required></div><div class="form-group"><label>Author</label><input type="text" name="author_name"></div><div class="form-group"><label>Category</label><select name="category_id" id="cat-select"></select></div><div class="form-group"><label>Description</label><textarea name="description" rows="5"></textarea></div><div class="product-form-actions"><button type="button" class="btn-primary" onclick="setProductTab(1)">Next <i class="fas fa-arrow-right"></i></button></div></div>
                     <div class="product-tab-panel" data-product-tab="1"><div class="form-group"><label>Original Price (Ks) *</label><input type="number" name="original_price" required step="0.01" min="0"></div><div class="form-group"><label>Discounted Price (Ks)</label><input type="number" name="discounted_price" step="0.01" min="0"></div><div class="form-group"><label>Stock Quantity</label><input type="number" name="stock_quantity" value="0" min="0"></div><div class="product-form-actions"><button type="button" class="btn-secondary" onclick="setProductTab(0)">Back</button><button type="button" class="btn-primary" onclick="setProductTab(2)">Next <i class="fas fa-arrow-right"></i></button></div></div>
                     <div class="product-tab-panel" data-product-tab="2"><div class="form-group"><label>Product Images (Max 5)</label><div class="image-upload-zone" onclick="document.getElementById('prod-images').click()"><i class="fas fa-cloud-upload-alt fa-2x"></i><p>Click to upload images</p></div><input type="file" id="prod-images" multiple accept="image/*" style="display:none" onchange="handleImageSelect(this)"><div id="image-preview" class="image-preview-grid"></div></div><div class="product-form-actions"><button type="button" class="btn-secondary" onclick="setProductTab(1)">Back</button><button type="button" class="btn-primary" onclick="setProductTab(3)">Next <i class="fas fa-arrow-right"></i></button></div></div>

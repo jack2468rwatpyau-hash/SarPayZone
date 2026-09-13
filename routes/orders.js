@@ -291,6 +291,31 @@ router.get('/seller', authenticate, requireRole('publisher', 'bookstore', 'commi
     }
 });
 
+// Seller dashboard analytics. Only paid/delivered sales are included.
+router.get('/seller/analytics', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
+    try {
+        const sellerId = req.user.seller_id;
+        const [daily, monthly, yearly, topProducts] = await Promise.all([
+            db.execute({ sql: `SELECT date(created_at) AS label, COALESCE(SUM(total_amount), 0) AS sales, COALESCE(SUM(quantity), 0) AS quantity
+                FROM orders WHERE seller_id = ? AND payment_status = 'paid' AND order_status <> 'cancelled' AND date(created_at) >= date('now', '-6 days')
+                GROUP BY date(created_at) ORDER BY label`, args: [sellerId] }),
+            db.execute({ sql: `SELECT strftime('%Y-%m', created_at) AS label, COALESCE(SUM(total_amount), 0) AS sales, COALESCE(SUM(quantity), 0) AS quantity
+                FROM orders WHERE seller_id = ? AND payment_status = 'paid' AND order_status <> 'cancelled' AND date(created_at) >= date('now', '-11 months')
+                GROUP BY strftime('%Y-%m', created_at) ORDER BY label`, args: [sellerId] }),
+            db.execute({ sql: `SELECT strftime('%Y', created_at) AS label, COALESCE(SUM(total_amount), 0) AS sales, COALESCE(SUM(quantity), 0) AS quantity
+                FROM orders WHERE seller_id = ? AND payment_status = 'paid' AND order_status <> 'cancelled' AND date(created_at) >= date('now', '-4 years')
+                GROUP BY strftime('%Y', created_at) ORDER BY label`, args: [sellerId] }),
+            db.execute({ sql: `SELECT p.title, COALESCE(SUM(o.quantity), 0) AS quantity, COALESCE(SUM(o.total_amount), 0) AS sales
+                FROM orders o LEFT JOIN products p ON p.book_id = o.product_id
+                WHERE o.seller_id = ? AND o.payment_status = 'paid' AND o.order_status <> 'cancelled'
+                GROUP BY o.product_id ORDER BY quantity DESC, sales DESC LIMIT 5`, args: [sellerId] })
+        ]);
+        res.json({ daily: daily.rows, monthly: monthly.rows, yearly: yearly.rows, top_products: topProducts.rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Buyer confirms COD delivery and optionally uploads a delivery photo.
 router.post('/:id/cod/buyer-confirm', authenticate, upload.single('proof'), async (req, res) => {
     try {

@@ -238,6 +238,7 @@
                 case 'cart': renderCart(main); break;
                 case 'voting': renderVoting(main); break;
                 case 'wallet': renderWallet(main); break;
+                case 'transfer': renderTransfer(main); break;
                 case 'orders': renderOrders(main); break;
                 case 'resell': renderResell(main); break;
                 case 'resell-add': renderResellForm(main); break;
@@ -617,7 +618,7 @@
                     
                     <div class="wallet-actions">
                         <button onclick="showWithdrawForm()" class="btn-primary">Withdraw</button>
-                        <button onclick="showP2PForm()" class="btn-secondary">Pay a Friend</button>
+                        <button onclick="navigateTo('transfer')" class="btn-secondary">Transfer to User</button>
                     </div>
 
                     <h3>Recent Transactions</h3>
@@ -1070,6 +1071,34 @@
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
                 body: JSON.stringify({ recipient_public_id, amount: Number(amount), note })
             }).then(r => r.json().then(data => alert(r.ok ? 'Transfer completed' : (data.error || 'Transfer failed'))));
+        }
+
+        async function renderTransfer(container) {
+            if (!currentUser) { showAuthModal(); return; }
+            const walletRes = await fetch(`${API_URL}/wallet`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+            const wallet = await walletRes.json();
+            container.innerHTML = `<div class="transfer-page"><button class="btn-text" onclick="navigateTo('wallet')"><i class="fas fa-arrow-left"></i> Back to wallet</button><div class="page-heading"><p class="eyebrow">Wallet</p><h2>Transfer to another user</h2><p class="text-secondary">လွှဲမည့်သူ၏ Public ID နှင့် ပမာဏကို ထည့်ပါ။ ငွေလွှဲမတိုင်မီ နှစ်ဆင့် အတည်ပြုရပါမည်။</p></div><div class="transfer-balance">Available balance: <strong>${Number(wallet.balance || 0).toLocaleString()} Ks</strong></div><form id="transfer-form" class="transfer-form"><div class="form-group"><label>Recipient Public ID *</label><input id="transfer-recipient" required placeholder="ဥပမာ U#000001"></div><div class="form-group"><label>Amount (Ks) *</label><input id="transfer-amount" type="number" min="1" max="150000" step="1" required placeholder="10000"><small>Daily limit: 150,000 Ks · Transfer fee: 3%</small></div><div class="form-group"><label>Note</label><textarea id="transfer-note" rows="3" maxlength="200" placeholder="မှတ်ချက် (optional)"></textarea></div><p id="transfer-error" class="error-text"></p><button class="btn-primary" type="submit">Review Transfer</button></form></div>`;
+            document.getElementById('transfer-form').addEventListener('submit', submitTransfer);
+        }
+
+        async function submitTransfer(event) {
+            event.preventDefault();
+            const recipient = document.getElementById('transfer-recipient').value.trim();
+            const amount = Number(document.getElementById('transfer-amount').value);
+            const note = document.getElementById('transfer-note').value.trim();
+            const error = document.getElementById('transfer-error');
+            if (!recipient || !Number.isFinite(amount) || amount <= 0 || amount > 150000) { error.textContent = 'Enter a valid recipient and amount up to 150,000 Ks.'; return; }
+            const fee = amount * 0.03; const total = amount + fee;
+            if (!confirm(`Step 1 of 2 — Review\n\nRecipient: ${recipient}\nSend amount: ${amount.toLocaleString()} Ks\nFee (3%): ${fee.toLocaleString()} Ks\nTotal deducted: ${total.toLocaleString()} Ks\n\nContinue to final confirmation?`)) return;
+            if (!confirm(`Step 2 of 2 — Final confirmation\n\nYou are about to transfer ${amount.toLocaleString()} Ks to ${recipient}.\nThis action cannot be reversed after completion.\n\nConfirm and send now?`)) return;
+            const button = event.currentTarget.querySelector('button[type="submit"]'); button.disabled = true; error.textContent = '';
+            try {
+                const res = await fetch(`${API_URL}/wallet/p2p`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ recipient_public_id: recipient, amount, note }) });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Transfer failed');
+                alert(`Transfer completed. ${amount.toLocaleString()} Ks sent.`);
+                navigateTo('wallet');
+            } catch (err) { error.textContent = err.message; button.disabled = false; }
         }
 
         async function showResellForm() {
