@@ -412,9 +412,12 @@ router.patch('/:id/status', authenticate, async (req, res) => {
         if (order.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
 
         const ord = order.rows[0];
+        if (status === 'delivered' && ord.payment_method === 'cod') {
+            return res.status(400).json({ error: 'COD delivery requires buyer proof and seller confirmation' });
+        }
 
         // Seller can update to approved/shipping/delivered
-        const isStoreSeller = req.user.role !== 'buyer' && ord.seller_id === req.user.seller_id;
+        const isStoreSeller = req.user.role !== 'buyer' && Number(ord.seller_id) === Number(req.user.seller_id);
         const isResellAdmin = req.user.role === 'admin' && ord.resell_listing_id;
         if (isStoreSeller || isResellAdmin) {
             await db.execute({
@@ -428,9 +431,6 @@ router.patch('/:id/status', authenticate, async (req, res) => {
             }
 
             // On delivery, transfer merchandise revenue plus seller-defined shipping, minus commission.
-            if (status === 'delivered' && ord.payment_method === 'cod') {
-                return res.status(400).json({ error: 'COD delivery requires buyer proof and seller confirmation' });
-            }
             if (status === 'delivered' && ord.payment_status === 'paid' && ord.order_status !== 'delivered' && ord.payment_method !== 'cod') {
                 const sellerAmount = Math.max(0, Number(ord.total_amount) + Number(ord.shipping_fee || 0) - Number(ord.commission_amount || 0));
                 if (ord.resell_listing_id && ord.resell_seller_id) {

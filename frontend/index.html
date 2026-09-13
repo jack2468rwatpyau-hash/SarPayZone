@@ -719,7 +719,7 @@
                     </div>
                     <div class="order-actions">
                         ${o.order_status === 'new' ? `<button onclick="cancelOrder(${o.order_id})" class="btn-text danger">Cancel</button>` : ''}
-                        ${o.payment_method === 'cod' && o.order_status === 'shipping' && !o.buyer_delivery_confirmed_at ? `<button onclick="confirmCodDelivery(${o.order_id})" class="btn-text success">Confirm received + photo</button>` : ''}
+                        ${o.payment_method === 'cod' && o.order_status === 'shipping' && !o.buyer_delivery_confirmed_at ? `<label class="btn-text success cod-proof-picker"><i class="fas fa-camera"></i> စာအုပ်ရောက်ပြီ + ပုံတင်ရန်<input type="file" accept="image/*" capture="environment" onchange="uploadCodProof(this, ${Number(o.order_id)})"></label>` : ''}
                         ${o.payment_method === 'cod' && o.buyer_delivery_confirmed_at && !o.seller_delivery_confirmed_at ? `<span class="small text-secondary">Waiting for shop confirmation</span>` : ''}
                         ${o.order_status === 'delivered' ? `<button onclick="openReviewForm(${o.order_id})" class="btn-text">Review</button>` : ''}
                         ${['approved', 'shipping', 'delivered'].includes(o.order_status) ? `<button onclick="navigateTo('receipt', {orderId: ${Number(o.order_id)}})" class="btn-text"><i class="fas fa-receipt"></i> Receipt</button>` : ''}<button onclick="navigateTo('chat')" class="btn-text">Contact</button>
@@ -741,6 +741,19 @@
                 navigateTo('orders');
             };
             input.click();
+        }
+
+        async function uploadCodProof(input, orderId) {
+            if (!input.files[0]) return;
+            const button = input.closest('label'); if (button) button.classList.add('is-uploading');
+            try {
+                const form = new FormData(); form.append('proof', input.files[0]);
+                const res = await fetch(`${API_URL}/orders/${Number(orderId)}/cod/buyer-confirm`, { method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` }, body: form });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Unable to confirm delivery');
+                alert('စာအုပ်ရောက်ရှိကြောင်း အတည်ပြုပြီးပါပြီ။ ဆိုင်ဘက်က ငွေစာရင်းအတည်ပြုပါမယ်။');
+                navigateTo('orders');
+            } catch (err) { alert(err.message); if (button) button.classList.remove('is-uploading'); input.value = ''; }
         }
 
         // ===== VOTING =====
@@ -808,26 +821,23 @@
                         <div class="form-group"><label for="resell-publisher">Publisher</label><input id="resell-publisher" maxlength="120" placeholder="ထုတ်ဝေသူ (optional)"></div>
                         <div class="form-grid-two"><div class="form-group"><label for="resell-condition">Book condition *</label><select id="resell-condition"><option value="new">New</option><option value="like_new">Like new</option><option value="good" selected>Good</option><option value="fair">Fair</option><option value="poor">Poor</option></select></div><div class="form-group"><label for="resell-price">Asking price (Ks) *</label><input id="resell-price" type="number" min="1" step="1" required placeholder="ဥပမာ 10000"></div></div>
                         <div class="form-group"><label for="resell-note">Condition details *</label><textarea id="resell-note" required minlength="5" maxlength="1000" rows="4" placeholder="စာအုပ်အခြေအနေ၊ ခြစ်ရာ၊ စာရေးထားမှု၊ စာမျက်နှာပျက်စီးမှုများကို ဖော်ပြပါ"></textarea></div>
-                        <div class="form-group"><label for="resell-photos">Condition photos * (1–5 images)</label><input id="resell-photos" type="file" accept="image/*" multiple required><div id="resell-photo-preview" class="resell-photo-preview"></div></div>
+                        <div class="resell-photo-instructions"><i class="fas fa-camera"></i><strong>စာအုပ်ပုံ ၅ မျိုးကို Camera ဖြင့် ရိုက်တင်ပါ</strong><span>ပုံများ၌ မိမိ၏ အကောင့် ID ပါသော စာရွက်ဖြင့် တွဲတင်ပါ</span><small>ဖုန်းထဲရှိ ယခင်ရိုက်ထားသောပုံများကို မသုံးဘဲ ယခု Camera ဖြင့်သာ ရိုက်ပါ။</small></div><div class="resell-photo-fields"><label>စာအုပ်အရှေ့ *<input id="resell-front" type="file" accept="image/*" capture="environment" required></label><label>စာအုပ်အနောက် *<input id="resell-back" type="file" accept="image/*" capture="environment" required></label><label>စာအုပ်ကျောရိုး *<input id="resell-spine" type="file" accept="image/*" capture="environment" required></label><label>စာအုပ်အတွင်း *<input id="resell-inside" type="file" accept="image/*" capture="environment" required></label><label>စာအုပ်ပုံ *<input id="resell-cover" type="file" accept="image/*" capture="environment" required></label></div><div id="resell-photo-preview" class="resell-photo-preview"></div>
                         <p id="resell-form-error" class="error-text"></p><button id="resell-submit" class="btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Submit for Admin Review</button>
                     </form>
                 </div>`;
-            const photoInput = document.getElementById('resell-photos');
-            photoInput.addEventListener('change', () => {
-                const files = [...photoInput.files];
-                document.getElementById('resell-photo-preview').innerHTML = files.slice(0, 5).map(file => `<img src="${URL.createObjectURL(file)}" alt="Preview">`).join('');
-            });
+            const photoInputs = ['front', 'back', 'spine', 'inside', 'cover'].map(name => document.getElementById(`resell-${name}`));
+            photoInputs.forEach(input => input.addEventListener('change', () => { document.getElementById('resell-photo-preview').innerHTML = photoInputs.map(fileInput => fileInput.files[0] ? `<img src="${URL.createObjectURL(fileInput.files[0])}" alt="Photo preview">` : '').join(''); }));
             document.getElementById('resell-list-form').addEventListener('submit', submitResellListing);
         }
 
         async function submitResellListing(event) {
             event.preventDefault();
             const formEl = event.currentTarget;
-            const photoInput = document.getElementById('resell-photos');
-            const files = [...photoInput.files];
+            const photoInputs = ['front', 'back', 'spine', 'inside', 'cover'].map(name => document.getElementById(`resell-${name}`));
+            const files = photoInputs.map(input => input.files[0]);
             const error = document.getElementById('resell-form-error');
             const submit = document.getElementById('resell-submit');
-            if (files.length < 1 || files.length > 5) { error.textContent = 'Please choose between 1 and 5 condition photos'; return; }
+            if (files.some(file => !file)) { error.textContent = 'စာအုပ်အရှေ့၊ အနောက်၊ ကျောရိုး၊ အတွင်းနှင့် စာအုပ်ပုံ ၅ မျိုးလုံးကို Camera ဖြင့် ရိုက်တင်ပါ'; return; }
             const form = new FormData();
             form.append('title', document.getElementById('resell-title').value.trim());
             form.append('author_name', document.getElementById('resell-author').value.trim());
@@ -836,7 +846,7 @@
             form.append('condition_status', document.getElementById('resell-condition').value);
             form.append('condition_note', document.getElementById('resell-note').value.trim());
             form.append('asking_price', document.getElementById('resell-price').value);
-            files.forEach(file => form.append('condition_images', file));
+            ['front', 'back', 'spine', 'inside', 'cover'].forEach((name, index) => form.append(name, files[index]));
             submit.disabled = true; error.textContent = '';
             try {
                 const res = await fetch(`${API_URL}/resell/list`, { method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` }, body: form });

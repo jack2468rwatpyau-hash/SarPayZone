@@ -118,7 +118,7 @@
         <aside id="store-drawer" class="store-drawer" aria-label="Store navigation">
             <div class="drawer-brand"><strong>Sar Pay Zone</strong><p id="drawer-store-name" class="small text-secondary">Store Portal</p></div>
             <nav class="drawer-nav">
-                <button onclick="navigateStore('orders');toggleStoreMenu(false)"><i class="fas fa-chart-line"></i><span data-i18n="nav.dashboard">ဒက်ရှ်ဘုတ်</span></button>
+                <button onclick="navigateStore('dashboard');toggleStoreMenu(false)"><i class="fas fa-chart-line"></i><span data-i18n="nav.dashboard">ဒက်ရှ်ဘုတ်</span></button>
                 <button onclick="navigateStore('orders');toggleStoreMenu(false)"><i class="fas fa-clipboard-list"></i><span data-i18n="nav.orders">အော်ဒါများ</span></button>
                 <button onclick="navigateStore('products');toggleStoreMenu(false)"><i class="fas fa-book"></i><span data-i18n="nav.products">ပစ္စည်းများ</span></button>
                 <button onclick="navigateStore('settings');toggleStoreMenu(false)"><i class="fas fa-cog"></i><span data-i18n="nav.settings">ဆက်တင်</span></button>
@@ -159,7 +159,7 @@
                 const codeRes = await fetch(`${API_URL}/auth/seller/store-code`, { headers: { 'Authorization': `Bearer ${storeToken}` } });
                 if (codeRes.ok) storePasswordCode = await codeRes.json();
                 requestStorePushPermission();
-                navigateStore('orders');
+                navigateStore('dashboard');
             } catch (err) {
                 console.error('Init error:', err);
                 logout();
@@ -190,6 +190,7 @@
             content.innerHTML = '';
 
             switch(page) {
+                case 'dashboard': renderStoreDashboard(content); break;
                 case 'orders': renderStoreOrders(content); break;
                 case 'chat': renderStoreChat(content); break;
                 case 'products': renderStoreProducts(content); break;
@@ -199,56 +200,30 @@
             }
         }
 
-        // ===== ORDERS TAB =====
-        async function renderStoreOrders(container) {
-            container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading orders...</div>';
+        // ===== SELLER DASHBOARD =====
+        async function renderStoreDashboard(container) {
+            container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading dashboard...</div>';
             
             try {
-                const res = await fetch(`${API_URL}/orders/seller`, {
-                    headers: { 'Authorization': `Bearer ${storeToken}` }
-                });
-                const orders = await res.json();
-                if (!res.ok || !Array.isArray(orders)) throw new Error(orders.error || 'Insufficient permissions. Please sign in with a seller account.');
                 const analyticsRes = await fetch(`${API_URL}/orders/seller/analytics`, { headers: { 'Authorization': `Bearer ${storeToken}` } });
                 const analytics = await analyticsRes.json();
                 if (!analyticsRes.ok) throw new Error(analytics.error || 'Unable to load analytics');
-
-                const metrics = {
-                    total: orders.length,
-                    new: orders.filter(o => o.order_status === 'new').length,
-                    revenue: orders.reduce((a, o) => a + (o.payment_status === 'paid' ? o.total_amount : 0), 0)
-                };
-
-                container.innerHTML = `
-                    <div class="store-header">
-                        <h2>${storeUser.store_name || storeUser.name}</h2>
-                        <p>${storeUser.public_id}</p>
-                    </div>
-                    <div class="metric-cards">
-                        <div class="metric-card"><div class="metric-value">${metrics.total}</div><div class="metric-label">Total Orders</div></div>
-                        <div class="metric-card"><div class="metric-value">${metrics.new}</div><div class="metric-label">New Orders</div></div>
-                        <div class="metric-card"><div class="metric-value">${metrics.revenue.toLocaleString()}</div><div class="metric-label">Revenue (Ks)</div></div>
-                        <div class="metric-card"><div class="metric-value">${(storeUser.monthly_commission_due || 0).toLocaleString()}</div><div class="metric-label">Commission Due</div></div>
-                    </div>
-                    ${renderSellerAnalytics(analytics)}
-                    <div class="order-filter-bar">
-                        <button onclick="filterStoreOrders('all')" class="filter-btn active" data-filter="all">All</button>
-                        <button onclick="filterStoreOrders('new')" class="filter-btn" data-filter="new">New</button>
-                        <button onclick="filterStoreOrders('approved')" class="filter-btn" data-filter="approved">Accepted</button>
-                        <button onclick="filterStoreOrders('shipping')" class="filter-btn" data-filter="shipping">Shipping</button>
-                        <button onclick="filterStoreOrders('delivered')" class="filter-btn" data-filter="delivered">Delivered</button>
-                        <button onclick="filterStoreOrders('cancelled')" class="filter-btn" data-filter="cancelled">Cancelled</button>
-                    </div>
-                    <div id="store-orders-list">
-                        ${orders.map(o => renderOrderCard(o)).join('') || '<p class="empty-text">No orders yet</p>'}
-                    </div>
-                `;
-                
-                // Store orders data for filtering
-                window._allOrders = orders;
+                container.innerHTML = `<div class="store-header"><h2>${storeUser.store_name || storeUser.name}</h2><p>${storeUser.public_id}</p></div>${renderSellerAnalytics(analytics)}`;
             } catch (err) {
-                container.innerHTML = `<p class="error-text">Error loading orders: ${err.message}</p>`;
+                container.innerHTML = `<p class="error-text">Error loading dashboard: ${err.message}</p>`;
             }
+        }
+
+        // ===== ORDERS PAGE =====
+        async function renderStoreOrders(container) {
+            container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading orders...</div>';
+            try {
+                const res = await fetch(`${API_URL}/orders/seller`, { headers: { 'Authorization': `Bearer ${storeToken}` } });
+                const orders = await res.json();
+                if (!res.ok || !Array.isArray(orders)) throw new Error(orders.error || 'Unable to load orders');
+                container.innerHTML = `<div class="store-header"><h2>Orders</h2><p>${orders.length} order(s)</p></div><div class="order-filter-bar"><button onclick="filterStoreOrders('all')" class="filter-btn active" data-filter="all">All</button><button onclick="filterStoreOrders('new')" class="filter-btn" data-filter="new">New</button><button onclick="filterStoreOrders('approved')" class="filter-btn" data-filter="approved">Accepted</button><button onclick="filterStoreOrders('shipping')" class="filter-btn" data-filter="shipping">Shipping</button><button onclick="filterStoreOrders('delivered')" class="filter-btn" data-filter="delivered">Delivered</button><button onclick="filterStoreOrders('cancelled')" class="filter-btn" data-filter="cancelled">Cancelled</button></div><div id="store-orders-list">${orders.map(o => renderOrderCard(o)).join('') || '<p class="empty-text">No orders yet</p>'}</div>`;
+                window._allOrders = orders;
+            } catch (err) { container.innerHTML = `<p class="error-text">Error loading orders: ${err.message}</p>`; }
         }
 
         function renderSellerAnalytics(data) {

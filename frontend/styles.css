@@ -1688,6 +1688,17 @@ button, .btn-primary, .btn-secondary, .filter-btn, .nav-item { min-height: 40px;
 .receipt-verification { margin-top:18px; padding:12px; background:#edf5ef; border-radius:8px; display:grid; gap:4px; }
 .receipt-verification small { color:#6f7c73; font-size:10px; }
 .receipt-verification strong { letter-spacing:.08em; }
+.resell-photo-instructions { display:grid; gap:5px; padding:12px; border:1px solid rgba(45,125,79,.25); border-radius:10px; background:var(--surface); font-size:12px; }
+.resell-photo-instructions i { color:var(--primary); }
+.resell-photo-instructions span { font-weight:700; }
+.resell-photo-instructions small { color:var(--text-secondary); font-size:11px; }
+.resell-photo-fields { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; }
+.resell-photo-fields label { display:grid; gap:6px; padding:10px; border:1px dashed var(--border); border-radius:10px; font-size:12px; font-weight:700; }
+.resell-photo-fields input { width:100%; font-size:11px; }
+.cod-proof-picker { position:relative; display:inline-flex; align-items:center; gap:5px; width:max-content; }
+.cod-proof-picker input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+.cod-proof-picker.is-uploading { opacity:.6; pointer-events:none; }
+@media (max-width:560px) { .resell-photo-fields { grid-template-columns:1fr; } }
 @media (max-width:560px) { .receipt-paper { padding:18px; min-height:0; } .receipt-toolbar { justify-content:stretch; } .receipt-toolbar button { flex:1; } }
 @media (max-width: 760px) { .analytics-grid { grid-template-columns:1fr; } .sales-line-chart { height:130px; } }
 @media (max-width: 560px) { .form-grid-two { grid-template-columns: 1fr; } .resell-list-form { padding: 14px; } .resell-photo-preview { grid-template-columns: repeat(3, 1fr); } }

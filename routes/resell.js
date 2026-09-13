@@ -9,7 +9,7 @@ const { uploadToCloudinary } = require('../utils/cloudinary');
 const conditionStatuses = ['new', 'like_new', 'good', 'fair', 'poor'];
 
 // Create an independent C2C book listing. No platform Product ID is required.
-router.post('/list', authenticate, requireRole('buyer'), upload.array('condition_images', 5), async (req, res) => {
+router.post('/list', authenticate, requireRole('buyer'), upload.fields(['front', 'back', 'spine', 'inside', 'cover'].map(name => ({ name, maxCount: 1 }))), async (req, res) => {
     try {
         const { title, author_name, isbn, publisher, condition_status = 'good', condition_note, asking_price } = req.body;
         const userId = req.user.user_id || req.user.id;
@@ -18,10 +18,11 @@ router.post('/list', authenticate, requireRole('buyer'), upload.array('condition
         if (!Number.isFinite(price) || price <= 0) return res.status(400).json({ error: 'A valid asking price is required' });
         if (!conditionStatuses.includes(condition_status)) return res.status(400).json({ error: 'Invalid book condition' });
         if (!condition_note || String(condition_note).trim().length < 5) return res.status(400).json({ error: 'Please describe the book condition' });
-        if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'At least one condition photo is required' });
+        const photoFields = ['front', 'back', 'spine', 'inside', 'cover'];
+        if (!req.files || photoFields.some(name => !req.files[name]?.[0])) return res.status(400).json({ error: 'All five book photos are required: front, back, spine, inside, and cover' });
 
         const imageUrls = [];
-        for (const file of req.files) imageUrls.push(await uploadToCloudinary(file.buffer, `resell/${userId}`, 'resell'));
+        for (const name of photoFields) imageUrls.push(await uploadToCloudinary(req.files[name][0].buffer, `resell/${userId}`, 'resell'));
         const count = await db.execute({ sql: `SELECT COUNT(*) AS c FROM resell_listings` });
         const publicId = `REbk#${String(Number(count.rows[0].c) + 1).padStart(4, '0')}`;
         const result = await db.execute({
