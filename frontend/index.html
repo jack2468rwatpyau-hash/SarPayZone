@@ -1056,9 +1056,13 @@
             const phone = prompt('Wallet phone number (09...)');
             const accountName = prompt('Wallet account name');
             if (!amount || !method || !phone || !accountName) return;
+            const numericAmount = Number(amount);
+            if (!Number.isFinite(numericAmount) || numericAmount <= 0) return alert('Enter a valid withdrawal amount');
+            if (!confirm(`Step 1 of 2 — Review withdrawal\n\nAmount: ${numericAmount.toLocaleString()} Ks\nWallet: ${method}\nPhone: ${phone}\nAccount name: ${accountName}\n\nContinue to final confirmation?`)) return;
+            if (!confirm(`Step 2 of 2 — Final confirmation\n\nSubmit this withdrawal request for ${numericAmount.toLocaleString()} Ks?\n\nConfirm and continue?`)) return;
             fetch(`${API_URL}/wallet/withdraw`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify({ amount: Number(amount), payment_method: method.toLowerCase(), account_name: accountName, account_phone: phone })
+                body: JSON.stringify({ amount: numericAmount, payment_method: method.toLowerCase(), account_name: accountName, account_phone: phone })
             }).then(r => r.json().then(data => alert(r.ok ? 'Withdrawal request submitted for Admin review' : (data.error || 'Withdrawal failed'))));
         }
 
