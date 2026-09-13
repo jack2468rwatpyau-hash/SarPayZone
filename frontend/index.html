@@ -232,6 +232,7 @@
                 case 'categories': renderCategories(main); break;
                 case 'chat': renderChat(main); break;
                 case 'shop': renderShop(main, params.sellerId); break;
+                case 'user': renderPublicUser(main, params.publicId); break;
                 case 'profile': renderProfile(main); break;
                 case 'search': renderSearch(main); break;
                 case 'cart': renderCart(main); break;
@@ -471,6 +472,7 @@
                         <p class="conv-preview">${escapeChatText(c.last_message || 'No messages yet')}</p>
                         <span class="conv-time">${c.last_message_time ? new Date(c.last_message_time).toLocaleDateString() : ''}</span>
                     </div>
+                    <button class="chat-delete-btn" aria-label="Delete chat" onclick="event.stopPropagation(); deleteChat(${c.conversation_id})"><i class="fas fa-trash-alt"></i></button>
                 </div>
             `).join('') || '<p class="empty-text">No conversations yet</p>';
         }
@@ -484,7 +486,7 @@
                 if (!res.ok) throw new Error(messages.error || 'Unable to load messages');
                 if (!Array.isArray(messages)) throw new Error('Unable to load messages');
                 const myId = `U${currentUser.user_id || currentUser.id}`;
-                document.getElementById('message-list').innerHTML = messages.map(m => `<div class="message-bubble ${String(m.sender_id) === myId ? 'mine' : 'theirs'}"><div>${m.message_type === 'image' ? `<img src="${escapeChatText(m.content)}" alt="Chat image">` : escapeChatText(m.content)}</div><small>${escapeChatText(m.sender_name || '')} · ${m.created_at ? new Date(m.created_at).toLocaleString() : ''}</small></div>`).join('') || '<p class="empty-text">No messages yet</p>';
+                document.getElementById('message-list').innerHTML = messages.map(m => `<div class="message-bubble ${String(m.sender_id) === myId ? 'mine' : 'theirs'}"><div>${m.message_type === 'image' ? `<img src="${escapeChatText(m.content)}" alt="Chat image">` : escapeChatText(m.content)}</div><small>${m.sender_public_id ? `<button class="chat-user-link" onclick="navigateTo('user', {publicId: '${escapeChatText(m.sender_public_id)}'})">${escapeChatText(m.sender_name || 'View profile')}</button>` : escapeChatText(m.sender_name || '')} · ${m.created_at ? new Date(m.created_at).toLocaleString() : ''}</small></div>`).join('') || '<p class="empty-text">No messages yet</p>';
             } catch (err) { document.getElementById('message-list').innerHTML = `<p class="error-text">${escapeChatText(err.message)}</p>`; }
         }
 
@@ -498,6 +500,26 @@
             input.disabled = false;
             if (!res.ok) return alert(data.error || 'Unable to send message');
             openChat(conversationId);
+        }
+
+        async function deleteChat(conversationId) {
+            if (!confirm('ဒီ chat ကို သင့် chat list မှ ဖျက်မလား?')) return;
+            const res = await fetch(`${API_URL}/chat/conversations/${conversationId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } });
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'Unable to delete chat');
+            loadConversations('all');
+        }
+
+        async function renderPublicUser(container, publicId) {
+            if (!publicId) { container.innerHTML = '<p class="error-text">User profile is unavailable.</p>'; return; }
+            container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading profile...</div>';
+            try {
+                const res = await fetch(`${API_URL}/buyer/public/${encodeURIComponent(publicId)}`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Unable to load user profile');
+                const user = data.user;
+                container.innerHTML = `<div class="public-user-page"><button class="btn-text" onclick="navigateTo('chat')"><i class="fas fa-arrow-left"></i> Back to chat</button><div class="public-user-card"><img src="${escapeChatText(user.profile_image_id || '/assets/logo.png')}" alt="${escapeChatText(user.name)}"><h2>${escapeChatText(user.name)}</h2><p class="public-id">${escapeChatText(user.public_id)}</p>${user.city ? `<p class="user-city"><i class="fas fa-map-marker-alt"></i> ${escapeChatText(user.city)}</p>` : ''}<div class="public-user-stats"><div><strong>${data.purchased_book_count}</strong><span>Books purchased</span></div><div><strong>${data.purchased_title_count}</strong><span>Different titles</span></div></div></div></div>`;
+            } catch (err) { container.innerHTML = `<p class="error-text">${escapeChatText(err.message)}</p>`; }
         }
 
         async function renderShop(container, sellerId) {

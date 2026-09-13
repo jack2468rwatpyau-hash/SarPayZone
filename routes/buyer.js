@@ -3,6 +3,34 @@ const router = express.Router();
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 
+// Public profile data for viewing another buyer from chat. Private account
+// fields are intentionally excluded; purchase count is aggregate only.
+router.get('/public/:publicId', async (req, res) => {
+    try {
+        const user = await db.execute({
+            sql: `SELECT user_id, public_id, name, city, profile_image_id, created_at
+                  FROM users WHERE public_id = ? AND account_status = 'active'`,
+            args: [String(req.params.publicId)]
+        });
+        if (!user.rows.length) return res.status(404).json({ error: 'User not found' });
+
+        const profile = user.rows[0];
+        const count = await db.execute({
+            sql: `SELECT COALESCE(SUM(quantity), 0) AS purchased_book_count,
+                         COUNT(DISTINCT product_id) AS purchased_title_count
+                  FROM orders WHERE buyer_id = ? AND order_status <> 'cancelled'`,
+            args: [profile.user_id]
+        });
+        res.json({
+            user: profile,
+            purchased_book_count: Number(count.rows[0]?.purchased_book_count || 0),
+            purchased_title_count: Number(count.rows[0]?.purchased_title_count || 0)
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Wishlist
 router.get('/wishlist', authenticate, async (req, res) => {
     try {
@@ -60,4 +88,3 @@ router.patch('/profile', authenticate, async (req, res) => {
 });
 
 module.exports = router;
-

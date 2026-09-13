@@ -7,6 +7,19 @@ const upload = require('../middleware/upload');
 const { uploadToCloudinary } = require('../utils/cloudinary');
 const { sendPushNotification } = require('../utils/webpush');
 
+let visibilityTableReady;
+function ensureVisibilityTable() {
+    visibilityTableReady ||= db.execute({ sql: `CREATE TABLE IF NOT EXISTS conversation_hidden (
+        conversation_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        hidden_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (conversation_id, user_id),
+        FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    )` });
+    return visibilityTableReady;
+}
+
 const getIdentity = (user) => {
     const id = user.user_id || user.seller_id || user.id;
     const prefix = user.role === 'buyer' ? 'U' : 'S';
@@ -25,6 +38,7 @@ const getConversationForUser = async (conversationId, user) => {
 // Get conversations
 router.get('/conversations', authenticate, async (req, res) => {
     try {
+        await ensureVisibilityTable();
         const userId = req.user.user_id || req.user.id;
         const userPrefix = req.user.role === 'buyer' ? 'U' : 'S';
         const userIdentifier = `${userPrefix}${userId}`;
@@ -34,9 +48,10 @@ router.get('/conversations', authenticate, async (req, res) => {
                   (SELECT content FROM messages WHERE conversation_id = c.conversation_id ORDER BY created_at DESC LIMIT 1) as last_message,
                   (SELECT created_at FROM messages WHERE conversation_id = c.conversation_id ORDER BY created_at DESC LIMIT 1) as last_message_time
                   FROM conversations c 
-                  WHERE JSON_EXTRACT(c.participants, '$') LIKE ? 
+                  WHERE JSON_EXTRACT(c.participants, '$') LIKE ?
+                    AND NOT EXISTS (SELECT 1 FROM conversation_hidden h WHERE h.conversation_id = c.conversation_id AND h.user_id = ?)
                   ORDER BY last_message_at DESC`,
-            args: [`%${userIdentifier}%`]
+            args: [`%${userIdentifier}%`, userId]
         });
         res.json(convs.rows);
     } catch (err) {
@@ -54,12 +69,35 @@ router.get('/:conversationId', authenticate, async (req, res) => {
                     WHEN m.sender_type = 'user' THEN (SELECT name FROM users WHERE user_id = CAST(SUBSTR(m.sender_id, 2) AS INTEGER))
                     WHEN m.sender_type = 'seller' THEN (SELECT store_name FROM sellers WHERE seller_id = CAST(SUBSTR(m.sender_id, 2) AS INTEGER))
                     ELSE 'Admin'
-                  END as sender_name
+                  END as sender_name,
+                  CASE
+                    WHEN m.sender_type = 'user' THEN (SELECT public_id FROM users WHERE user_id = CAST(SUBSTR(m.sender_id, 2) AS INTEGER))
+                    ELSE NULL
+                  END as sender_public_id
                   FROM messages m 
                   WHERE m.conversation_id = ? ORDER BY m.created_at ASC`,
             args: [req.params.conversationId]
         });
         res.json(messages.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Hide a conversation from the buyer's own chat list. The seller's copy and
+// the underlying messages remain intact for order/support history.
+router.delete('/conversations/:conversationId', authenticate, async (req, res) => {
+    try {
+        await ensureVisibilityTable();
+        const userId = req.user.user_id || req.user.id;
+        if (req.user.role !== 'buyer' || !await getConversationForUser(req.params.conversationId, req.user)) {
+            return res.status(403).json({ error: 'Only a participating buyer can delete this chat' });
+        }
+        await db.execute({
+            sql: `INSERT OR IGNORE INTO conversation_hidden (conversation_id, user_id) VALUES (?, ?)`,
+            args: [Number(req.params.conversationId), userId]
+        });
+        res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

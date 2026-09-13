@@ -1604,6 +1604,20 @@ button, .btn-primary, .btn-secondary, .filter-btn, .nav-item { min-height: 40px;
 .shop-status i { font-size: 7px; margin-right: 5px; vertical-align: middle; }
 .shop-status.is-open { color: var(--success); }
 .shop-status.is-closed { color: #a73d31; }
+.chat-delete-btn { flex: 0 0 auto; width: 32px; height: 32px; border: 0; border-radius: 9px; color: var(--text-secondary); background: transparent; cursor: pointer; }
+.chat-delete-btn:hover { color: #b0443b; background: rgba(176,68,59,.1); }
+.chat-user-link { border: 0; padding: 0; background: transparent; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
+.public-user-page { max-width: 560px; margin: 0 auto; }
+.public-user-card { margin-top: 12px; padding: 28px 18px; text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); }
+.public-user-card > img { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; background: var(--surface); border: 3px solid rgba(45,125,79,.16); }
+.public-user-card h2 { margin: 12px 0 2px; }
+.public-user-card p { margin: 0; }
+.public-user-card .public-id, .user-city { color: var(--text-secondary); font-size: 12px; }
+.user-city { margin-top: 8px !important; }
+.public-user-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 22px; }
+.public-user-stats > div { display: flex; flex-direction: column; gap: 3px; padding: 14px 8px; border-radius: 12px; background: var(--surface); }
+.public-user-stats strong { color: var(--primary); font-size: 20px; }
+.public-user-stats span { color: var(--text-secondary); font-size: 12px; }
 @media (max-width: 560px) {
     .shop-hero { min-height: 132px; padding: 12px; }
     .shop-identity img { width: 48px; height: 48px; }
