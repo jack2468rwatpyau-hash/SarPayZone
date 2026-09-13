@@ -1696,7 +1696,7 @@ button, .btn-primary, .btn-secondary, .filter-btn, .nav-item { min-height: 40px;
 .resell-photo-fields label { display:grid; gap:6px; padding:10px; border:1px dashed var(--border); border-radius:10px; font-size:12px; font-weight:700; }
 .resell-photo-fields input { width:100%; font-size:11px; }
 .cod-proof-picker { position:relative; display:inline-flex; align-items:center; gap:5px; width:max-content; }
-.cod-proof-picker input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+.cod-proof-picker input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
 .cod-proof-picker.is-uploading { opacity:.6; pointer-events:none; }
 .product-card { position:relative; padding:8px; border-radius:12px; }
 .product-card .product-image { height:150px; border-radius:8px; }
@@ -1712,6 +1712,12 @@ button, .btn-primary, .btn-secondary, .filter-btn, .nav-item { min-height: 40px;
 #store-app .seller-product-author, #store-app .seller-product-meta { font-size:11px !important; }
 #store-app .seller-product-actions button { font-size:12px !important; }
 .page-back-btn { margin-bottom:10px; padding-left:0; }
+.share-row { position:relative; flex-wrap:wrap; }
+.share-options { display:flex; flex-wrap:wrap; gap:6px; width:100%; padding:8px; border:1px solid var(--border); border-radius:10px; background:var(--surface); }
+.share-options button { border:1px solid var(--border); border-radius:7px; padding:7px 9px; background:var(--card); color:var(--text); font-size:11px; cursor:pointer; }
+.share-options button:first-child i { color:#1877f2; }
+.share-options button:nth-child(2) i { color:#229ed9; }
+.share-options button:nth-child(3) i { color:#25d366; }
 @media (max-width:560px) { .resell-photo-fields { grid-template-columns:1fr; } }
 @media (max-width:560px) { .receipt-paper { padding:18px; min-height:0; } .receipt-toolbar { justify-content:stretch; } .receipt-toolbar button { flex:1; } }
 @media (max-width: 760px) { .analytics-grid { grid-template-columns:1fr; } .sales-line-chart { height:130px; } }

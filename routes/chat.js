@@ -108,15 +108,15 @@ router.post('/', authenticate, async (req, res) => {
     try {
         const { conversation_id, content, conversation_type, participants, related_order_id } = req.body;
         const normalizedContent = String(content || '').trim();
-        if (!normalizedContent || normalizedContent.length > 2000) return res.status(400).json({ error: 'Message must be between 1 and 2000 characters' });
         const normalizedConversationId = conversation_id === undefined || conversation_id === null || conversation_id === '' ? null : Number(conversation_id);
+        if ((normalizedConversationId !== null && !normalizedContent) || normalizedContent.length > 2000) return res.status(400).json({ error: 'Message must be between 1 and 2000 characters' });
         if (normalizedConversationId !== null && !Number.isSafeInteger(normalizedConversationId)) return res.status(400).json({ error: 'Invalid conversation' });
         const normalizedParticipants = Array.isArray(participants) ? participants.map(value => String(value)).filter(Boolean) : [];
         const identity = getIdentity(req.user);
         const senderIdentifier = identity.identifier;
 
         // AI Moderation
-        const isFlagged = await moderateMessage(normalizedContent);
+        const isFlagged = normalizedContent ? await moderateMessage(normalizedContent) : false;
         if (isFlagged) {
             return res.status(400).json({ error: 'Message flagged by AI moderation. Please rephrase.' });
         }

@@ -257,7 +257,8 @@
                 fetch(`${API_URL}/products/categories/all`)
             ]);
             
-            const banners = await bannersRes.json().catch(() => []);
+            const bannersPayload = await bannersRes.json().catch(() => []);
+            const banners = Array.isArray(bannersPayload) ? bannersPayload : [];
             const popular = await popularRes.json().catch(() => []);
             const categories = await categoriesRes.json().catch(() => []);
 
@@ -265,7 +266,7 @@
                 <div class="home-page">
                     <div class="banner-slider">
                         ${banners.map(b => `
-                            <div class="banner-slide" onclick="window.open('${b.target_link}', '_blank')">
+                            <div class="banner-slide" ${b.target_link ? `onclick="window.open('${escapeChatText(b.target_link)}', '_blank', 'noopener,noreferrer')"` : ''}>
                                 <img src="${b.image_url}" alt="${b.title}">
                                 <div class="banner-text">
                                     <h3>${b.title}</h3>
@@ -386,7 +387,7 @@
                         </div>
 
                         <div class="share-row">
-                            <button onclick="shareProduct('${p.public_id}')" class="btn-text"><i class="fas fa-share-alt"></i> Share</button>
+                            <button onclick="showShareOptions('${p.public_id}', this)" class="btn-text"><i class="fas fa-share-alt"></i> Share</button>
                             <button onclick="startChat(${Number(p.seller_id) || 0}, ${Number(p.book_id) || 0})" class="btn-text"><i class="fas fa-comment"></i> Contact Shop</button>
                             <button onclick="navigateTo('shop', {sellerId: '${p.seller_id || ''}'})" class="btn-text"><i class="fas fa-store"></i> Visit Shop</button>
                         </div>
@@ -1203,12 +1204,27 @@
                 if (data.store_reply?.auto_reply_message || data.store_reply?.reply_time_text) {
                     alert(`${data.store_reply.auto_reply_message || 'Message sent.'}\n\n${data.store_reply.reply_time_text || ''}`);
                 }
-                openChat(data.conversation_id);
+                closeModal('product-modal');
+                navigateTo('chat');
+                openChat(Number(data.conversation_id));
             } catch (err) {
                 alert(err.message || 'Unable to start chat');
             }
         }
-        function shareProduct(publicId) { navigator.clipboard?.writeText(`${location.origin}${location.pathname}?product=${publicId}`); alert('Product link copied'); }
+        async function shareProduct(publicId) {
+            const url = `${location.origin}${location.pathname}?product=${encodeURIComponent(publicId)}`;
+            const shareData = { title: 'Sar Pay Zone Book', text: 'View this book on Sar Pay Zone', url };
+            try { if (navigator.share) { await navigator.share(shareData); return; } } catch (err) { if (err.name === 'AbortError') return; }
+            try { await navigator.clipboard.writeText(url); alert('Product link copied'); } catch (_) { prompt('Copy this product link', url); }
+        }
+        function showShareOptions(publicId, button) {
+            document.querySelectorAll('.share-options').forEach(el => el.remove());
+            const url = `${location.origin}${location.pathname}?product=${encodeURIComponent(publicId)}`;
+            const encodedId = encodeURIComponent(String(publicId));
+            const menu = document.createElement('div'); menu.className = 'share-options';
+            menu.innerHTML = `<button onclick="window.open('https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}','_blank','noopener,noreferrer')"><i class="fab fa-facebook"></i> Facebook</button><button onclick="window.open('https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent('Sar Pay Zone Book')}','_blank','noopener,noreferrer')"><i class="fab fa-telegram"></i> Telegram</button><button onclick="window.open('https://wa.me/?text=${encodeURIComponent(`Sar Pay Zone Book: ${url}`)}','_blank','noopener,noreferrer')"><i class="fab fa-whatsapp"></i> WhatsApp</button><button onclick="shareProduct(decodeURIComponent('${encodedId}'))"><i class="fas fa-link"></i> Copy link</button>`;
+            button.parentElement.appendChild(menu);
+        }
         function openReviewForm(orderId) {
             const rating = Number(prompt('Rating from 1 to 5', '5'));
             const comment = prompt('Review comment') || '';
