@@ -18,9 +18,24 @@
         .metric-card { background: var(--card); border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); text-align: center; }
         .metric-value { font-size: 24px; font-weight: 700; font-family: var(--font-mono); color: var(--primary); }
         .metric-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
-        .excel-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .excel-table th, .excel-table td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
-        .excel-table th { background: var(--surface); font-weight: 600; }
+        .seller-product-list { display: grid; gap: 14px; }
+        .seller-product-card { display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 16px; align-items: stretch; padding: 14px; border: 1px solid rgba(45,125,79,.18); border-radius: 18px; background: linear-gradient(135deg, #8ee2d8 0%, #72d5c9 100%); box-shadow: 7px 8px 0 rgba(20, 42, 36, .12), 0 10px 22px rgba(20, 42, 36, .08); color: #102f2d; }
+        .seller-product-cover { width: 86px; height: 112px; align-self: center; overflow: hidden; border: 1px solid rgba(255,255,255,.8); border-radius: 4px; background: #f9f9f7; box-shadow: 0 2px 6px rgba(20,42,36,.1); }
+        .seller-product-cover img { width: 100%; height: 100%; display: block; object-fit: cover; }
+        .seller-product-cover.is-empty { display: grid; place-items: center; padding: 8px; color: #7d8581; text-align: center; font-size: 12px; font-weight: 700; }
+        .seller-product-content { min-width: 0; display: flex; flex-direction: column; }
+        .seller-product-id { align-self: flex-start; margin: -2px 0 8px; padding: 3px 9px; background: #13b7a5; color: #073a36; font-family: var(--font-mono); font-size: 12px; font-weight: 800; letter-spacing: .02em; }
+        .seller-product-title { margin: 0; overflow: hidden; color: #102f2d; font-size: 17px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+        .seller-product-author { margin: 4px 0 0; overflow: hidden; color: #173f3b; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+        .seller-product-divider { height: 1px; margin: 12px 0 9px; background: rgba(16,47,45,.75); }
+        .seller-product-meta { display: flex; justify-content: space-between; gap: 12px; color: #102f2d; font-size: 14px; }
+        .seller-product-meta strong { font-weight: 800; }
+        .seller-product-status { margin-left: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+        .seller-product-status.is-inactive { color: #8a3027; }
+        .seller-product-actions { display: flex; justify-content: flex-end; gap: 22px; margin-top: auto; padding-top: 10px; }
+        .seller-product-actions button { border: 0; background: transparent; color: #165c3a; font-family: var(--font-sans); font-size: 15px; font-weight: 800; cursor: pointer; }
+        .seller-product-actions button:disabled { color: rgba(22,92,58,.72); cursor: not-allowed; }
+        @media (max-width: 420px) { .seller-product-card { grid-template-columns: 72px minmax(0, 1fr); gap: 11px; padding: 11px; } .seller-product-cover { width: 72px; height: 96px; } .seller-product-title { font-size: 15px; } .seller-product-meta { font-size: 12px; } .seller-product-actions { gap: 13px; } }
         .product-form { display: flex; flex-direction: column; gap: 16px; }
         .form-group { display: flex; flex-direction: column; gap: 6px; }
         .form-group label { font-size: 14px; font-weight: 600; }
@@ -312,28 +327,55 @@
             await showProductList();
         }
 
+        function escapeSellerProductText(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+        }
+
+        function getSellerProductImage(product) {
+            try {
+                const images = Array.isArray(product.images) ? product.images : JSON.parse(product.images || '[]');
+                return typeof images[0] === 'string' ? images[0] : '';
+            } catch (_) {
+                return '';
+            }
+        }
+
         async function showProductList() {
             try {
                 const res = await fetch(`${API_URL}/products/mine`, {
                     headers: { 'Authorization': `Bearer ${storeToken}` }
                 });
                 const products = await res.json();
+                if (!res.ok) throw new Error(products.error || 'Unable to load products');
 
                 document.getElementById('product-section').innerHTML = `
-                    <table class="excel-table">
-                        <thead><tr><th>ID</th><th>Title</th><th>Price</th><th>Stock</th><th>Status</th></tr></thead>
-                        <tbody>
-                            ${products.map(p => `
-                                <tr>
-                                    <td>${p.public_id}</td>
-                                    <td>${p.title}</td>
-                                    <td>${(p.discounted_price || p.original_price || 0).toLocaleString()}</td>
-                                    <td>${p.stock_quantity || 0}</td>
-                                    <td>${p.is_active ? 'Active' : 'Inactive'}</td>
-                                </tr>
-                            `).join('') || '<tr><td colspan="5" class="empty-text">No products added yet</td></tr>'}
-                        </tbody>
-                    </table>
+                    <div class="seller-product-list" aria-live="polite">
+                        ${products.map((p, index) => {
+                            const imageUrl = getSellerProductImage(p);
+                            const price = Number(p.discounted_price || p.original_price || 0).toLocaleString();
+                            const stock = Number(p.stock_quantity || 0).toLocaleString();
+                            const status = p.is_active ? 'Active' : 'Inactive';
+                            return `
+                                <article class="seller-product-card">
+                                    <div class="seller-product-cover ${imageUrl ? '' : 'is-empty'}">
+                                        ${imageUrl ? `<img src="${escapeSellerProductText(imageUrl)}" alt="${escapeSellerProductText(p.title || 'Book cover')}" loading="lazy">` : '<span>Book image</span>'}
+                                    </div>
+                                    <div class="seller-product-content">
+                                        <span class="seller-product-id">NO - ${index + 1} &nbsp;|&nbsp; ${escapeSellerProductText(p.public_id || '—')}</span>
+                                        <h3 class="seller-product-title">Book name - ${escapeSellerProductText(p.title || 'Untitled')}</h3>
+                                        <p class="seller-product-author">Author - ${escapeSellerProductText(p.author_name || 'Unknown author')}</p>
+                                        <div class="seller-product-divider"></div>
+                                        <div class="seller-product-meta"><span>Price - <strong>${price} Ks</strong></span><span>Stock - <strong>${stock}</strong></span></div>
+                                        <span class="seller-product-status ${p.is_active ? '' : 'is-inactive'}">${status}</span>
+                                        <div class="seller-product-actions" aria-label="Product actions">
+                                            <button type="button" disabled title="Product editing is not available yet">Edit</button>
+                                            <button type="button" disabled title="Product deletion is not available yet">Delete</button>
+                                        </div>
+                                    </div>
+                                </article>
+                            `;
+                        }).join('') || '<p class="empty-text">No products added yet</p>'}
+                    </div>
                 `;
                 
                 // Update tab styles
