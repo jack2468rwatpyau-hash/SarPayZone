@@ -4,6 +4,31 @@ const bcrypt = require('bcryptjs');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roleCheck');
+const upload = require('../middleware/upload');
+const { uploadToCloudinary } = require('../utils/cloudinary');
+
+// Admin banner management
+router.get('/banners', authenticate, requireRole('admin'), async (_req, res) => {
+    try {
+        const banners = await db.execute({ sql: `SELECT * FROM banners ORDER BY sort_order, created_at DESC` });
+        res.json(banners.rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/banners', authenticate, requireRole('admin'), upload.single('image'), async (req, res) => {
+    try {
+        const { title, subtitle, target_link, sort_order = 0 } = req.body;
+        if (!req.file) return res.status(400).json({ error: 'Banner image is required' });
+        const imageUrl = await uploadToCloudinary(req.file.buffer, 'sarpayzone/banners', 'product');
+        await db.execute({ sql: `INSERT INTO banners (title, subtitle, image_url, target_link, sort_order) VALUES (?, ?, ?, ?, ?)`, args: [String(title || '').trim() || null, String(subtitle || '').trim() || null, imageUrl, String(target_link || '').trim() || null, Number(sort_order) || 0] });
+        res.json({ success: true, image_url: imageUrl });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/banners/:id', authenticate, requireRole('admin'), async (req, res) => {
+    try { await db.execute({ sql: `DELETE FROM banners WHERE banner_id = ?`, args: [req.params.id] }); res.json({ success: true }); }
+    catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // Dashboard metrics
 router.get('/dashboard', authenticate, requireRole('admin'), async (req, res) => {

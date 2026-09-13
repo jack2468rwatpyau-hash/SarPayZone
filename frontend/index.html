@@ -304,7 +304,7 @@
             const storeOpen = p.store_is_open !== 0 && p.store_accepting_orders !== 0;
             return `
                 <div class="product-card" onclick="openProductDetail(${p.book_id})">
-                    <div class="product-image">
+                    <button class="product-wishlist-btn" type="button" aria-label="Add to wishlist" onclick="event.stopPropagation(); toggleWishlist(${Number(p.book_id)}, this)"><i class="far fa-heart"></i></button><div class="product-image">
                         <img src="${p.images ? JSON.parse(p.images)[0] : '/assets/logo.png'}" alt="${p.title}">
                     </div>
                     <div class="product-info">
@@ -610,7 +610,7 @@
             
             container.innerHTML = `
                 <div class="wallet-page">
-                    <h2>My Wallet</h2>
+                    <button class="btn-text page-back-btn" onclick="navigateTo('profile')"><i class="fas fa-arrow-left"></i> Back to Profile</button><h2>My Wallet</h2>
                     <div class="balance-card">
                         <div class="balance-label">General Balance</div>
                         <div class="balance-amount">${data.balance.toLocaleString()} Ks</div>
@@ -652,7 +652,7 @@
             
             container.innerHTML = `
                 <div class="orders-page">
-                    <h2>My Orders</h2>
+                    <button class="btn-text page-back-btn" onclick="navigateTo('profile')"><i class="fas fa-arrow-left"></i> Back to Profile</button><h2>My Orders</h2>
                     <div class="order-filters">
                         <button onclick="filterOrders('all')" class="filter-btn active">All</button>
                         <button onclick="filterOrders('new')" class="filter-btn">New</button>
@@ -1070,7 +1070,18 @@
             document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.toggle('active', btn.textContent.toLowerCase().includes(status)));
         }
 
-        async function toggleWishlist(bookId) {
+        async function renderWishlist(container) {
+            if (!authToken) { showAuthModal(); return; }
+            container.innerHTML = '<div class="loading">Loading wishlist...</div>';
+            try {
+                const res = await fetch(`${API_URL}/buyer/wishlist`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+                const items = await res.json();
+                if (!res.ok) throw new Error(items.error || 'Unable to load wishlist');
+                container.innerHTML = `<div class="wishlist-page"><button class="btn-text page-back-btn" onclick="navigateTo('profile')"><i class="fas fa-arrow-left"></i> Back to Profile</button><div class="page-heading-row"><h2>Wishlist</h2><span class="cart-count-pill">${items.length} items</span></div><div class="product-grid">${items.map(item => renderProductCard(item)).join('') || '<p class="empty-text">No saved books yet</p>'}</div></div>`;
+            } catch (err) { container.innerHTML = `<p class="error-text">${escapeChatText(err.message)}</p>`; }
+        }
+
+        async function toggleWishlist(bookId, button) {
             if (!currentUser) { showAuthModal(); return; }
             const res = await fetch(`${API_URL}/buyer/wishlist`, {
                 method: 'POST',
@@ -1078,7 +1089,8 @@
                 body: JSON.stringify({ book_id: bookId })
             });
             const data = await res.json();
-            alert(res.ok ? 'Added to wishlist' : (data.error || 'Unable to update wishlist'));
+            if (!res.ok) return alert(data.error || 'Unable to update wishlist');
+            button?.classList.add('is-saved'); if (button) button.innerHTML = '<i class="fas fa-heart"></i>';
         }
 
         async function viewFestivalBooks(festivalId) {

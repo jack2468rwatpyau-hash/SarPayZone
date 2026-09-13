@@ -41,6 +41,7 @@
                     <div class="admin-card" onclick="showSection('users')"><i class="fas fa-users"></i><h4>Users</h4></div>
                     <div class="admin-card" onclick="showSection('sellers')"><i class="fas fa-store"></i><h4>Sellers</h4></div>
                     <div class="admin-card" onclick="showSection('products')"><i class="fas fa-book"></i><h4>Products</h4></div>
+                    <div class="admin-card" onclick="showSection('banners')"><i class="fas fa-image"></i><h4>Banners</h4></div>
                     <div class="admin-card" onclick="showSection('orders')"><i class="fas fa-clipboard-list"></i><h4>Orders</h4></div>
                     <div class="admin-card" onclick="showSection('commission')"><i class="fas fa-percentage"></i><h4>Commission</h4></div>
                     <div class="admin-card" onclick="showSection('cod')"><i class="fas fa-receipt"></i><h4>COD Verification</h4></div>
@@ -107,6 +108,19 @@
                 <button onclick="showMenu()" class="btn-text" style="margin-bottom: 16px;"><i class="fas fa-arrow-left"></i> Back</button>
                 <h2>Pending Products</h2>
                 <div id="pending-products"></div>
+            </div>
+
+            <div id="section-banners" class="admin-section">
+                <button onclick="showMenu()" class="btn-text" style="margin-bottom: 16px;"><i class="fas fa-arrow-left"></i> Back</button>
+                <h2>Home Banners</h2>
+                <p class="small text-secondary">Upload a banner image directly. The banner will appear on the buyer home page after saving.</p>
+                <form id="banner-form" onsubmit="createBanner(event)" style="margin:16px 0;">
+                    <div class="form-row"><div class="form-group"><label>Title</label><input id="banner-title" maxlength="120"></div><div class="form-group"><label>Subtitle</label><input id="banner-subtitle" maxlength="200"></div></div>
+                    <div class="form-group"><label>Target link (optional)</label><input id="banner-link" type="url" placeholder="https://..."></div>
+                    <div class="form-group"><label>Banner image *</label><input id="banner-image" type="file" accept="image/*" required></div>
+                    <button class="btn-primary" type="submit">Upload Banner</button>
+                </form>
+                <div id="banners-list"></div>
             </div>
 
             <div id="section-orders" class="admin-section">
@@ -243,6 +257,7 @@
             if (section === 'users') loadUsers();
             if (section === 'sellers') loadSellers();
             if (section === 'products') loadPendingProducts();
+            if (section === 'banners') loadBanners();
             if (section === 'orders') loadAllOrders();
             if (section === 'ai') loadFlaggedMessages();
             if (section === 'voting') loadFestivals();
@@ -294,6 +309,27 @@
         function showMenu() {
             document.getElementById('admin-menu').style.display = 'block';
             document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
+        }
+        async function loadBanners() {
+            const res = await fetch(`${API_URL}/admin/banners`, { headers: { 'Authorization': `Bearer ${adminToken}` } });
+            const banners = await res.json();
+            document.getElementById('banners-list').innerHTML = banners.map(b => `<div class="admin-card" style="display:flex;gap:12px;align-items:center;text-align:left;margin:10px 0;cursor:default"><img src="${b.image_url}" alt="${b.title || 'Banner'}" style="width:120px;height:60px;object-fit:cover;border-radius:8px"><div style="flex:1"><strong>${b.title || 'Untitled banner'}</strong><p class="small text-secondary">${b.subtitle || ''}</p></div><button class="btn-text danger" onclick="deleteBanner(${b.banner_id})">Delete</button></div>`).join('') || '<p class="empty-text">No banners uploaded</p>';
+        }
+        async function createBanner(event) {
+            event.preventDefault();
+            const file = document.getElementById('banner-image').files[0];
+            if (!file) return;
+            const form = new FormData(); form.append('image', file); form.append('title', document.getElementById('banner-title').value.trim()); form.append('subtitle', document.getElementById('banner-subtitle').value.trim()); form.append('target_link', document.getElementById('banner-link').value.trim());
+            const res = await fetch(`${API_URL}/admin/banners`, { method: 'POST', headers: { 'Authorization': `Bearer ${adminToken}` }, body: form });
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'Unable to upload banner');
+            event.target.reset(); alert('Banner uploaded'); loadBanners();
+        }
+        async function deleteBanner(id) {
+            if (!confirm('Delete this banner?')) return;
+            const res = await fetch(`${API_URL}/admin/banners/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${adminToken}` } });
+            if (!res.ok) { const data = await res.json(); return alert(data.error || 'Unable to delete banner'); }
+            loadBanners();
         }
 
         async function loadDashboard() {
