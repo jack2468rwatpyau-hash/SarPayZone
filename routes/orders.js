@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const db = require('../db');
+const config = require('../config');
 const { authenticate } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roleCheck');
 const { calculateCommission } = require('../utils/commission');
@@ -258,6 +260,39 @@ router.get('/buyer', authenticate, async (req, res) => {
             args: [req.user.user_id || req.user.id]
         });
         res.json(orders.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Return signed receipt data for a buyer's own order. The signature makes
+// edited receipt images detectable by comparing the printed receipt payload.
+router.get('/buyer/:id/receipt', authenticate, async (req, res) => {
+    try {
+        const buyerId = req.user.user_id || req.user.id;
+        const result = await db.execute({
+            sql: `SELECT o.order_id, o.order_number, o.created_at, o.quantity, o.total_amount,
+                         o.shipping_fee, o.payment_method, o.payment_status, o.order_status,
+                         COALESCE(p.title, r.title) AS title,
+                         COALESCE(p.author_name, r.author_name) AS author_name,
+                         COALESCE(p.images, r.condition_images) AS images,
+                         COALESCE(s.store_name, 'Sar Pay Zone Resell') AS store_name,
+                         s.logo
+                  FROM orders o
+                  LEFT JOIN products p ON o.product_id = p.book_id
+                  LEFT JOIN resell_listings r ON o.resell_listing_id = r.listing_id
+                  LEFT JOIN sellers s ON o.seller_id = s.seller_id
+                  WHERE o.order_id = ? AND o.buyer_id = ? LIMIT 1`,
+            args: [req.params.id, buyerId]
+        });
+        if (!result.rows.length) return res.status(404).json({ error: 'Order not found' });
+        const order = result.rows[0];
+        if (!['approved', 'shipping', 'delivered'].includes(order.order_status)) {
+            return res.status(409).json({ error: 'Receipt is available after the seller approves the order' });
+        }
+        const canonical = [order.order_id, order.order_number, order.created_at, order.quantity, order.total_amount, order.shipping_fee || 0, order.payment_method, order.order_status, order.store_name, order.title, order.author_name || '', order.images || ''].join('|');
+        const signature = crypto.createHmac('sha256', config.JWT_SECRET).update(canonical).digest('hex');
+        res.json({ receipt: order, signature, verification_code: `SPZ-${signature.slice(0, 16).toUpperCase()}` });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

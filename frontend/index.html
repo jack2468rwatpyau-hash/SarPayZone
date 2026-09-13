@@ -240,6 +240,7 @@
                 case 'wallet': renderWallet(main); break;
                 case 'transfer': renderTransfer(main); break;
                 case 'orders': renderOrders(main); break;
+                case 'receipt': renderReceipt(main, params.orderId); break;
                 case 'resell': renderResell(main); break;
                 case 'resell-add': renderResellForm(main); break;
                 case 'wishlist': renderWishlist(main); break;
@@ -665,6 +666,42 @@
             `;
         }
 
+        let currentReceiptData = null;
+        async function renderReceipt(container, orderId) {
+            if (!authToken || !orderId) { container.innerHTML = '<p class="error-text">Receipt is unavailable.</p>'; return; }
+            container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Preparing receipt...</div>';
+            try {
+                const res = await fetch(`${API_URL}/orders/buyer/${Number(orderId)}/receipt`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Receipt is not available yet');
+                currentReceiptData = data;
+                const receipt = data.receipt;
+                let image = '/assets/logo.png';
+                try { image = receipt.images ? (JSON.parse(receipt.images)[0] || image) : image; } catch (_) {}
+                container.innerHTML = `<div class="receipt-page"><button class="btn-text" onclick="navigateTo('orders')"><i class="fas fa-arrow-left"></i> Back to orders</button><div class="receipt-toolbar"><button class="btn-primary" onclick="downloadReceipt('png')"><i class="fas fa-download"></i> Download PNG</button><button class="btn-secondary" onclick="downloadReceipt('jpeg')"><i class="fas fa-download"></i> Download JPG</button></div><article id="receipt-paper" class="receipt-paper"><img class="receipt-logo" src="/assets/logo.png" alt="Sar Pay Zone"><h2>SAR PAY ZONE</h2><p class="receipt-label">PURCHASE RECEIPT</p><div class="receipt-meta"><span>Date & time<br><strong>${new Date(receipt.created_at).toLocaleString()}</strong></span><span>Order ID<br><strong>${escapeChatText(receipt.order_number || receipt.order_id)}</strong></span></div><div class="receipt-shop"><i class="fas fa-store"></i> ${escapeChatText(receipt.store_name || 'Sar Pay Zone')}</div><div class="receipt-item"><img src="${escapeChatText(image)}" alt="${escapeChatText(receipt.title || 'Book')}"><div><strong>${escapeChatText(receipt.title || 'Book')}</strong><span>Author: ${escapeChatText(receipt.author_name || 'Unknown')}</span><span>Quantity: ${Number(receipt.quantity || 1)}</span><span>Price: ${Number(receipt.total_amount || 0).toLocaleString()} Ks</span></div></div><div class="receipt-total"><span>Shipping</span><strong>${Number(receipt.shipping_fee || 0).toLocaleString()} Ks</strong><span>Total</span><strong>${(Number(receipt.total_amount || 0) + Number(receipt.shipping_fee || 0)).toLocaleString()} Ks</strong></div><p class="receipt-payment">Payment: ${escapeChatText(receipt.payment_method || '-')} · Status: ${escapeChatText(receipt.order_status || '-')}</p><div class="receipt-verification"><small>Verification code</small><strong>${data.verification_code}</strong><small>Signed receipt — keep this code to detect altered copies.</small></div></article></div>`;
+            } catch (err) { container.innerHTML = `<p class="error-text">${escapeChatText(err.message)}</p>`; }
+        }
+
+        async function downloadReceipt(format) {
+            if (!currentReceiptData) return;
+            const { receipt, verification_code } = currentReceiptData;
+            const canvas = document.createElement('canvas'); canvas.width = 794; canvas.height = 1123;
+            const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fffdf8'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#173b2a';
+            const text = (value, x, y, size = 22, color = '#173b2a', weight = '400') => { ctx.font = `${weight} ${size}px Arial, sans-serif`; ctx.fillStyle = color; ctx.fillText(String(value), x, y); };
+            const logo = new Image(); logo.crossOrigin = 'anonymous'; logo.src = '/assets/logo.png';
+            await new Promise(resolve => { logo.onload = resolve; logo.onerror = resolve; });
+            if (logo.naturalWidth) ctx.drawImage(logo, 347, 42, 100, 100);
+            text('SAR PAY ZONE', 250, 176, 28, '#173b2a', '700'); text('PURCHASE RECEIPT', 300, 207, 16, '#6f7c73', '400');
+            ctx.strokeStyle = '#d6dfd8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(55, 232); ctx.lineTo(739, 232); ctx.stroke();
+            text(`Date & time: ${new Date(receipt.created_at).toLocaleString()}`, 60, 270, 17); text(`Order ID: ${receipt.order_number || receipt.order_id}`, 60, 300, 17); text(`Book shop: ${receipt.store_name || 'Sar Pay Zone'}`, 60, 346, 20, '#173b2a', '700');
+            let bookImage = null; try { bookImage = receipt.images ? JSON.parse(receipt.images)[0] : null; } catch (_) {}
+            const cover = new Image(); cover.crossOrigin = 'anonymous'; cover.src = bookImage || '/assets/logo.png'; await new Promise(resolve => { cover.onload = resolve; cover.onerror = resolve; }); if (cover.naturalWidth) ctx.drawImage(cover, 60, 382, 170, 170);
+            text(receipt.title || 'Book', 260, 420, 22, '#173b2a', '700'); text(`Author: ${receipt.author_name || 'Unknown'}`, 260, 458, 18); text(`Quantity: ${receipt.quantity || 1}`, 260, 492, 18); text(`Book amount: ${Number(receipt.total_amount || 0).toLocaleString()} Ks`, 260, 526, 18);
+            ctx.strokeStyle = '#d6dfd8'; ctx.beginPath(); ctx.moveTo(55, 590); ctx.lineTo(739, 590); ctx.stroke(); text('Shipping', 60, 635, 18); text(`${Number(receipt.shipping_fee || 0).toLocaleString()} Ks`, 600, 635, 18); text('TOTAL', 60, 685, 24, '#173b2a', '700'); text(`${(Number(receipt.total_amount || 0) + Number(receipt.shipping_fee || 0)).toLocaleString()} Ks`, 560, 685, 24, '#173b2a', '700'); text(`Payment: ${receipt.payment_method || '-'}`, 60, 730, 17, '#6f7c73'); text(`Status: ${receipt.order_status || '-'}`, 60, 758, 17, '#6f7c73');
+            ctx.fillStyle = '#edf5ef'; ctx.fillRect(55, 830, 684, 130); text('VERIFICATION CODE', 80, 870, 15, '#6f7c73', '700'); text(verification_code, 80, 910, 24, '#173b2a', '700'); text('Signed receipt — keep this code to detect altered copies.', 80, 940, 14, '#6f7c73'); text('Thank you for shopping with Sar Pay Zone', 245, 1030, 16, '#173b2a');
+            const link = document.createElement('a'); link.download = `sarpayzone-receipt-${receipt.order_number || receipt.order_id}.${format === 'jpeg' ? 'jpg' : 'png'}`; link.href = canvas.toDataURL(`image/${format}`, .95); link.click();
+        }
+
         function renderOrderCard(o) {
             return `
                 <div class="order-card">
@@ -685,7 +722,7 @@
                         ${o.payment_method === 'cod' && o.order_status === 'shipping' && !o.buyer_delivery_confirmed_at ? `<button onclick="confirmCodDelivery(${o.order_id})" class="btn-text success">Confirm received + photo</button>` : ''}
                         ${o.payment_method === 'cod' && o.buyer_delivery_confirmed_at && !o.seller_delivery_confirmed_at ? `<span class="small text-secondary">Waiting for shop confirmation</span>` : ''}
                         ${o.order_status === 'delivered' ? `<button onclick="openReviewForm(${o.order_id})" class="btn-text">Review</button>` : ''}
-                        <button onclick="navigateTo('chat')" class="btn-text">Contact</button>
+                        ${['approved', 'shipping', 'delivered'].includes(o.order_status) ? `<button onclick="navigateTo('receipt', {orderId: ${Number(o.order_id)}})" class="btn-text"><i class="fas fa-receipt"></i> Receipt</button>` : ''}<button onclick="navigateTo('chat')" class="btn-text">Contact</button>
                     </div>
                 </div>
             `;
