@@ -240,6 +240,7 @@
                 case 'wallet': renderWallet(main); break;
                 case 'orders': renderOrders(main); break;
                 case 'resell': renderResell(main); break;
+                case 'resell-add': renderResellForm(main); break;
                 case 'wishlist': renderWishlist(main); break;
             }
         }
@@ -730,7 +731,7 @@
             container.innerHTML = `
                 <div class="resell-page">
                     <h2>Resell Center</h2>
-                    <button onclick="showResellForm()" class="btn-primary"><i class="fas fa-plus"></i> List Book for Resell</button>
+                    <button onclick="navigateTo('resell-add')" class="btn-primary"><i class="fas fa-plus"></i> List Book for Resell</button>
                     <h3>Marketplace</h3>
                     <div id="resell-listings" class="product-grid"></div>
                 </div>
@@ -755,6 +756,57 @@
                     </div>
                 </div>
             `).join('') || '<p class="empty-text">No resell listings available</p>';
+        }
+
+        function renderResellForm(container) {
+            if (!currentUser) { showAuthModal(); return; }
+            container.innerHTML = `
+                <div class="resell-form-page">
+                    <button class="btn-text" onclick="navigateTo('resell')"><i class="fas fa-arrow-left"></i> Back to Resell Center</button>
+                    <div class="page-heading"><p class="eyebrow">C2C Marketplace</p><h2>List a Book for Resell</h2><p class="text-secondary">တင်ထားသောစာအုပ်ကို Admin စစ်ဆေးပြီးမှ marketplace တွင် ပြသပါမည်။</p></div>
+                    <form id="resell-list-form" class="resell-list-form">
+                        <div class="form-group"><label for="resell-title">Book title *</label><input id="resell-title" required maxlength="200" placeholder="စာအုပ်အမည်"></div>
+                        <div class="form-grid-two"><div class="form-group"><label for="resell-author">Author</label><input id="resell-author" maxlength="120" placeholder="စာရေးသူ"></div><div class="form-group"><label for="resell-isbn">ISBN</label><input id="resell-isbn" maxlength="40" placeholder="ISBN (optional)"></div></div>
+                        <div class="form-group"><label for="resell-publisher">Publisher</label><input id="resell-publisher" maxlength="120" placeholder="ထုတ်ဝေသူ (optional)"></div>
+                        <div class="form-grid-two"><div class="form-group"><label for="resell-condition">Book condition *</label><select id="resell-condition"><option value="new">New</option><option value="like_new">Like new</option><option value="good" selected>Good</option><option value="fair">Fair</option><option value="poor">Poor</option></select></div><div class="form-group"><label for="resell-price">Asking price (Ks) *</label><input id="resell-price" type="number" min="1" step="1" required placeholder="ဥပမာ 10000"></div></div>
+                        <div class="form-group"><label for="resell-note">Condition details *</label><textarea id="resell-note" required minlength="5" maxlength="1000" rows="4" placeholder="စာအုပ်အခြေအနေ၊ ခြစ်ရာ၊ စာရေးထားမှု၊ စာမျက်နှာပျက်စီးမှုများကို ဖော်ပြပါ"></textarea></div>
+                        <div class="form-group"><label for="resell-photos">Condition photos * (1–5 images)</label><input id="resell-photos" type="file" accept="image/*" multiple required><div id="resell-photo-preview" class="resell-photo-preview"></div></div>
+                        <p id="resell-form-error" class="error-text"></p><button id="resell-submit" class="btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Submit for Admin Review</button>
+                    </form>
+                </div>`;
+            const photoInput = document.getElementById('resell-photos');
+            photoInput.addEventListener('change', () => {
+                const files = [...photoInput.files];
+                document.getElementById('resell-photo-preview').innerHTML = files.slice(0, 5).map(file => `<img src="${URL.createObjectURL(file)}" alt="Preview">`).join('');
+            });
+            document.getElementById('resell-list-form').addEventListener('submit', submitResellListing);
+        }
+
+        async function submitResellListing(event) {
+            event.preventDefault();
+            const formEl = event.currentTarget;
+            const photoInput = document.getElementById('resell-photos');
+            const files = [...photoInput.files];
+            const error = document.getElementById('resell-form-error');
+            const submit = document.getElementById('resell-submit');
+            if (files.length < 1 || files.length > 5) { error.textContent = 'Please choose between 1 and 5 condition photos'; return; }
+            const form = new FormData();
+            form.append('title', document.getElementById('resell-title').value.trim());
+            form.append('author_name', document.getElementById('resell-author').value.trim());
+            form.append('isbn', document.getElementById('resell-isbn').value.trim());
+            form.append('publisher', document.getElementById('resell-publisher').value.trim());
+            form.append('condition_status', document.getElementById('resell-condition').value);
+            form.append('condition_note', document.getElementById('resell-note').value.trim());
+            form.append('asking_price', document.getElementById('resell-price').value);
+            files.forEach(file => form.append('condition_images', file));
+            submit.disabled = true; error.textContent = '';
+            try {
+                const res = await fetch(`${API_URL}/resell/list`, { method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` }, body: form });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Unable to create resell listing');
+                alert('စာအုပ်ကို Admin စစ်ဆေးရန် တင်ပြီးပါပြီ။');
+                navigateTo('resell');
+            } catch (err) { error.textContent = err.message; submit.disabled = false; }
         }
 
         async function buyResell(listingId) {

@@ -1618,6 +1618,20 @@ button, .btn-primary, .btn-secondary, .filter-btn, .nav-item { min-height: 40px;
 .public-user-stats > div { display: flex; flex-direction: column; gap: 3px; padding: 14px 8px; border-radius: 12px; background: var(--surface); }
 .public-user-stats strong { color: var(--primary); font-size: 20px; }
 .public-user-stats span { color: var(--text-secondary); font-size: 12px; }
+.resell-form-page { max-width: 720px; margin: 0 auto; }
+.page-heading { margin: 14px 0 18px; }
+.page-heading h2, .page-heading p { margin: 0; }
+.page-heading h2 { margin-top: 3px; }
+.resell-list-form { display: grid; gap: 14px; padding: 18px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); }
+.form-grid-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.resell-list-form .form-group { display: grid; gap: 6px; }
+.resell-list-form label { color: var(--text-secondary); font-weight: 700; font-size: 12px; }
+.resell-list-form input, .resell-list-form select, .resell-list-form textarea { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); font: inherit; }
+.resell-list-form textarea { resize: vertical; }
+.resell-photo-preview { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.resell-photo-preview img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 9px; border: 1px solid var(--border); }
+.resell-list-form > .btn-primary { width: 100%; }
+@media (max-width: 560px) { .form-grid-two { grid-template-columns: 1fr; } .resell-list-form { padding: 14px; } .resell-photo-preview { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 560px) {
     .shop-hero { min-height: 132px; padding: 12px; }
     .shop-identity img { width: 48px; height: 48px; }
