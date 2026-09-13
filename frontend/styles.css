@@ -1718,6 +1718,16 @@ button, .btn-primary, .btn-secondary, .filter-btn, .nav-item { min-height: 40px;
 .share-options button:first-child i { color:#1877f2; }
 .share-options button:nth-child(2) i { color:#229ed9; }
 .share-options button:nth-child(3) i { color:#25d366; }
+.entity-search-controls { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.entity-search-controls label { font-size:12px; font-weight:700; }
+.entity-search-controls select { flex:1; padding:9px 10px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text); font-size:12px; }
+.entity-search-results { display:grid; gap:6px; margin:8px 0 12px; }
+.entity-result { display:flex; align-items:center; gap:10px; width:100%; padding:10px; border:1px solid var(--border); border-radius:9px; background:var(--card); color:var(--text); text-align:left; cursor:pointer; }
+.entity-result > i { color:var(--primary); width:18px; text-align:center; }
+.entity-result span { display:grid; gap:2px; font-size:12px; }
+.entity-result small { color:var(--text-secondary); font-size:10px; }
+.withdraw-page { max-width:620px; margin:0 auto; }
+.withdraw-form { display:grid; gap:12px; padding:16px; border:1px solid var(--border); border-radius:14px; background:var(--card); box-shadow:var(--shadow); }
 @media (max-width:560px) { .resell-photo-fields { grid-template-columns:1fr; } }
 @media (max-width:560px) { .receipt-paper { padding:18px; min-height:0; } .receipt-toolbar { justify-content:stretch; } .receipt-toolbar button { flex:1; } }
 @media (max-width: 760px) { .analytics-grid { grid-template-columns:1fr; } .sales-line-chart { height:130px; } }

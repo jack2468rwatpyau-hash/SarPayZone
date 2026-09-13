@@ -238,6 +238,7 @@
                 case 'cart': renderCart(main); break;
                 case 'voting': renderVoting(main); break;
                 case 'wallet': renderWallet(main); break;
+                case 'withdraw': renderWithdraw(main); break;
                 case 'transfer': renderTransfer(main); break;
                 case 'orders': renderOrders(main); break;
                 case 'receipt': renderReceipt(main, params.orderId); break;
@@ -619,7 +620,7 @@
                     </div>
                     
                     <div class="wallet-actions">
-                        <button onclick="showWithdrawForm()" class="btn-primary">Withdraw</button>
+                        <button onclick="navigateTo('withdraw')" class="btn-primary">Withdraw</button>
                         <button onclick="navigateTo('transfer')" class="btn-secondary">Transfer to User</button>
                     </div>
 
@@ -880,10 +881,8 @@
         function renderSearch(container) {
             container.innerHTML = `
                 <div class="search-page">
-                    <div class="search-bar">
-                        <i class="fas fa-search"></i>
-                        <input type="text" id="search-input" placeholder="Search books, authors..." onkeyup="performSearch(event)">
-                    </div>
+                    <div class="entity-search-controls"><label for="entity-search-type">Search type</label><select id="entity-search-type" onchange="performEntitySearch()"><option value="book">Books</option><option value="seller">Sellers / Shops</option><option value="author">Authors</option><option value="user">Users</option></select></div>
+                    <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="search-input" placeholder="စာအုပ်၊ စာရေးသူ၊ ဆိုင် သို့မဟုတ် ID နဲ့ရှာရန်" oninput="performEntitySearch()" onkeyup="performSearch(event)"></div>
                     <div class="search-filters">
                         <select id="search-category" onchange="performSearch()">
                             <option value="">All Categories</option>
@@ -895,7 +894,7 @@
                             <option value="popular">Most Popular</option>
                         </select>
                     </div>
-                    <div id="search-results" class="product-grid"></div>
+                    <div id="entity-search-results" class="entity-search-results"></div><div id="search-results" class="product-grid"></div>
                 </div>
             `;
             
@@ -908,6 +907,17 @@
                 });
         }
 
+        let entitySearchTimer;
+        function performEntitySearch() {
+            clearTimeout(entitySearchTimer); entitySearchTimer = setTimeout(async () => {
+                const type = document.getElementById('entity-search-type')?.value || 'book'; const query = document.getElementById('search-input')?.value.trim() || ''; const suggestions = document.getElementById('entity-search-results'); if (!suggestions) return;
+                if (type === 'book') { suggestions.innerHTML = ''; if (query.length >= 2) performSearch(); return; }
+                if (!query) { suggestions.innerHTML = ''; return; }
+                const res = await fetch(`${API_URL}/search/entities?type=${encodeURIComponent(type)}&q=${encodeURIComponent(query)}`); const rows = await res.json();
+                suggestions.innerHTML = Array.isArray(rows) && rows.length ? rows.map(row => type === 'seller' ? `<button class="entity-result" onclick="navigateTo('shop', {sellerId: '${row.id}'})"><i class="fas fa-store"></i><span>${escapeChatText(row.name || 'Shop')}<small>${escapeChatText(row.public_id || '')}</small></span></button>` : type === 'user' ? `<button class="entity-result" onclick="navigateTo('user', {publicId: '${escapeChatText(row.public_id || '')}'})"><i class="fas fa-user"></i><span>${escapeChatText(row.name || 'User')}<small>${escapeChatText(row.public_id || '')}</small></span></button>` : `<button class="entity-result" onclick="searchByAuthor('${String(row.name || '').replace(/'/g, "\\'")}')"><i class="fas fa-pen-nib"></i><span>${escapeChatText(row.name)}<small>${Number(row.book_count || 0)} books</small></span></button>`).join('') : '<p class="empty-text">No matching results</p>';
+            }, 180);
+        }
+        function searchByAuthor(author) { document.getElementById('entity-search-type').value = 'book'; document.getElementById('search-input').value = author; document.getElementById('entity-search-results').innerHTML = ''; performSearch(); }
         async function performSearch(e) {
             if (e && e.key !== 'Enter') return;
             const query = document.getElementById('search-input').value;
@@ -1110,20 +1120,19 @@
             alert(voteRes.ok ? 'Vote submitted' : (data.error || 'Unable to vote'));
         }
 
-        function showWithdrawForm() {
-            const amount = prompt('Withdrawal amount (Ks)');
-            const method = prompt('Wallet: kpay, wavepay, or ayapay');
-            const phone = prompt('Wallet phone number (09...)');
-            const accountName = prompt('Wallet account name');
-            if (!amount || !method || !phone || !accountName) return;
-            const numericAmount = Number(amount);
-            if (!Number.isFinite(numericAmount) || numericAmount <= 0) return alert('Enter a valid withdrawal amount');
-            if (!confirm(`Step 1 of 2 — Review withdrawal\n\nAmount: ${numericAmount.toLocaleString()} Ks\nWallet: ${method}\nPhone: ${phone}\nAccount name: ${accountName}\n\nContinue to final confirmation?`)) return;
-            if (!confirm(`Step 2 of 2 — Final confirmation\n\nSubmit this withdrawal request for ${numericAmount.toLocaleString()} Ks?\n\nConfirm and continue?`)) return;
-            fetch(`${API_URL}/wallet/withdraw`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify({ amount: numericAmount, payment_method: method.toLowerCase(), account_name: accountName, account_phone: phone })
-            }).then(r => r.json().then(data => alert(r.ok ? 'Withdrawal request submitted for Admin review' : (data.error || 'Withdrawal failed'))));
+        async function renderWithdraw(container) {
+            if (!authToken) { showAuthModal(); return; }
+            const walletRes = await fetch(`${API_URL}/wallet`, { headers: { 'Authorization': `Bearer ${authToken}` } }); const wallet = await walletRes.json();
+            container.innerHTML = `<div class="withdraw-page"><button class="btn-text page-back-btn" onclick="navigateTo('wallet')"><i class="fas fa-arrow-left"></i> Back to Wallet</button><div class="page-heading"><p class="eyebrow">Wallet</p><h2>Withdraw Funds</h2><p class="text-secondary">ငွေထုတ်မည့် Wallet အချက်အလက်များကို ဖြည့်ပါ။ ငွေကြေးဆိုင်ရာလုပ်ဆောင်ချက်ဖြစ်သောကြောင့် နှစ်ဆင့် အတည်ပြုရပါမည်။</p></div><div class="transfer-balance">Available balance: <strong>${Number(wallet.balance || 0).toLocaleString()} Ks</strong></div><form id="withdraw-form" class="withdraw-form"><div class="form-group"><label>Amount (Ks) *</label><input id="withdraw-amount" type="number" min="1" step="1" required></div><div class="form-group"><label>Wallet *</label><select id="withdraw-method" required><option value="kpay">K Pay</option><option value="wavepay">Wave Pay</option><option value="ayapay">AYA Pay</option></select></div><div class="form-group"><label>Wallet account name *</label><input id="withdraw-name" required maxlength="120"></div><div class="form-group"><label>Wallet phone *</label><input id="withdraw-phone" type="tel" placeholder="09xxxxxxxxx" required></div><p id="withdraw-error" class="error-text"></p><button class="btn-primary" type="submit">Review Withdrawal</button></form></div>`;
+            document.getElementById('withdraw-form').addEventListener('submit', submitWithdrawal);
+        }
+        async function submitWithdrawal(event) {
+            event.preventDefault(); const amount = Number(document.getElementById('withdraw-amount').value); const method = document.getElementById('withdraw-method').value; const name = document.getElementById('withdraw-name').value.trim(); const phone = document.getElementById('withdraw-phone').value.trim(); const error = document.getElementById('withdraw-error');
+            if (!Number.isFinite(amount) || amount <= 0 || !name || !/^09\d{7,13}$/.test(phone.replace(/[\s-]/g, ''))) { error.textContent = 'Amount၊ Account name နှင့် 09 ဖုန်းနံပါတ် မှန်ကန်စွာထည့်ပါ'; return; }
+            if (!confirm(`Step 1 of 2 — Review withdrawal\n\nAmount: ${amount.toLocaleString()} Ks\nWallet: ${method}\nPhone: ${phone}\nAccount name: ${name}\n\nContinue?`)) return;
+            if (!confirm(`Step 2 of 2 — Final confirmation\n\nSubmit withdrawal of ${amount.toLocaleString()} Ks?\n\nConfirm and continue?`)) return;
+            const button = event.currentTarget.querySelector('button[type="submit"]'); button.disabled = true;
+            try { const res = await fetch(`${API_URL}/wallet/withdraw`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ amount, payment_method: method, account_name: name, account_phone: phone }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Withdrawal failed'); alert('Withdrawal request submitted for Admin review'); navigateTo('wallet'); } catch (err) { error.textContent = err.message; button.disabled = false; }
         }
 
         function showP2PForm() {

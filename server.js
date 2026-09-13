@@ -28,6 +28,7 @@ const adminRoutes = require('./routes/admin');
 const buyerRoutes = require('./routes/buyer');
 const storeRoutes = require('./routes/store');
 const settlementRoutes = require('./routes/settlements');
+const searchRoutes = require('./routes/search');
 
 const app = express();
 const server = http.createServer(app);
@@ -70,6 +71,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/buyer', buyerRoutes);
 app.use('/api/store', storeRoutes);
 app.use('/api/settlements', settlementRoutes);
+app.use('/api/search', searchRoutes);
 
 // Web Push subscription
 app.post('/api/push/subscribe', authenticate, async (req, res) => {
