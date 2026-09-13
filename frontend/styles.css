@@ -1631,6 +1631,11 @@ button, .btn-primary, .btn-secondary, .filter-btn, .nav-item { min-height: 40px;
 .resell-photo-preview { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
 .resell-photo-preview img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 9px; border: 1px solid var(--border); }
 .resell-list-form > .btn-primary { width: 100%; }
+.profile-image-picker { display: grid; gap: 7px; padding: 12px; border: 1px dashed var(--border); border-radius: 12px; background: var(--surface); }
+.profile-image-picker label { color: var(--text-secondary); font-weight: 700; font-size: 12px; }
+.profile-image-picker input[type="file"] { padding: 7px; background: var(--card); }
+.profile-image-preview, .profile-banner-preview { width: 100%; max-width: 260px; height: 92px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); }
+.profile-image-preview { width: 92px; }
 @media (max-width: 560px) { .form-grid-two { grid-template-columns: 1fr; } .resell-list-form { padding: 14px; } .resell-photo-preview { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 560px) {
     .shop-hero { min-height: 132px; padding: 12px; }

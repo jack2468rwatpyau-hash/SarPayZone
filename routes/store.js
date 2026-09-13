@@ -3,6 +3,8 @@ const router = express.Router();
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roleCheck');
+const upload = require('../middleware/upload');
+const { uploadToCloudinary } = require('../utils/cloudinary');
 
 const sellerRoles = requireRole('publisher', 'bookstore', 'commission_store');
 const profileFields = 'seller_id, name, email, phone, store_name, logo, banner';
@@ -45,14 +47,19 @@ router.get('/profile', authenticate, sellerRoles, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.patch('/profile', authenticate, sellerRoles, async (req, res) => {
+router.patch('/profile', authenticate, sellerRoles, upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'banner', maxCount: 1 }]), async (req, res) => {
     try {
-        const { name, email, store_name, logo, banner } = req.body;
+        const { name, email, store_name } = req.body;
+        const current = await db.execute({ sql: `SELECT logo, banner FROM sellers WHERE seller_id = ?`, args: [req.user.seller_id] });
+        if (!current.rows.length) return res.status(404).json({ error: 'Store not found' });
         if (!String(name || '').trim() || !String(store_name || '').trim()) return res.status(400).json({ error: 'Owner name and store name are required' });
         if (String(name).length > 120 || String(store_name).length > 160 || String(email || '').length > 160) return res.status(400).json({ error: 'Profile text is too long' });
-        for (const value of [logo, banner]) if (value && !/^https?:\/\//i.test(String(value))) return res.status(400).json({ error: 'Logo and banner must be valid image URLs' });
-        await db.execute({ sql: `UPDATE sellers SET name = ?, email = ?, store_name = ?, logo = ?, banner = ?, updated_at = datetime('now') WHERE seller_id = ?`, args: [name.trim(), String(email || '').trim() || null, store_name.trim(), String(logo || '').trim() || null, String(banner || '').trim() || null, req.user.seller_id] });
-        res.json({ success: true });
+        const logoFile = req.files?.logo?.[0];
+        const bannerFile = req.files?.banner?.[0];
+        const logo = logoFile ? await uploadToCloudinary(logoFile.buffer, `stores/${req.user.seller_id}`, 'product') : (current.rows[0].logo || null);
+        const banner = bannerFile ? await uploadToCloudinary(bannerFile.buffer, `stores/${req.user.seller_id}`, 'product') : (current.rows[0].banner || null);
+        await db.execute({ sql: `UPDATE sellers SET name = ?, email = ?, store_name = ?, logo = ?, banner = ?, updated_at = datetime('now') WHERE seller_id = ?`, args: [name.trim(), String(email || '').trim() || null, store_name.trim(), logo, banner, req.user.seller_id] });
+        res.json({ success: true, logo, banner });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
