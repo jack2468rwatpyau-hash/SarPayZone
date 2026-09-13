@@ -16,7 +16,7 @@ const getIdentity = (user) => {
 const getConversationForUser = async (conversationId, user) => {
     const identity = getIdentity(user);
     const result = await db.execute({
-        sql: 'SELECT * FROM conversations WHERE conversation_id = ? AND participants LIKE ?',
+        sql: `SELECT * FROM conversations WHERE conversation_id = ? AND participants LIKE ?`,
         args: [conversationId, `%"${identity.identifier}"%`]
     });
     return result.rows[0];
@@ -110,11 +110,11 @@ router.post('/', authenticate, async (req, res) => {
         });
 
         await db.execute({
-            sql: 'UPDATE conversations SET last_message_at = datetime("now") WHERE conversation_id = ?',
+            sql: `UPDATE conversations SET last_message_at = datetime('now') WHERE conversation_id = ?`,
             args: [convId]
         });
 
-        const conversation = await db.execute({ sql: 'SELECT participants FROM conversations WHERE conversation_id = ?', args: [convId] });
+        const conversation = await db.execute({ sql: `SELECT participants FROM conversations WHERE conversation_id = ?`, args: [convId] });
         for (const participant of JSON.parse(conversation.rows[0]?.participants || '[]')) {
             if (participant === senderIdentifier) continue;
             if (participant.startsWith('U')) await sendPushNotification(Number(participant.slice(1)), 'buyer', { title: 'New chat message', body: String(content).slice(0, 120), tag: `chat-${convId}`, url: `/index.html#chat?conversation=${convId}` });
@@ -143,7 +143,7 @@ router.post('/image', authenticate, upload.single('image'), async (req, res) => 
             args: [conversation_id, identity.identifier, identity.type, url]
         });
 
-        const conversation = await db.execute({ sql: 'SELECT participants FROM conversations WHERE conversation_id = ?', args: [conversation_id] });
+        const conversation = await db.execute({ sql: `SELECT participants FROM conversations WHERE conversation_id = ?`, args: [conversation_id] });
         for (const participant of JSON.parse(conversation.rows[0]?.participants || '[]')) {
             if (participant === identity.identifier) continue;
             if (participant.startsWith('U')) await sendPushNotification(Number(participant.slice(1)), 'buyer', { title: 'New chat image', body: 'A new image was sent in chat.', tag: `chat-${conversation_id}`, url: `/index.html#chat?conversation=${conversation_id}` });

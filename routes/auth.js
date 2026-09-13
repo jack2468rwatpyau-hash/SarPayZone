@@ -38,13 +38,13 @@ router.post('/buyer/register', async (req, res) => {
         }
 
         const existing = await db.execute({
-            sql: 'SELECT user_id FROM users WHERE phone = ?',
+            sql: `SELECT user_id FROM users WHERE phone = ?`,
             args: [phone]
         });
         if (existing.rows.length > 0) return res.status(400).json({ error: 'Phone already registered' });
 
         const hash = await bcrypt.hash(password, 12);
-        const count = await db.execute({ sql: 'SELECT COUNT(*) as c FROM users' });
+        const count = await db.execute({ sql: `SELECT COUNT(*) as c FROM users` });
         const publicId = `CU#${String(count.rows[0].c + 1).padStart(4, '0')}`;
 
         await db.execute({
@@ -66,7 +66,7 @@ router.post('/buyer/login', async (req, res) => {
         const { password } = req.body;
         if (!/^09\d{7,13}$/.test(phone) || !password || password.length > 128) return res.status(400).json({ error: 'Invalid credentials' });
         const user = await db.execute({
-            sql: 'SELECT * FROM users WHERE phone = ? AND account_status = "active"',
+            sql: "SELECT * FROM users WHERE phone = ? AND account_status = 'active'",
             args: [phone]
         });
         if (user.rows.length === 0) return res.status(401).json({ error: 'Invalid credentials' });
@@ -93,7 +93,7 @@ router.post('/seller/login', async (req, res) => {
         const { password, role } = req.body;
         if (!sellerRoles.has(role) || !/^09\d{7,13}$/.test(phone) || !password || password.length > 128) return res.status(400).json({ error: 'Invalid credentials' });
         const seller = await db.execute({
-            sql: 'SELECT * FROM sellers WHERE phone = ? AND role = ?',
+            sql: `SELECT * FROM sellers WHERE phone = ? AND role = ?`,
             args: [phone, role]
         });
         if (seller.rows.length === 0) return res.status(401).json({ error: 'Invalid credentials' });

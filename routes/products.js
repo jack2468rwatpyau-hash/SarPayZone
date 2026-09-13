@@ -67,7 +67,7 @@ router.get('/banners', async (req, res) => {
 // Get categories
 router.get('/categories/all', async (req, res) => {
     try {
-        const cats = await db.execute({ sql: 'SELECT * FROM categories ORDER BY sort_order' });
+        const cats = await db.execute({ sql: `SELECT * FROM categories ORDER BY sort_order` });
         res.json(cats.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -109,17 +109,17 @@ router.get('/:id', async (req, res) => {
 
         // Record view
         await db.execute({
-            sql: 'INSERT INTO product_views (book_id, user_id) VALUES (?, ?)',
+            sql: `INSERT INTO product_views (book_id, user_id) VALUES (?, ?)`,
             args: [req.params.id, req.headers['x-user-id'] || null]
         });
         await db.execute({
-            sql: 'UPDATE products SET view_count = view_count + 1 WHERE book_id = ?',
+            sql: `UPDATE products SET view_count = view_count + 1 WHERE book_id = ?`,
             args: [req.params.id]
         });
 
         // Variations
         const variations = await db.execute({
-            sql: 'SELECT * FROM product_variations WHERE product_id = ?',
+            sql: `SELECT * FROM product_variations WHERE product_id = ?`,
             args: [req.params.id]
         });
 
@@ -150,7 +150,7 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
         const numericStock = stock_quantity === undefined || stock_quantity === '' ? 0 : Number(stock_quantity);
         if (!String(title || '').trim() || !Number.isFinite(numericOriginal) || numericOriginal < 0 || !Number.isFinite(numericDiscounted) || numericDiscounted < 0 || !Number.isInteger(numericStock) || numericStock < 0) return res.status(400).json({ error: 'Title, price, discount price, and whole-number stock are required.' });
         
-        const count = await db.execute({ sql: 'SELECT COUNT(*) as c FROM products' });
+        const count = await db.execute({ sql: `SELECT COUNT(*) as c FROM products` });
         const publicId = `SPFbk#${String(count.rows[0].c + 1).padStart(4, '0')}`;
 
         // Upload images

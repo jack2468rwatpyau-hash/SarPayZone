@@ -63,7 +63,7 @@ router.post('/', authenticate, async (req, res) => {
         // Check wallet balance
         if (payment_method === 'wallet') {
             const buyer = await db.execute({
-                sql: 'SELECT wallet_balance FROM users WHERE user_id = ?',
+                sql: `SELECT wallet_balance FROM users WHERE user_id = ?`,
                 args: [req.user.user_id || req.user.id]
             });
             if (buyer.rows[0].wallet_balance < finalTotal) {
@@ -71,7 +71,7 @@ router.post('/', authenticate, async (req, res) => {
             }
         }
 
-        const orderCount = await db.execute({ sql: 'SELECT COUNT(*) as c FROM orders' });
+        const orderCount = await db.execute({ sql: `SELECT COUNT(*) as c FROM orders` });
         const orderNumber = `SPZ-${Date.now()}-${String(orderCount.rows[0].c + 1).padStart(4, '0')}`;
 
         const result = await db.execute({
@@ -89,12 +89,12 @@ router.post('/', authenticate, async (req, res) => {
 
         if (!resell_listing_id) {
             await db.execute({
-                sql: 'UPDATE products SET stock_quantity = stock_quantity - ? WHERE book_id = ? AND stock_quantity >= ?',
+                sql: `UPDATE products SET stock_quantity = stock_quantity - ? WHERE book_id = ? AND stock_quantity >= ?`,
                 args: [parsedQuantity, resolvedProductId, parsedQuantity]
             });
         } else {
             await db.execute({
-                sql: 'UPDATE resell_listings SET status = "sold", updated_at = datetime("now") WHERE listing_id = ?',
+                sql: `UPDATE resell_listings SET status = 'sold', updated_at = datetime('now') WHERE listing_id = ?`,
                 args: [resell_listing_id]
             });
         }
@@ -102,7 +102,7 @@ router.post('/', authenticate, async (req, res) => {
         // Deduct wallet if wallet payment
         if (payment_method === 'wallet') {
             await db.execute({
-                sql: 'UPDATE users SET wallet_balance = wallet_balance - ? WHERE user_id = ?',
+                sql: `UPDATE users SET wallet_balance = wallet_balance - ? WHERE user_id = ?`,
                 args: [finalTotal, req.user.user_id || req.user.id]
             });
             await db.execute({
@@ -186,7 +186,7 @@ router.post('/bulk', authenticate, async (req, res) => {
         const shippingTotal = [...shippingBySeller.values()].reduce((sum, fee) => sum + fee, 0);
         const finalTotal = merchandiseTotal + shippingTotal;
         if (payment_method === 'wallet') {
-            const buyer = await db.execute({ sql: 'SELECT wallet_balance FROM users WHERE user_id = ?', args: [buyerId] });
+            const buyer = await db.execute({ sql: `SELECT wallet_balance FROM users WHERE user_id = ?`, args: [buyerId] });
             if (Number(buyer.rows[0]?.wallet_balance || 0) < finalTotal) return res.status(400).json({ error: 'Insufficient wallet balance' });
         }
 
@@ -196,7 +196,7 @@ router.post('/bulk', authenticate, async (req, res) => {
             const { item, prod, quantity, subtotal, commission } = entry;
             const shippingFee = chargedSellers.has(prod.seller_id) ? 0 : shippingBySeller.get(prod.seller_id);
             chargedSellers.add(prod.seller_id);
-            const orderCount = await db.execute({ sql: 'SELECT COUNT(*) as c FROM orders' });
+            const orderCount = await db.execute({ sql: `SELECT COUNT(*) as c FROM orders` });
             const orderNumber = `SPZ-${Date.now()}-${String(Number(orderCount.rows[0].c) + orderIds.length + 1).padStart(4, '0')}`;
             const result = await db.execute({
                 sql: `INSERT INTO orders (order_number, buyer_id, seller_id, product_id, variation_id, quantity,
@@ -209,7 +209,7 @@ router.post('/bulk', authenticate, async (req, res) => {
             });
             orderIds.push(result.lastInsertRowid);
             await db.execute({
-                sql: 'UPDATE products SET stock_quantity = stock_quantity - ? WHERE book_id = ? AND stock_quantity >= ?',
+                sql: `UPDATE products SET stock_quantity = stock_quantity - ? WHERE book_id = ? AND stock_quantity >= ?`,
                 args: [quantity, item.product_id, quantity]
             });
             if (prod.telegram_user_id) await sendInstantOrder(prod.telegram_user_id, {
@@ -223,7 +223,7 @@ router.post('/bulk', authenticate, async (req, res) => {
         }
 
         if (payment_method === 'wallet') {
-            await db.execute({ sql: 'UPDATE users SET wallet_balance = wallet_balance - ? WHERE user_id = ?', args: [finalTotal, buyerId] });
+            await db.execute({ sql: `UPDATE users SET wallet_balance = wallet_balance - ? WHERE user_id = ?`, args: [finalTotal, buyerId] });
             await db.execute({
                 sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id)
                       VALUES ('user', ?, 'purchase', ?, 0, (SELECT wallet_balance FROM users WHERE user_id = ?), ?)`,
@@ -289,7 +289,7 @@ router.get('/seller', authenticate, requireRole('publisher', 'bookstore', 'commi
 // Buyer confirms COD delivery and optionally uploads a delivery photo.
 router.post('/:id/cod/buyer-confirm', authenticate, upload.single('proof'), async (req, res) => {
     try {
-        const order = await db.execute({ sql: 'SELECT * FROM orders WHERE order_id = ?', args: [req.params.id] });
+        const order = await db.execute({ sql: `SELECT * FROM orders WHERE order_id = ?`, args: [req.params.id] });
         if (!order.rows.length) return res.status(404).json({ error: 'Order not found' });
         const ord = order.rows[0];
         if (req.user.role !== 'buyer' || Number(ord.buyer_id) !== Number(req.user.user_id || req.user.id)) return res.status(403).json({ error: 'Only the buyer can confirm this order' });
@@ -298,7 +298,7 @@ router.post('/:id/cod/buyer-confirm', authenticate, upload.single('proof'), asyn
         if (!req.file && !req.body.proof_url) return res.status(400).json({ error: 'A delivery photo is required' });
         const proofUrl = req.file ? await uploadToCloudinary(req.file.buffer, `orders/${ord.order_id}`, 'cod-proof') : req.body.proof_url;
         await db.execute({
-            sql: 'UPDATE orders SET buyer_delivery_confirmed_at = datetime("now"), buyer_delivery_proof = ?, updated_at = datetime("now") WHERE order_id = ?',
+            sql: `UPDATE orders SET buyer_delivery_confirmed_at = datetime('now'), buyer_delivery_proof = ?, updated_at = datetime('now') WHERE order_id = ?`,
             args: [proofUrl, ord.order_id]
         });
         res.json({ success: true, buyer_confirmed: true, proof_url: proofUrl });
@@ -311,7 +311,7 @@ router.post('/:id/cod/buyer-confirm', authenticate, upload.single('proof'), asyn
 // the platform records only the commission payable due in 25 days.
 router.post('/:id/cod/seller-confirm', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
     try {
-        const order = await db.execute({ sql: 'SELECT * FROM orders WHERE order_id = ?', args: [req.params.id] });
+        const order = await db.execute({ sql: `SELECT * FROM orders WHERE order_id = ?`, args: [req.params.id] });
         if (!order.rows.length) return res.status(404).json({ error: 'Order not found' });
         const ord = order.rows[0];
         if (Number(ord.seller_id) !== Number(req.user.seller_id) || ord.payment_method !== 'cod') return res.status(403).json({ error: 'Invalid COD order' });
@@ -341,7 +341,7 @@ router.patch('/:id/status', authenticate, async (req, res) => {
             return res.status(400).json({ error: 'Invalid order status' });
         }
         const order = await db.execute({
-            sql: 'SELECT * FROM orders WHERE order_id = ?',
+            sql: `SELECT * FROM orders WHERE order_id = ?`,
             args: [req.params.id]
         });
         if (order.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
@@ -353,7 +353,7 @@ router.patch('/:id/status', authenticate, async (req, res) => {
         const isResellAdmin = req.user.role === 'admin' && ord.resell_listing_id;
         if (isStoreSeller || isResellAdmin) {
             await db.execute({
-                sql: 'UPDATE orders SET order_status = ?, updated_at = datetime("now") WHERE order_id = ?',
+                sql: `UPDATE orders SET order_status = ?, updated_at = datetime('now') WHERE order_id = ?`,
                 args: [status, req.params.id]
             });
 
@@ -365,7 +365,7 @@ router.patch('/:id/status', authenticate, async (req, res) => {
                 const sellerAmount = Math.max(0, Number(ord.total_amount) + Number(ord.shipping_fee || 0) - Number(ord.commission_amount || 0));
                 if (ord.resell_listing_id && ord.resell_seller_id) {
                     await db.execute({
-                        sql: 'UPDATE users SET resell_balance = resell_balance + ? WHERE user_id = ?',
+                        sql: `UPDATE users SET resell_balance = resell_balance + ? WHERE user_id = ?`,
                         args: [sellerAmount, ord.resell_seller_id]
                     });
                     await db.execute({
@@ -374,13 +374,13 @@ router.patch('/:id/status', authenticate, async (req, res) => {
                         args: [ord.resell_seller_id, sellerAmount, ord.commission_amount, ord.resell_seller_id, ord.order_number]
                     });
                     await db.execute({
-                        sql: 'UPDATE resell_listings SET status = "sold", updated_at = datetime("now") WHERE listing_id = ?',
+                        sql: `UPDATE resell_listings SET status = 'sold', updated_at = datetime('now') WHERE listing_id = ?`,
                         args: [ord.resell_listing_id]
                     });
                     return res.json({ success: true, escrow_settled: true });
                 }
                 await db.execute({
-                    sql: 'UPDATE sellers SET wallet_balance = wallet_balance + ? WHERE seller_id = ?',
+                    sql: `UPDATE sellers SET wallet_balance = wallet_balance + ? WHERE seller_id = ?`,
                     args: [sellerAmount, ord.seller_id]
                 });
                 await db.execute({
@@ -405,25 +405,25 @@ router.patch('/:id/status', authenticate, async (req, res) => {
             const nextPaymentStatus = ord.payment_status === 'paid' ? 'refunded' : 'failed';
 
             await db.execute({
-                sql: 'UPDATE orders SET order_status = "cancelled", payment_status = ? WHERE order_id = ? AND order_status NOT IN ("cancelled", "delivered")',
+                sql: `UPDATE orders SET order_status = 'cancelled', payment_status = ? WHERE order_id = ? AND order_status NOT IN ('cancelled', 'delivered')`,
                 args: [nextPaymentStatus, req.params.id]
             });
 
             if (ord.resell_listing_id) {
                 await db.execute({
-                    sql: 'UPDATE resell_listings SET status = "approved", updated_at = datetime("now") WHERE listing_id = ? AND status = "sold"',
+                    sql: `UPDATE resell_listings SET status = 'approved', updated_at = datetime('now') WHERE listing_id = ? AND status = 'sold'`,
                     args: [ord.resell_listing_id]
                 });
             } else {
                 await db.execute({
-                    sql: 'UPDATE products SET stock_quantity = stock_quantity + ? WHERE book_id = ?',
+                    sql: `UPDATE products SET stock_quantity = stock_quantity + ? WHERE book_id = ?`,
                     args: [ord.quantity, ord.product_id]
                 });
             }
 
             if (ord.payment_method === 'wallet') {
                 await db.execute({
-                    sql: 'UPDATE users SET wallet_balance = wallet_balance + ? WHERE user_id = ?',
+                    sql: `UPDATE users SET wallet_balance = wallet_balance + ? WHERE user_id = ?`,
                     args: [refundAmount, ord.buyer_id]
                 });
                 await db.execute({
@@ -445,13 +445,13 @@ router.post('/:id/review', authenticate, async (req, res) => {
     try {
         const { rating, comment } = req.body;
         const order = await db.execute({
-            sql: 'SELECT * FROM orders WHERE order_id = ? AND buyer_id = ? AND order_status = "delivered"',
+            sql: `SELECT * FROM orders WHERE order_id = ? AND buyer_id = ? AND order_status = 'delivered'`,
             args: [req.params.id, req.user.user_id || req.user.id]
         });
         if (order.rows.length === 0) return res.status(400).json({ error: 'Can only review delivered orders' });
 
         await db.execute({
-            sql: 'INSERT INTO reviews (book_id, user_id, order_id, rating, comment) VALUES (?, ?, ?, ?, ?)',
+            sql: `INSERT INTO reviews (book_id, user_id, order_id, rating, comment) VALUES (?, ?, ?, ?, ?)`,
             args: [order.rows[0].product_id, req.user.user_id || req.user.id, req.params.id, rating, comment]
         });
         res.json({ success: true });

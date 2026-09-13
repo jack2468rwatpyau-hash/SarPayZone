@@ -26,7 +26,7 @@ router.get('/seller/cod', authenticate, sellerRoles, async (req, res) => {
 
 router.get('/seller/payment-accounts', authenticate, sellerRoles, async (_req, res) => {
     try {
-        const result = await db.execute({ sql: 'SELECT config_value FROM system_config WHERE config_key = "cod_payment_accounts"' });
+        const result = await db.execute({ sql: `SELECT config_value FROM system_config WHERE config_key = 'cod_payment_accounts'` });
         res.json(JSON.parse(result.rows[0]?.config_value || '{}'));
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -57,7 +57,7 @@ router.patch('/admin/cod/:submissionId', authenticate, adminOnly, async (req, re
     try {
         const { status, admin_note } = req.body;
         if (!['approved', 'rejected'].includes(status)) return res.status(400).json({ error: 'Status must be approved or rejected' });
-        const submission = await db.execute({ sql: 'SELECT * FROM cod_payment_submissions WHERE submission_id = ?', args: [req.params.submissionId] });
+        const submission = await db.execute({ sql: `SELECT * FROM cod_payment_submissions WHERE submission_id = ?`, args: [req.params.submissionId] });
         if (!submission.rows.length) return res.status(404).json({ error: 'Submission not found' });
         const row = submission.rows[0];
         if (row.status !== 'pending') return res.status(409).json({ error: 'This submission has already been reviewed' });
@@ -69,7 +69,7 @@ router.patch('/admin/cod/:submissionId', authenticate, adminOnly, async (req, re
 
 router.get('/admin/payment-accounts', authenticate, adminOnly, async (_req, res) => {
     try {
-        const result = await db.execute({ sql: 'SELECT config_value FROM system_config WHERE config_key = "cod_payment_accounts"' });
+        const result = await db.execute({ sql: `SELECT config_value FROM system_config WHERE config_key = 'cod_payment_accounts'` });
         res.json(JSON.parse(result.rows[0]?.config_value || '{}'));
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -78,7 +78,7 @@ router.patch('/admin/payment-accounts', authenticate, adminOnly, async (req, res
     try {
         const accounts = {};
         for (const key of ['kpay', 'wavepay', 'ayapay']) accounts[key] = { name: String(req.body[key]?.name || '').trim(), phone: String(req.body[key]?.phone || '').trim() };
-        await db.execute({ sql: 'INSERT INTO system_config (config_key, config_value) VALUES ("cod_payment_accounts", ?) ON CONFLICT(config_key) DO UPDATE SET config_value = excluded.config_value, updated_at = datetime("now")', args: [JSON.stringify(accounts)] });
+        await db.execute({ sql: `INSERT INTO system_config (config_key, config_value) VALUES ('cod_payment_accounts', ?) ON CONFLICT(config_key) DO UPDATE SET config_value = excluded.config_value, updated_at = datetime('now')`, args: [JSON.stringify(accounts)] });
         res.json({ success: true, accounts });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });

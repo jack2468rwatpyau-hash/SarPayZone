@@ -58,7 +58,7 @@ router.post('/p2p', authenticate, async (req, res) => {
 
         // Find recipient
         const recipient = await db.execute({
-            sql: 'SELECT user_id, wallet_balance FROM users WHERE public_id = ?',
+            sql: `SELECT user_id, wallet_balance FROM users WHERE public_id = ?`,
             args: [recipient_public_id]
         });
         if (recipient.rows.length === 0) return res.status(404).json({ error: 'Recipient not found' });
@@ -71,7 +71,7 @@ router.post('/p2p', authenticate, async (req, res) => {
 
         // Add to recipient
         await db.execute({
-            sql: 'UPDATE users SET wallet_balance = wallet_balance + ? WHERE user_id = ?',
+            sql: `UPDATE users SET wallet_balance = wallet_balance + ? WHERE user_id = ?`,
             args: [amount, recipient.rows[0].user_id]
         });
 
@@ -133,7 +133,7 @@ router.post('/withdraw', authenticate, requireRole('buyer'), async (req, res) =>
 router.get('/agent/buyer/:public_id', authenticate, requireRole('agent'), async (req, res) => {
     try {
         const buyer = await db.execute({
-            sql: 'SELECT user_id, public_id, name, phone, city, account_status FROM users WHERE public_id = ?',
+            sql: `SELECT user_id, public_id, name, phone, city, account_status FROM users WHERE public_id = ?`,
             args: [req.params.public_id]
         });
         if (buyer.rows.length === 0 || buyer.rows[0].account_status !== 'active') return res.status(404).json({ error: 'Active buyer not found' });
@@ -185,18 +185,18 @@ router.post('/cashin', authenticate, requireRole('agent'), async (req, res) => {
         }
         const verificationCode = String(verification_code).trim();
         const duplicate = await db.execute({
-            sql: 'SELECT deposit_id FROM agent_deposit_requests WHERE verification_code = ? LIMIT 1',
+            sql: `SELECT deposit_id FROM agent_deposit_requests WHERE verification_code = ? LIMIT 1`,
             args: [verificationCode]
         });
         if (duplicate.rows.length) return res.status(409).json({ error: 'This verification reference has already been used' });
         
         const buyer = await db.execute({
-            sql: 'SELECT user_id, account_status FROM users WHERE public_id = ?',
+            sql: `SELECT user_id, account_status FROM users WHERE public_id = ?`,
             args: [buyer_public_id]
         });
         if (buyer.rows.length === 0 || buyer.rows[0].account_status !== 'active') return res.status(404).json({ error: 'Active buyer not found' });
 
-        const limitConfig = await db.execute({ sql: 'SELECT config_value FROM system_config WHERE config_key = "agent_cash_in_limit"' });
+        const limitConfig = await db.execute({ sql: `SELECT config_value FROM system_config WHERE config_key = 'agent_cash_in_limit'` });
         const dailyLimit = Number(limitConfig.rows[0]?.config_value || 500000);
         const daily = await db.execute({
             sql: `SELECT COALESCE(SUM(amount), 0) AS total FROM agent_deposit_requests
@@ -207,11 +207,11 @@ router.post('/cashin', authenticate, requireRole('agent'), async (req, res) => {
             return res.status(400).json({ error: `Daily cash-in limit is ${dailyLimit} MMK` });
         }
 
-        const count = await db.execute({ sql: 'SELECT COUNT(*) AS c FROM agent_deposit_requests' });
+        const count = await db.execute({ sql: `SELECT COUNT(*) AS c FROM agent_deposit_requests` });
         const depositPublicId = `AGD#${String(Number(count.rows[0].c) + 1).padStart(6, '0')}`;
 
         await db.execute({
-            sql: 'UPDATE users SET wallet_balance = wallet_balance + ? WHERE user_id = ?',
+            sql: `UPDATE users SET wallet_balance = wallet_balance + ? WHERE user_id = ?`,
             args: [numericAmount, buyer.rows[0].user_id]
         });
 
@@ -245,13 +245,13 @@ router.post('/seller/withdraw', authenticate, requireRole('publisher', 'bookstor
         if (!String(account_name || '').trim() || !/^09\d{7,13}$/.test(String(account_phone || '').replace(/[\s-]/g, ''))) return res.status(400).json({ error: 'Account name and a valid wallet phone number are required' });
 
         const seller = await db.execute({
-            sql: 'SELECT wallet_balance FROM sellers WHERE seller_id = ?',
+            sql: `SELECT wallet_balance FROM sellers WHERE seller_id = ?`,
             args: [sellerId]
         });
         if (!seller.rows.length || Number(seller.rows[0].wallet_balance) < numericAmount) return res.status(400).json({ error: 'Insufficient balance' });
 
         await db.execute({
-            sql: 'UPDATE sellers SET wallet_balance = wallet_balance - ? WHERE seller_id = ? AND wallet_balance >= ?',
+            sql: `UPDATE sellers SET wallet_balance = wallet_balance - ? WHERE seller_id = ? AND wallet_balance >= ?`,
             args: [numericAmount, sellerId, numericAmount]
         });
 
@@ -282,7 +282,7 @@ router.patch('/admin/withdrawals/:id', authenticate, requireRole('admin'), async
     try {
         const { status, admin_note, admin_reference } = req.body;
         if (!['approved', 'rejected', 'paid'].includes(status)) return res.status(400).json({ error: 'Status must be approved, rejected, or paid' });
-        const result = await db.execute({ sql: 'SELECT * FROM withdrawal_requests WHERE withdrawal_id = ?', args: [req.params.id] });
+        const result = await db.execute({ sql: `SELECT * FROM withdrawal_requests WHERE withdrawal_id = ?`, args: [req.params.id] });
         if (!result.rows.length) return res.status(404).json({ error: 'Withdrawal request not found' });
         const row = result.rows[0];
         if ((status === 'approved' && row.status !== 'pending') || (status === 'paid' && row.status !== 'approved') || (status === 'rejected' && !['pending', 'approved'].includes(row.status))) return res.status(409).json({ error: `Cannot mark ${row.status} as ${status}` });
@@ -305,7 +305,7 @@ router.post('/seller/pay-commission', authenticate, requireRole('publisher', 'bo
     try {
         const sellerId = req.user.seller_id;
         const seller = await db.execute({
-            sql: 'SELECT wallet_balance, monthly_commission_due FROM sellers WHERE seller_id = ?',
+            sql: `SELECT wallet_balance, monthly_commission_due FROM sellers WHERE seller_id = ?`,
             args: [sellerId]
         });
         if (seller.rows.length === 0) return res.status(404).json({ error: 'Seller not found' });
@@ -317,7 +317,7 @@ router.post('/seller/pay-commission', authenticate, requireRole('publisher', 'bo
         }
 
         await db.execute({
-            sql: 'UPDATE sellers SET wallet_balance = wallet_balance - ?, monthly_commission_due = 0 WHERE seller_id = ?',
+            sql: `UPDATE sellers SET wallet_balance = wallet_balance - ?, monthly_commission_due = 0 WHERE seller_id = ?`,
             args: [due, sellerId]
         });
         await db.execute({

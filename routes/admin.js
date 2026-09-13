@@ -8,14 +8,14 @@ const { requireRole } = require('../middleware/roleCheck');
 // Dashboard metrics
 router.get('/dashboard', authenticate, requireRole('admin'), async (req, res) => {
     try {
-        const totalUsers = await db.execute({ sql: 'SELECT COUNT(*) as c FROM users WHERE account_status = "active"' });
-        const totalSellers = await db.execute({ sql: 'SELECT COUNT(*) as c FROM sellers' });
-        const totalOrders = await db.execute({ sql: 'SELECT COUNT(*) as c FROM orders' });
-        const totalRevenue = await db.execute({ sql: 'SELECT SUM(total_amount) as sum FROM orders WHERE payment_status = "paid"' });
+        const totalUsers = await db.execute({ sql: `SELECT COUNT(*) as c FROM users WHERE account_status = 'active'` });
+        const totalSellers = await db.execute({ sql: `SELECT COUNT(*) as c FROM sellers` });
+        const totalOrders = await db.execute({ sql: `SELECT COUNT(*) as c FROM orders` });
+        const totalRevenue = await db.execute({ sql: `SELECT SUM(total_amount) as sum FROM orders WHERE payment_status = 'paid'` });
         
         const monthlySales = await db.execute({
             sql: `SELECT strftime('%Y-%m', created_at) as month, SUM(total_amount) as revenue, COUNT(*) as count 
-                  FROM orders WHERE payment_status = "paid" GROUP BY month ORDER BY month DESC LIMIT 12`
+                  FROM orders WHERE payment_status = 'paid' GROUP BY month ORDER BY month DESC LIMIT 12`
         });
 
         res.json({
@@ -34,7 +34,7 @@ router.get('/dashboard', authenticate, requireRole('admin'), async (req, res) =>
 router.get('/users', authenticate, requireRole('admin'), async (req, res) => {
     try {
         const users = await db.execute({
-            sql: 'SELECT user_id, public_id, name, phone, wallet_balance, account_status, created_at FROM users ORDER BY created_at DESC'
+            sql: `SELECT user_id, public_id, name, phone, wallet_balance, account_status, created_at FROM users ORDER BY created_at DESC`
         });
         res.json(users.rows);
     } catch (err) {
@@ -46,7 +46,7 @@ router.patch('/users/:id/status', authenticate, requireRole('admin'), async (req
     try {
         const { status } = req.body;
         await db.execute({
-            sql: 'UPDATE users SET account_status = ? WHERE user_id = ?',
+            sql: `UPDATE users SET account_status = ? WHERE user_id = ?`,
             args: [status, req.params.id]
         });
         res.json({ success: true });
@@ -60,11 +60,11 @@ router.post('/sellers', authenticate, requireRole('admin'), async (req, res) => 
     try {
         const { name, phone, password, role, store_name } = req.body;
         if (!String(name || '').trim() || !/^09\d{7,13}$/.test(String(phone || '').trim()) || !String(password || '') || String(password).length < 8 || !['publisher', 'bookstore', 'commission_store', 'agent'].includes(role)) return res.status(400).json({ error: 'ဆိုင်အမည်၊ 09 ဖုန်းနံပါတ်၊ Password နှင့် Role ကို မှန်ကန်စွာထည့်ပါ' });
-        const duplicate = await db.execute({ sql: 'SELECT seller_id FROM sellers WHERE phone = ?', args: [phone.trim()] });
+        const duplicate = await db.execute({ sql: `SELECT seller_id FROM sellers WHERE phone = ?`, args: [phone.trim()] });
         if (duplicate.rows.length) return res.status(409).json({ error: 'ဒီဖုန်းနံပါတ်ဖြင့် အကောင့်ရှိပြီးသားပါ' });
         const hash = await bcrypt.hash(password, 10);
         
-        const count = await db.execute({ sql: 'SELECT COUNT(*) as c FROM sellers WHERE role = ?', args: [role] });
+        const count = await db.execute({ sql: `SELECT COUNT(*) as c FROM sellers WHERE role = ?`, args: [role] });
         const prefix = role === 'publisher' ? 'PU' : role === 'bookstore' ? 'SP' : role === 'agent' ? 'AG' : 'CS';
         const publicId = `${prefix}#${String(count.rows[0].c + 1).padStart(4, '0')}`;
 
@@ -104,7 +104,7 @@ router.patch('/sellers/:id/visibility', authenticate, requireRole('admin'), asyn
     try {
         const { is_visible } = req.body;
         await db.execute({
-            sql: 'UPDATE sellers SET is_visible = ? WHERE seller_id = ?',
+            sql: `UPDATE sellers SET is_visible = ? WHERE seller_id = ?`,
             args: [is_visible ? 1 : 0, req.params.id]
         });
         res.json({ success: true });
@@ -131,7 +131,7 @@ router.patch('/products/:id/approve', authenticate, requireRole('admin'), async 
     try {
         const { approved } = req.body;
         await db.execute({
-            sql: 'UPDATE products SET approved = ? WHERE book_id = ?',
+            sql: `UPDATE products SET approved = ? WHERE book_id = ?`,
             args: [approved, req.params.id]
         });
         res.json({ success: true });
@@ -195,7 +195,7 @@ router.post('/commission', authenticate, requireRole('admin'), async (req, res) 
         const { publisher_tiers, bookstore_rate, commission_rate, resell_rate } = req.body;
         // Store in system_config as JSON
         await db.execute({
-            sql: 'UPDATE system_config SET config_value = ? WHERE config_key = "commission_settings"',
+            sql: `UPDATE system_config SET config_value = ? WHERE config_key = 'commission_settings'`,
             args: [JSON.stringify({ publisher_tiers, bookstore_rate, commission_rate, resell_rate })]
         });
         res.json({ success: true });
@@ -209,7 +209,7 @@ router.post('/password-code', authenticate, requireRole('admin'), async (req, re
     try {
         const { new_code } = req.body;
         await db.execute({
-            sql: 'UPDATE system_config SET config_value = ? WHERE config_key = "current_password_code"',
+            sql: `UPDATE system_config SET config_value = ? WHERE config_key = 'current_password_code'`,
             args: [new_code]
         });
         res.json({ success: true });
@@ -236,7 +236,7 @@ router.get('/flagged-messages', authenticate, requireRole('admin'), async (req, 
 router.delete('/messages/:id', authenticate, requireRole('admin'), async (req, res) => {
     try {
         await db.execute({
-            sql: 'DELETE FROM messages WHERE message_id = ?',
+            sql: `DELETE FROM messages WHERE message_id = ?`,
             args: [req.params.id]
         });
         res.json({ success: true });
@@ -285,7 +285,7 @@ router.post('/festivals/:id/books', authenticate, requireRole('admin'), async (r
     try {
         const { book_id } = req.body;
         await db.execute({
-            sql: 'INSERT OR IGNORE INTO festival_books (festival_id, book_id) VALUES (?, ?)',
+            sql: `INSERT OR IGNORE INTO festival_books (festival_id, book_id) VALUES (?, ?)`,
             args: [req.params.id, book_id]
         });
         res.json({ success: true });
@@ -298,7 +298,7 @@ router.post('/festivals/:id/books', authenticate, requireRole('admin'), async (r
 router.delete('/festivals/:id/books/:bookId', authenticate, requireRole('admin'), async (req, res) => {
     try {
         await db.execute({
-            sql: 'DELETE FROM festival_books WHERE festival_id = ? AND book_id = ?',
+            sql: `DELETE FROM festival_books WHERE festival_id = ? AND book_id = ?`,
             args: [req.params.id, req.params.bookId]
         });
         res.json({ success: true });
@@ -318,13 +318,13 @@ router.post('/festivals/:id/external-books', authenticate, requireRole('admin'),
     try {
         const { book_title, book_link, image_url, author_name } = req.body;
         if (!String(book_title || '').trim() || !/^https?:\/\//i.test(String(book_link || '')) || !/^https?:\/\//i.test(String(image_url || ''))) return res.status(400).json({ error: 'စာအုပ်အမည်၊ link နှင့် image URL ကို မှန်ကန်စွာထည့်ပါ' });
-        await db.execute({ sql: 'INSERT INTO voting_external_books (festival_id, book_title, book_link, image_url, author_name) VALUES (?, ?, ?, ?, ?)', args: [req.params.id, book_title.trim(), book_link.trim(), image_url.trim(), String(author_name || '').trim() || null] });
+        await db.execute({ sql: `INSERT INTO voting_external_books (festival_id, book_title, book_link, image_url, author_name) VALUES (?, ?, ?, ?, ?)`, args: [req.params.id, book_title.trim(), book_link.trim(), image_url.trim(), String(author_name || '').trim() || null] });
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.delete('/festivals/:id/external-books/:bookId', authenticate, requireRole('admin'), async (req, res) => {
-    try { await db.execute({ sql: 'DELETE FROM voting_external_books WHERE festival_id = ? AND external_book_id = ?', args: [req.params.id, req.params.bookId] }); res.json({ success: true }); }
+    try { await db.execute({ sql: `DELETE FROM voting_external_books WHERE festival_id = ? AND external_book_id = ?`, args: [req.params.id, req.params.bookId] }); res.json({ success: true }); }
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -332,7 +332,7 @@ router.post('/festivals', authenticate, requireRole('admin'), async (req, res) =
     try {
         const { festival_name, start_date, end_date } = req.body;
         await db.execute({
-            sql: 'INSERT INTO voting_festivals (festival_name, start_date, end_date) VALUES (?, ?, ?)',
+            sql: `INSERT INTO voting_festivals (festival_name, start_date, end_date) VALUES (?, ?, ?)`,
             args: [festival_name, start_date, end_date]
         });
         res.json({ success: true });
@@ -345,7 +345,7 @@ router.patch('/festivals/:id', authenticate, requireRole('admin'), async (req, r
     try {
         const { is_active } = req.body;
         await db.execute({
-            sql: 'UPDATE voting_festivals SET is_active = ? WHERE festival_id = ?',
+            sql: `UPDATE voting_festivals SET is_active = ? WHERE festival_id = ?`,
             args: [is_active, req.params.id]
         });
         res.json({ success: true });

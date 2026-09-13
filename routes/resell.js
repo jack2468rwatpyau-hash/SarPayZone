@@ -22,7 +22,7 @@ router.post('/list', authenticate, requireRole('buyer'), upload.array('condition
 
         const imageUrls = [];
         for (const file of req.files) imageUrls.push(await uploadToCloudinary(file.buffer, `resell/${userId}`, 'resell'));
-        const count = await db.execute({ sql: 'SELECT COUNT(*) AS c FROM resell_listings' });
+        const count = await db.execute({ sql: `SELECT COUNT(*) AS c FROM resell_listings` });
         const publicId = `REbk#${String(Number(count.rows[0].c) + 1).padStart(4, '0')}`;
         const result = await db.execute({
             sql: `INSERT INTO resell_listings (public_id, seller_id, product_id, title, author_name, isbn, publisher, condition_status, condition_images, condition_note, asking_price, status)
@@ -47,9 +47,9 @@ router.patch('/:id/approve', authenticate, requireRole('admin'), async (req, res
     try {
         const { status, markup_percentage } = req.body;
         if (!['approved', 'rejected'].includes(status)) return res.status(400).json({ error: 'Status must be approved or rejected' });
-        const listing = await db.execute({ sql: 'SELECT asking_price FROM resell_listings WHERE listing_id = ?', args: [req.params.id] });
+        const listing = await db.execute({ sql: `SELECT asking_price FROM resell_listings WHERE listing_id = ?`, args: [req.params.id] });
         if (!listing.rows.length) return res.status(404).json({ error: 'Resell listing not found' });
-        const configured = await db.execute({ sql: 'SELECT config_value FROM system_config WHERE config_key = "markup_percentage"' });
+        const configured = await db.execute({ sql: `SELECT config_value FROM system_config WHERE config_key = 'markup_percentage'` });
         const markup = Math.max(0, Number(markup_percentage ?? configured.rows[0]?.config_value ?? 10));
         const finalPrice = Number(listing.rows[0].asking_price) * (1 + markup / 100);
         await db.execute({ sql: `UPDATE resell_listings SET status = ?, approved_by = ?, markup_percentage = ?, final_price = ?, updated_at = datetime('now') WHERE listing_id = ?`, args: [status, req.user.seller_id || req.user.id, status === 'approved' ? markup : 0, status === 'approved' ? finalPrice : null, req.params.id] });

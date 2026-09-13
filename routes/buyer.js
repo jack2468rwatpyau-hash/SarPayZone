@@ -24,7 +24,7 @@ router.post('/wishlist', authenticate, async (req, res) => {
     try {
         const { book_id } = req.body;
         await db.execute({
-            sql: 'INSERT OR IGNORE INTO wishlist (user_id, book_id) VALUES (?, ?)',
+            sql: `INSERT OR IGNORE INTO wishlist (user_id, book_id) VALUES (?, ?)`,
             args: [req.user.user_id || req.user.id, book_id]
         });
         res.json({ success: true });
@@ -36,7 +36,7 @@ router.post('/wishlist', authenticate, async (req, res) => {
 router.delete('/wishlist/:book_id', authenticate, async (req, res) => {
     try {
         await db.execute({
-            sql: 'DELETE FROM wishlist WHERE user_id = ? AND book_id = ?',
+            sql: `DELETE FROM wishlist WHERE user_id = ? AND book_id = ?`,
             args: [req.user.user_id || req.user.id, req.params.book_id]
         });
         res.json({ success: true });
@@ -50,7 +50,7 @@ router.patch('/profile', authenticate, async (req, res) => {
     try {
         const { name, city, profile_image_id } = req.body;
         await db.execute({
-            sql: 'UPDATE users SET name = ?, city = ?, profile_image_id = ? WHERE user_id = ?',
+            sql: `UPDATE users SET name = ?, city = ?, profile_image_id = ? WHERE user_id = ?`,
             args: [name, city, profile_image_id, req.user.user_id || req.user.id]
         });
         res.json({ success: true });

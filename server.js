@@ -103,11 +103,11 @@ io.use(async (socket, next) => {
         if (!raw) return next(new Error('Authentication required'));
         const decoded = jwt.verify(raw, config.JWT_SECRET);
         if (decoded.role === 'buyer') {
-            const result = await db.execute({ sql: 'SELECT * FROM users WHERE user_id = ? AND account_status = "active"', args: [decoded.id] });
+            const result = await db.execute({ sql: "SELECT * FROM users WHERE user_id = ? AND account_status = 'active'", args: [decoded.id] });
             if (!result.rows.length) return next(new Error('User not found'));
             socket.user = { ...decoded, ...result.rows[0] };
         } else {
-            const result = await db.execute({ sql: 'SELECT * FROM sellers WHERE seller_id = ? AND is_visible = 1', args: [decoded.id] });
+            const result = await db.execute({ sql: `SELECT * FROM sellers WHERE seller_id = ? AND is_visible = 1`, args: [decoded.id] });
             if (!result.rows.length) return next(new Error('Seller not found'));
             socket.user = { ...decoded, ...result.rows[0] };
         }
@@ -124,7 +124,7 @@ io.on('connection', (socket) => {
     socket.on('join_conversation', async (conversationId, acknowledge) => {
         try {
             const conversation = await db.execute({
-                sql: 'SELECT conversation_id FROM conversations WHERE conversation_id = ? AND participants LIKE ?',
+                sql: `SELECT conversation_id FROM conversations WHERE conversation_id = ? AND participants LIKE ?`,
                 args: [conversationId, `%"${identity.identifier}"%`]
             });
             if (!conversation.rows.length) return typeof acknowledge === 'function' && acknowledge({ ok: false, error: 'Not a conversation participant' });
@@ -141,19 +141,19 @@ io.on('connection', (socket) => {
             const content = String(data?.content || '').trim();
             if (!conversationId || !content || content.length > 5000) throw new Error('Invalid message');
             const conversation = await db.execute({
-                sql: 'SELECT conversation_id FROM conversations WHERE conversation_id = ? AND participants LIKE ?',
+                sql: `SELECT conversation_id FROM conversations WHERE conversation_id = ? AND participants LIKE ?`,
                 args: [conversationId, `%"${identity.identifier}"%`]
             });
             if (!conversation.rows.length) throw new Error('Not a conversation participant');
             if (await moderateMessage(content)) throw new Error('Message flagged by AI moderation');
             const inserted = await db.execute({
-                sql: 'INSERT INTO messages (conversation_id, sender_id, sender_type, content) VALUES (?, ?, ?, ?)',
+                sql: `INSERT INTO messages (conversation_id, sender_id, sender_type, content) VALUES (?, ?, ?, ?)`,
                 args: [conversationId, identity.identifier, identity.type, content]
             });
-            await db.execute({ sql: 'UPDATE conversations SET last_message_at = datetime("now") WHERE conversation_id = ?', args: [conversationId] });
+            await db.execute({ sql: `UPDATE conversations SET last_message_at = datetime("now") WHERE conversation_id = ?`, args: [conversationId] });
             const message = { message_id: inserted.lastInsertRowid, conversation_id: conversationId, content, sender_id: identity.identifier, sender_type: identity.type, created_at: new Date().toISOString() };
             io.to(`conv_${conversationId}`).emit('new_message', message);
-            const participants = await db.execute({ sql: 'SELECT participants FROM conversations WHERE conversation_id = ?', args: [conversationId] });
+            const participants = await db.execute({ sql: `SELECT participants FROM conversations WHERE conversation_id = ?`, args: [conversationId] });
             for (const participant of JSON.parse(participants.rows[0]?.participants || '[]')) {
                 if (participant === identity.identifier) continue;
                 if (participant.startsWith('U')) await sendPushNotification(Number(participant.slice(1)), 'buyer', { title: 'New chat message', body: content.slice(0, 120), tag: `chat-${conversationId}`, url: `/index.html#chat?conversation=${conversationId}` });

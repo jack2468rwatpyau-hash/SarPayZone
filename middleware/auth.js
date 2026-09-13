@@ -27,7 +27,7 @@ const authenticate = async (req, res, next) => {
         
         if (decoded.role === 'buyer') {
             const user = await db.execute({
-                sql: 'SELECT * FROM users WHERE user_id = ? AND account_status = "active"',
+                sql: "SELECT * FROM users WHERE user_id = ? AND account_status = 'active'",
                 args: [decoded.id]
             });
             if (user.rows.length === 0) return res.status(401).json({ error: 'User not found or banned' });

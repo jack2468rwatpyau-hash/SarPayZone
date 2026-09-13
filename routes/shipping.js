@@ -8,7 +8,7 @@ const { requireRole } = require('../middleware/roleCheck');
 router.get('/', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
     try {
         const rates = await db.execute({
-            sql: 'SELECT * FROM shipping_rates WHERE seller_id = ? ORDER BY state, city, township',
+            sql: `SELECT * FROM shipping_rates WHERE seller_id = ? ORDER BY state, city, township`,
             args: [req.user.seller_id]
         });
         res.json(rates.rows);
@@ -29,7 +29,7 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
         const prepayAllowed = Number(is_prepay_allowed) === 1 ? 1 : 0;
         
         const existing = await db.execute({
-            sql: 'SELECT rate_id FROM shipping_rates WHERE seller_id = ? AND state = ? AND city = ? AND township = ?',
+            sql: `SELECT rate_id FROM shipping_rates WHERE seller_id = ? AND state = ? AND city = ? AND township = ?`,
             args: [req.user.seller_id, state, city, township]
         });
 
@@ -61,7 +61,7 @@ router.post('/bulk', authenticate, requireRole('publisher', 'bookstore', 'commis
         
         for (const t of townships) {
             const existing = await db.execute({
-                sql: 'SELECT rate_id FROM shipping_rates WHERE seller_id = ? AND state = ? AND city = ? AND township = ?',
+                sql: `SELECT rate_id FROM shipping_rates WHERE seller_id = ? AND state = ? AND city = ? AND township = ?`,
                 args: [req.user.seller_id, t.state, t.city, t.township]
             });
             
