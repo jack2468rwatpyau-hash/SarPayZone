@@ -118,6 +118,8 @@ CREATE TABLE IF NOT EXISTS products (
     seller_id INTEGER NOT NULL,
     product_type TEXT NOT NULL DEFAULT 'store_book'
         CHECK (product_type IN ('store_book', 'resell_book')),
+    sale_type TEXT NOT NULL DEFAULT 'prepaid'
+        CHECK (sale_type IN ('preorder', 'prepaid', 'cod')),
     title TEXT NOT NULL,
     author_name TEXT,
     category_id INTEGER,
@@ -128,6 +130,13 @@ CREATE TABLE IF NOT EXISTS products (
     size TEXT,
     description TEXT,
     stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
+    preorder_start_at DATETIME,
+    preorder_end_at DATETIME,
+    preorder_deposit_amount REAL NOT NULL DEFAULT 0 CHECK (preorder_deposit_amount >= 0),
+    cod_deposit_amount REAL NOT NULL DEFAULT 0 CHECK (cod_deposit_amount >= 0),
+    estimated_delivery_time TEXT,
+    free_shipping INTEGER NOT NULL DEFAULT 0 CHECK (free_shipping IN (0, 1)),
+    estimated_shipping_fee REAL NOT NULL DEFAULT 5000 CHECK (estimated_shipping_fee >= 0),
     is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
     approved INTEGER NOT NULL DEFAULT 0 CHECK (approved IN (0, 1)),
     view_count INTEGER NOT NULL DEFAULT 0 CHECK (view_count >= 0),
@@ -192,6 +201,8 @@ CREATE TABLE IF NOT EXISTS orders (
     quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
     total_amount REAL NOT NULL CHECK (total_amount >= 0),
     shipping_fee REAL NOT NULL DEFAULT 0 CHECK (shipping_fee >= 0),
+    shipping_estimate REAL NOT NULL DEFAULT 0 CHECK (shipping_estimate >= 0),
+    amount_paid REAL NOT NULL DEFAULT 0 CHECK (amount_paid >= 0),
     commission_amount REAL NOT NULL DEFAULT 0 CHECK (commission_amount >= 0),
     markup_amount REAL NOT NULL DEFAULT 0 CHECK (markup_amount >= 0),
     payment_method TEXT NOT NULL DEFAULT 'cod'

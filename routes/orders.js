@@ -44,27 +44,27 @@ router.post('/', authenticate, async (req, res) => {
         }
         const resolvedProductId = prod.book_id;
         const unitPrice = resell_listing_id ? Number(prod.final_price || prod.asking_price) : Number(prod.discounted_price || prod.original_price);
+        const saleType = resell_listing_id ? 'prepaid' : (prod.sale_type || 'prepaid');
+        if (!resell_listing_id && saleType === 'preorder' && prod.preorder_start_at && new Date(prod.preorder_start_at) > new Date()) return res.status(400).json({ error: 'This preorder has not started yet' });
+        if (!resell_listing_id && saleType === 'preorder' && prod.preorder_end_at && new Date(prod.preorder_end_at) <= new Date()) return res.status(400).json({ error: 'This preorder period has ended' });
+        if (!resell_listing_id && saleType === 'prepaid' && payment_method !== 'wallet') return res.status(400).json({ error: 'Prepaid products require Wallet payment' });
+        if (!resell_listing_id && saleType === 'preorder' && payment_method !== 'wallet') return res.status(400).json({ error: 'Preorder products require Wallet payment for the deposit' });
+        if (!resell_listing_id && saleType === 'cod' && payment_method !== 'cod') return res.status(400).json({ error: 'This product is available by COD only' });
         if (resell_listing_id && Number(prod.stock_quantity || 0) < parsedQuantity) return res.status(400).json({ error: 'This resell listing does not have enough stock' });
         if (!resell_listing_id && Number(prod.stock_quantity || 0) < parsedQuantity) return res.status(400).json({ error: 'Insufficient stock' });
         const total = unitPrice * parsedQuantity;
 
-        // Get shipping fee
-        let shippingFee = 5000;
-        const shippingRate = await db.execute({
-            sql: `SELECT prepay_shipping_fee FROM shipping_rates
-                  WHERE seller_id = ? AND is_no_shipping = 0
-                    AND (? IS NULL OR (state = ? AND township = ? AND (city = ? OR district = ?)))
-                  LIMIT 1`,
-            args: [prod.store_seller_id || 0, shipping_state || null, shipping_state, shipping_township, shipping_district, shipping_district]
-        });
-        if (shippingRate.rows.length > 0) shippingFee = shippingRate.rows[0].prepay_shipping_fee;
+        const shippingEstimate = resell_listing_id ? 0 : (Number(prod.free_shipping) ? 0 : Number(prod.estimated_shipping_fee || 0));
+        const shippingFee = 0;
 
         const commissionRate = resell_listing_id ? 0.08 : calculateCommission(prod.role, total);
         const commission = total * commissionRate;
-        const finalTotal = total + shippingFee;
+        const amountDueNow = resell_listing_id ? total : saleType === 'preorder' ? Number(prod.preorder_deposit_amount || 0) : saleType === 'cod' ? Number(prod.cod_deposit_amount || 0) : total;
+        if ((saleType === 'preorder' || saleType === 'cod') && amountDueNow > total) return res.status(400).json({ error: 'The required advance payment cannot exceed the book price' });
+        const finalTotal = amountDueNow;
 
-        // Check wallet balance
-        if (payment_method === 'wallet') {
+        // Check wallet balance for prepaid orders and optional COD deposits.
+        if (finalTotal > 0 && (payment_method === 'wallet' || (saleType === 'cod' && amountDueNow > 0))) {
             const buyer = await db.execute({
                 sql: `SELECT wallet_balance FROM users WHERE user_id = ?`,
                 args: [req.user.user_id || req.user.id]
@@ -79,12 +79,12 @@ router.post('/', authenticate, async (req, res) => {
 
         const result = await db.execute({
             sql: `INSERT INTO orders (order_number, buyer_id, seller_id, product_id, variation_id, resell_listing_id, resell_seller_id, quantity,
-                  total_amount, shipping_fee, commission_amount, markup_amount, payment_method, payment_status, shipping_address,
+                  total_amount, shipping_fee, shipping_estimate, amount_paid, commission_amount, markup_amount, payment_method, payment_status, shipping_address,
                   shipping_state, shipping_district, shipping_township, p2p_friend_id)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             args: [orderNumber, req.user.user_id || req.user.id, prod.store_seller_id || null, resolvedProductId, variation_id,
                    resell_listing_id || null, resell_listing_id ? prod.resell_seller_id : null, parsedQuantity,
-                   total, shippingFee, commission,
+                   total, shippingFee, shippingEstimate, amountDueNow, commission,
                    resell_listing_id ? (unitPrice - Number(prod.asking_price || 0)) * parsedQuantity : 0,
                    payment_method, payment_method === 'wallet' ? 'paid' : 'pending', shipping_address || 'လိပ်စာ မသတ်မှတ်ရသေးပါ',
                    shipping_state || null, shipping_district || null, shipping_township || null, p2p_friend_id || null]
@@ -109,8 +109,8 @@ router.post('/', authenticate, async (req, res) => {
             }
         }
 
-        // Deduct wallet if wallet payment
-        if (payment_method === 'wallet') {
+        // Deduct the amount paid now; shipping and any COD balance are collected on delivery.
+        if (finalTotal > 0 && (payment_method === 'wallet' || (saleType === 'cod' && amountDueNow > 0))) {
             await db.execute({
                 sql: `UPDATE users SET wallet_balance = wallet_balance - ? WHERE user_id = ?`,
                 args: [finalTotal, req.user.user_id || req.user.id]
@@ -161,6 +161,9 @@ router.post('/bulk', authenticate, async (req, res) => {
         const prepared = [];
         const shippingBySeller = new Map();
         let merchandiseTotal = 0;
+        let amountDueNowTotal = 0;
+        let estimatedShippingTotal = 0;
+        let cartSaleType = null;
 
         for (const item of items) {
             const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
@@ -173,29 +176,33 @@ router.post('/bulk', authenticate, async (req, res) => {
             });
             if (product.rows.length === 0) return res.status(404).json({ error: `Product ${item.product_id} not found` });
             const prod = product.rows[0];
+            const saleType = prod.sale_type || 'prepaid';
+            if (saleType === 'preorder' && prod.preorder_start_at && new Date(prod.preorder_start_at) > new Date()) return res.status(400).json({ error: `${prod.title} preorder has not started yet` });
+            if (saleType === 'preorder' && prod.preorder_end_at && new Date(prod.preorder_end_at) <= new Date()) return res.status(400).json({ error: `${prod.title} preorder period has ended` });
+            if (cartSaleType && cartSaleType !== saleType) return res.status(400).json({ error: 'Cart checkout must contain products with the same sale type' });
+            cartSaleType = saleType;
             if (!Number(prod.store_is_open) || !Number(prod.store_accepting_orders)) {
                 return res.status(409).json({ error: `${prod.store_name || 'This store'} is currently closed or not accepting orders` });
             }
             if (Number(prod.stock_quantity || 0) < quantity) return res.status(400).json({ error: `${prod.title} has insufficient stock` });
             const unitPrice = Number(prod.discounted_price || prod.original_price);
             const subtotal = unitPrice * quantity;
-            const rate = await db.execute({
-                sql: `SELECT is_no_shipping, is_cod_allowed, is_prepay_allowed, prepay_shipping_fee FROM shipping_rates
-                      WHERE seller_id = ? AND state = ? AND township = ? AND (city = ? OR district = ?)
-                      LIMIT 1`,
-                args: [prod.seller_id, shipping_state, shipping_township, shipping_district, shipping_district]
-            });
-            if (rate.rows[0] && payment_method === 'cod' && !Number(rate.rows[0].is_cod_allowed)) return res.status(400).json({ error: `${prod.store_name} သည် ရွေးချယ်ထားသောနေရာအတွက် COD မပို့ပါ` });
-            if (rate.rows[0] && payment_method === 'wallet' && !Number(rate.rows[0].is_prepay_allowed)) return res.status(400).json({ error: `${prod.store_name} သည် ရွေးချယ်ထားသောနေရာအတွက် ကြိုတင်ငွေပေးချေမှု မလက်ခံပါ` });
-            const sellerShipping = rate.rows[0]?.is_no_shipping ? 0 : Number(rate.rows[0]?.prepay_shipping_fee ?? 5000);
+            if (saleType === 'prepaid' && payment_method !== 'wallet') return res.status(400).json({ error: 'Prepaid products require Wallet payment' });
+            if (saleType === 'preorder' && payment_method !== 'wallet') return res.status(400).json({ error: 'Preorder products require Wallet payment' });
+            if (saleType === 'cod' && payment_method !== 'cod') return res.status(400).json({ error: 'COD products require Cash on delivery' });
+            const sellerShipping = Number(prod.free_shipping) ? 0 : Number(prod.estimated_shipping_fee || 0);
+            const amountDueNow = saleType === 'preorder' ? Number(prod.preorder_deposit_amount || 0) : saleType === 'cod' ? Number(prod.cod_deposit_amount || 0) : subtotal;
+            if (amountDueNow > subtotal) return res.status(400).json({ error: `${prod.title} advance payment cannot exceed the book price` });
             if (!shippingBySeller.has(prod.seller_id)) shippingBySeller.set(prod.seller_id, sellerShipping);
             merchandiseTotal += subtotal;
-            prepared.push({ item, prod, quantity, subtotal, commission: subtotal * calculateCommission(prod.role, subtotal) });
+            amountDueNowTotal += amountDueNow * quantity;
+            estimatedShippingTotal += sellerShipping;
+            prepared.push({ item, prod, quantity, subtotal, amountDueNow: amountDueNow * quantity, commission: subtotal * calculateCommission(prod.role, subtotal) });
         }
 
-        const shippingTotal = [...shippingBySeller.values()].reduce((sum, fee) => sum + fee, 0);
-        const finalTotal = merchandiseTotal + shippingTotal;
-        if (payment_method === 'wallet') {
+        const shippingTotal = 0;
+        const finalTotal = amountDueNowTotal;
+        if (finalTotal > 0 && (payment_method === 'wallet' || cartSaleType === 'cod')) {
             const buyer = await db.execute({ sql: `SELECT wallet_balance FROM users WHERE user_id = ?`, args: [buyerId] });
             if (Number(buyer.rows[0]?.wallet_balance || 0) < finalTotal) return res.status(400).json({ error: 'Insufficient wallet balance' });
         }
@@ -203,18 +210,18 @@ router.post('/bulk', authenticate, async (req, res) => {
         const orderIds = [];
         const chargedSellers = new Set();
         for (const entry of prepared) {
-            const { item, prod, quantity, subtotal, commission } = entry;
+            const { item, prod, quantity, subtotal, amountDueNow, commission } = entry;
             const shippingFee = chargedSellers.has(prod.seller_id) ? 0 : shippingBySeller.get(prod.seller_id);
             chargedSellers.add(prod.seller_id);
             const orderCount = await db.execute({ sql: `SELECT COUNT(*) as c FROM orders` });
             const orderNumber = `SPZ-${Date.now()}-${String(Number(orderCount.rows[0].c) + orderIds.length + 1).padStart(4, '0')}`;
             const result = await db.execute({
                 sql: `INSERT INTO orders (order_number, buyer_id, seller_id, product_id, variation_id, quantity,
-                      total_amount, shipping_fee, commission_amount, payment_method, payment_status, shipping_address,
+                      total_amount, shipping_fee, shipping_estimate, amount_paid, commission_amount, payment_method, payment_status, shipping_address,
                       shipping_state, shipping_district, shipping_township, p2p_friend_id)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
                 args: [orderNumber, buyerId, prod.seller_id, item.product_id, item.variation_id || null, quantity,
-                    subtotal, shippingFee, commission, payment_method, payment_method === 'wallet' ? 'paid' : 'pending', shipping_address,
+                    subtotal, 0, Number(prod.free_shipping) ? 0 : Number(prod.estimated_shipping_fee || 0), amountDueNow, commission, payment_method, payment_method === 'wallet' ? 'paid' : 'pending', shipping_address,
                     shipping_state, shipping_district, shipping_township, p2p_friend_id || null]
             });
             const orderId = Number(result.lastInsertRowid);
@@ -234,7 +241,7 @@ router.post('/bulk', authenticate, async (req, res) => {
             });
         }
 
-        if (payment_method === 'wallet') {
+        if (finalTotal > 0 && (payment_method === 'wallet' || cartSaleType === 'cod')) {
             await db.execute({ sql: `UPDATE users SET wallet_balance = wallet_balance - ? WHERE user_id = ?`, args: [finalTotal, buyerId] });
             await db.execute({
                 sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id)
@@ -246,7 +253,7 @@ router.post('/bulk', authenticate, async (req, res) => {
         await sendPushNotification(buyerId, 'buyer', {
             title: 'Orders placed successfully', body: `${orderIds.length} order(s) have been placed.`, tag: `orders-${orderIds.join('-')}`, url: '/index.html#orders'
         });
-        res.json({ success: true, order_ids: orderIds, merchandise_total: merchandiseTotal, shipping_total: shippingTotal, total: finalTotal });
+        res.json({ success: true, order_ids: orderIds, merchandise_total: merchandiseTotal, shipping_total: shippingTotal, shipping_estimate_total: estimatedShippingTotal, total: finalTotal });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -492,7 +499,7 @@ router.patch('/:id/status', authenticate, async (req, res) => {
             if (diffMins > 30) return res.status(400).json({ error: 'Cancellation window expired (30 mins)' });
 
             const refundFee = ord.payment_method === 'wallet' ? Number(ord.total_amount) * 0.02 : 0;
-            const refundAmount = Number(ord.total_amount) + Number(ord.shipping_fee || 0) - refundFee;
+            const refundAmount = ord.payment_method === 'cod' ? Number(ord.amount_paid || 0) : Number(ord.total_amount) + Number(ord.shipping_fee || 0) - refundFee;
             const nextPaymentStatus = ord.payment_status === 'paid' ? 'refunded' : 'failed';
 
             await db.execute({

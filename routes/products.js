@@ -94,11 +94,15 @@ router.get('/mine', authenticate, requireRole('publisher', 'bookstore', 'commiss
 // Update product details (Seller only; ownership is enforced in the query)
 router.patch('/:id', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
     try {
-        const { title, author_name, category_id, original_price, discounted_price, description, stock_quantity } = req.body;
+        const { title, author_name, category_id, original_price, discounted_price, description, stock_quantity, sale_type = 'prepaid', preorder_start_at, preorder_end_at, preorder_deposit_amount = 0, cod_deposit_amount = 0, estimated_delivery_time, free_shipping = 0, estimated_shipping_fee = 5000 } = req.body;
         const numericOriginal = Number(original_price);
         const numericDiscounted = discounted_price === undefined || discounted_price === '' ? numericOriginal : Number(discounted_price);
         const numericStock = Number(stock_quantity);
-        if (!String(title || '').trim() || !Number.isFinite(numericOriginal) || numericOriginal < 0 || !Number.isFinite(numericDiscounted) || numericDiscounted < 0 || !Number.isInteger(numericStock) || numericStock < 0) {
+        const numericPreorderDeposit = Number(preorder_deposit_amount || 0);
+        const numericCodDeposit = Number(cod_deposit_amount || 0);
+        const numericShipping = Number(estimated_shipping_fee || 0);
+        const isValidWindow = sale_type !== 'preorder' || (preorder_start_at && preorder_end_at && new Date(preorder_end_at) > new Date(preorder_start_at));
+        if (!['preorder', 'prepaid', 'cod'].includes(sale_type) || !isValidWindow || numericPreorderDeposit < 0 || numericCodDeposit < 0 || numericShipping < 0 || !String(title || '').trim() || !Number.isFinite(numericOriginal) || numericOriginal < 0 || !Number.isFinite(numericDiscounted) || numericDiscounted < 0 || !Number.isInteger(numericStock) || numericStock < 0) {
             return res.status(400).json({ error: 'Title, price, discount price, and whole-number stock are required.' });
         }
 
@@ -111,9 +115,9 @@ router.patch('/:id', authenticate, requireRole('publisher', 'bookstore', 'commis
         await db.execute({
             sql: `UPDATE products
                   SET title = ?, author_name = ?, category_id = ?, original_price = ?,
-                      discounted_price = ?, description = ?, stock_quantity = ?, updated_at = CURRENT_TIMESTAMP
+                      discounted_price = ?, description = ?, stock_quantity = ?, sale_type = ?, preorder_start_at = ?, preorder_end_at = ?, preorder_deposit_amount = ?, cod_deposit_amount = ?, estimated_delivery_time = ?, free_shipping = ?, estimated_shipping_fee = ?, updated_at = CURRENT_TIMESTAMP
                   WHERE book_id = ? AND seller_id = ?`,
-            args: [String(title).trim(), String(author_name || '').trim() || null, category_id || null, numericOriginal, numericDiscounted, String(description || '').trim() || null, numericStock, req.params.id, req.user.seller_id]
+            args: [String(title).trim(), String(author_name || '').trim() || null, category_id || null, numericOriginal, numericDiscounted, String(description || '').trim() || null, numericStock, sale_type, preorder_start_at || null, preorder_end_at || null, numericPreorderDeposit, numericCodDeposit, String(estimated_delivery_time || '').trim() || null, Number(free_shipping) ? 1 : 0, numericShipping, req.params.id, req.user.seller_id]
         });
         res.json({ success: true, book_id: Number(req.params.id) });
     } catch (err) {
@@ -189,11 +193,15 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
     { name: 'variation_images', maxCount: 25 }
 ]), async (req, res) => {
     try {
-        const { title, author_name, category_id, original_price, discounted_price, description, stock_quantity, variations } = req.body;
+        const { title, author_name, category_id, original_price, discounted_price, description, stock_quantity, variations, sale_type = 'prepaid', preorder_start_at, preorder_end_at, preorder_deposit_amount = 0, cod_deposit_amount = 0, estimated_delivery_time, free_shipping = 0, estimated_shipping_fee = 5000 } = req.body;
         const numericOriginal = Number(original_price);
         const numericDiscounted = discounted_price === undefined || discounted_price === '' ? numericOriginal : Number(discounted_price);
         const numericStock = stock_quantity === undefined || stock_quantity === '' ? 0 : Number(stock_quantity);
-        if (!String(title || '').trim() || !Number.isFinite(numericOriginal) || numericOriginal < 0 || !Number.isFinite(numericDiscounted) || numericDiscounted < 0 || !Number.isInteger(numericStock) || numericStock < 0) return res.status(400).json({ error: 'Title, price, discount price, and whole-number stock are required.' });
+        const numericPreorderDeposit = Number(preorder_deposit_amount || 0);
+        const numericCodDeposit = Number(cod_deposit_amount || 0);
+        const numericShipping = Number(estimated_shipping_fee || 0);
+        const isValidWindow = sale_type !== 'preorder' || (preorder_start_at && preorder_end_at && new Date(preorder_end_at) > new Date(preorder_start_at));
+        if (!['preorder', 'prepaid', 'cod'].includes(sale_type) || !isValidWindow || numericPreorderDeposit < 0 || numericCodDeposit < 0 || numericShipping < 0 || !String(title || '').trim() || !Number.isFinite(numericOriginal) || numericOriginal < 0 || !Number.isFinite(numericDiscounted) || numericDiscounted < 0 || !Number.isInteger(numericStock) || numericStock < 0) return res.status(400).json({ error: 'Sale type, prices, shipping estimate, and stock must be valid.' });
         
         const count = await db.execute({ sql: `SELECT COUNT(*) as c FROM products` });
         const publicId = `SPFbk#${String(count.rows[0].c + 1).padStart(4, '0')}`;
@@ -207,10 +215,10 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
         }
 
         const result = await db.execute({
-            sql: `INSERT INTO products (public_id, seller_id, product_type, title, author_name, category_id,
-                  original_price, discounted_price, description, stock_quantity, images, approved)
-                  VALUES (?, ?, 'store_book', ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-            args: [publicId, req.user.seller_id, title.trim(), author_name || null, category_id || null, numericOriginal, numericDiscounted, description || null, numericStock, JSON.stringify(imageUrls)]
+            sql: `INSERT INTO products (public_id, seller_id, product_type, sale_type, title, author_name, category_id,
+                  original_price, discounted_price, description, stock_quantity, preorder_start_at, preorder_end_at, preorder_deposit_amount, cod_deposit_amount, estimated_delivery_time, free_shipping, estimated_shipping_fee, images, approved)
+                  VALUES (?, ?, 'store_book', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+            args: [publicId, req.user.seller_id, sale_type, title.trim(), author_name || null, category_id || null, numericOriginal, numericDiscounted, description || null, numericStock, preorder_start_at || null, preorder_end_at || null, numericPreorderDeposit, numericCodDeposit, String(estimated_delivery_time || '').trim() || null, Number(free_shipping) ? 1 : 0, numericShipping, JSON.stringify(imageUrls)]
         });
 
         const bookId = Number(result.lastInsertRowid);

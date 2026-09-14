@@ -314,9 +314,12 @@
 
         function renderProductCard(p) {
             const storeOpen = p.store_is_open !== 0 && p.store_accepting_orders !== 0;
+            const preorderClosed = p.sale_type === 'preorder' && p.preorder_end_at && new Date(p.preorder_end_at) <= new Date();
+            const preorderUpcoming = p.sale_type === 'preorder' && p.preorder_start_at && new Date(p.preorder_start_at) > new Date();
+            const saleLabel = p.sale_type === 'preorder' ? (preorderClosed ? 'PREORDER CLOSED' : preorderUpcoming ? 'PREORDER UPCOMING' : 'PREORDER') : p.sale_type === 'cod' ? 'COD' : 'PREPAID';
             return `
-                <div class="product-card" onclick="openProductDetail(${p.book_id})">
-                    <button class="product-wishlist-btn" type="button" aria-label="Add to wishlist" onclick="event.stopPropagation(); toggleWishlist(${Number(p.book_id)}, this)"><i class="far fa-heart"></i></button><div class="product-image">
+                    <div class="product-card" onclick="openProductDetail(${p.book_id})">
+                    <button class="product-wishlist-btn" type="button" aria-label="Add to wishlist" onclick="event.stopPropagation(); toggleWishlist(${Number(p.book_id)}, this)"><i class="far fa-heart"></i></button><div class="product-image">${p.sale_type ? `<span class="sale-type-badge ${preorderClosed ? 'closed' : ''}">${saleLabel}</span>` : ''}
                         <img src="${p.images ? JSON.parse(p.images)[0] : '/assets/logo.png'}" alt="${p.title}">
                     </div>
                     <div class="product-info">
@@ -330,7 +333,7 @@
                             <span><i class="fas fa-eye"></i> ${p.view_count}</span>
                             <button class="store-link" onclick="event.stopPropagation(); navigateTo('shop', {sellerId: '${p.seller_id || ''}'})"><i class="fas fa-store"></i> ${escapeChatText(p.store_name || 'SPZ')}</button>
                         </div>
-                        <div class="store-status-line ${storeOpen ? 'is-open' : 'is-closed'}"><i class="fas fa-circle"></i> ${storeOpen ? 'Open for orders' : 'ဆိုင်ခေတ္တပိတ်ထားသည်'}</div>
+                        <div class="store-status-line ${storeOpen ? 'is-open' : 'is-closed'}"><i class="fas fa-circle"></i> ${storeOpen ? 'Open for orders' : 'ဆိုင်ခေတ္တပိတ်ထားသည်'}</div><small class="shipping-estimate-line">ပို့ခခန့်မှန်း: ${Number(p.free_shipping) ? 'အခမဲ့' : `${Number(p.estimated_shipping_fee || 0).toLocaleString()} Ks`} · ${escapeChatText(p.estimated_delivery_time || 'ကြာချိန်မသတ်မှတ်ရသေး')}</small>
                     </div>
                 </div>
             `;
@@ -354,6 +357,9 @@
             const images = p.images ? JSON.parse(p.images) : [];
             const variations = p.variations || [];
             const storeOpen = p.store_is_open !== 0 && p.store_accepting_orders !== 0;
+            const preorderClosed = p.sale_type === 'preorder' && p.preorder_end_at && new Date(p.preorder_end_at) <= new Date();
+            const preorderUpcoming = p.sale_type === 'preorder' && p.preorder_start_at && new Date(p.preorder_start_at) > new Date();
+            const saleLabel = p.sale_type === 'preorder' ? (preorderClosed ? 'PREORDER CLOSED' : preorderUpcoming ? 'PREORDER UPCOMING' : 'PREORDER') : p.sale_type === 'cod' ? 'CASH ON DELIVERY (COD)' : 'PREPAID';
             
             content.innerHTML = `
                 <div class="product-detail">
@@ -369,7 +375,7 @@
                     </div>
                     
                     <div class="detail-info">
-                        <h2>${p.title}</h2>
+                        <h2>${p.title}</h2><span class="detail-sale-badge ${preorderClosed ? 'closed' : ''}">${saleLabel}</span>
                         <p class="author">${p.author_name || 'Unknown Author'}</p>
                         <div class="price-block">
                             <span class="current-price">${p.discounted_price || p.original_price} Ks</span>
@@ -391,14 +397,16 @@
                             <span><i class="fas fa-boxes"></i> Stock: <span id="stock-display">${p.stock_quantity}</span></span>
                         </div>
 
+                        <div class="delivery-estimate-card"><i class="fas fa-truck"></i><div><strong>ပို့ခခန့်မှန်း: ${Number(p.free_shipping) ? 'အခမဲ့' : `${Number(p.estimated_shipping_fee || 0).toLocaleString()} Ks`}</strong><small>ပို့ဆောင်ခကို အော်ဒါတင်ချိန်တွင် မပေးရပါ။ ပစ္စည်းရောက်မှ ပေးချေရပါမည်။ · ခန့်မှန်း ${escapeChatText(p.estimated_delivery_time || 'ကြာချိန်မသတ်မှတ်ရသေး')}</small></div></div>
+
                         <div class="description">
                             <h4>Description</h4>
                             <p>${p.description || 'No description available.'}</p>
                         </div>
 
                         <div class="detail-actions">
-                            <button ${storeOpen ? '' : 'disabled'} onclick="addToCart(${p.book_id})" class="btn-secondary"><i class="fas fa-cart-plus"></i> ${storeOpen ? 'Add to Cart' : 'Store Closed'}</button>
-                            <button ${storeOpen ? '' : 'disabled'} onclick="buyNow(${p.book_id})" class="btn-primary"><i class="fas fa-bolt"></i> ${storeOpen ? 'Buy Now' : 'Unavailable'}</button>
+                            <button ${(storeOpen && !preorderClosed && !preorderUpcoming) ? '' : 'disabled'} onclick="addToCart(${p.book_id})" class="btn-secondary"><i class="fas fa-cart-plus"></i> ${preorderClosed ? 'Preorder Closed' : preorderUpcoming ? 'Not Started' : storeOpen ? 'Add to Cart' : 'Store Closed'}</button>
+                            <button ${(storeOpen && !preorderClosed && !preorderUpcoming) ? '' : 'disabled'} onclick="buyNow(${p.book_id})" class="btn-primary"><i class="fas fa-bolt"></i> ${preorderClosed || preorderUpcoming ? 'Unavailable' : storeOpen ? 'Buy Now' : 'Unavailable'}</button>
                             <button onclick="toggleWishlist(${p.book_id})" class="btn-icon"><i class="far fa-heart"></i></button>
                         </div>
 
@@ -742,7 +750,7 @@
                         <div class="order-info">
                             <h4>${o.title}</h4>
                             <p>Qty: ${o.quantity}</p>
-                            <p class="order-total">${o.total_amount.toLocaleString()} Ks</p>
+                            <p class="order-total">စာအုပ်ဖိုး ${Number(o.total_amount || 0).toLocaleString()} Ks</p><p class="small text-secondary">ပို့ခခန့်မှန်း ${Number(o.shipping_estimate || 0).toLocaleString()} Ks · ရောက်မှပေးရန်</p><p class="small text-secondary">${o.payment_method === 'cod' ? 'COD' : o.amount_paid < o.total_amount ? 'PREORDER' : 'PREPAID'}</p>
                         </div>
                     </div>
                     <div class="order-actions">
@@ -1015,7 +1023,7 @@
                 const price = Number(p.discounted_price || p.original_price || 0);
                 const existing = cart.find(item => item.book_id === bookId);
                 if (existing) existing.qty += 1;
-                else cart.push({ book_id: bookId, title: p.title, price, qty: 1, image: images[0] || '/assets/logo.png', seller_id: p.seller_id, store_name: p.store_name || 'စာပေဇုန်ဆိုင်' });
+                else cart.push({ book_id: bookId, title: p.title, price, qty: 1, image: images[0] || '/assets/logo.png', seller_id: p.seller_id, store_name: p.store_name || 'စာပေဇုန်ဆိုင်', sale_type: p.sale_type || 'prepaid', preorder_deposit_amount: Number(p.preorder_deposit_amount || 0), cod_deposit_amount: Number(p.cod_deposit_amount || 0), estimated_shipping_fee: Number(p.estimated_shipping_fee || 0), free_shipping: Number(p.free_shipping) ? 1 : 0, estimated_delivery_time: p.estimated_delivery_time || '' });
                 localStorage.setItem('spz_cart', JSON.stringify(cart));
                 alert('Added to cart');
             } catch (err) {
@@ -1037,6 +1045,12 @@
         function checkout() {
             if (!currentUser) { showAuthModal(); return; }
             if (!cart.length) { alert('ခြင်းတောင်းထဲတွင် ပစ္စည်းမရှိသေးပါ'); return; }
+            const types = [...new Set(cart.map(item => item.sale_type || 'prepaid'))];
+            if (types.length > 1) { alert('Preorder, Prepaid နှင့် COD ကို တစ်ကြိမ်တည်း ရောနှောဝယ်ယူ၍ မရပါ။ ရောင်းချမှုအမျိုးအစားတူ ပစ္စည်းများကိုသာ checkout လုပ်ပါ။'); return; }
+            const type = types[0];
+            const payment = document.getElementById('checkout-payment');
+            payment.innerHTML = type === 'cod' ? '<option value="cod">COD — ကျန်ငွေကို ပစ္စည်းရောက်မှပေးမည်</option>' : '<option value="wallet">Wallet ဖြင့် စာအုပ်ဖိုးပေးချေမည်</option>';
+            document.querySelector('.checkout-note').textContent = `ပို့ခခန့်မှန်းငွေကို ပစ္စည်းရောက်မှပေးရပါမည်။ ${type === 'preorder' ? 'Preorder ကြိုတင်ငွေကို Wallet ဖြင့်ပေးချေရပါမည်။' : type === 'cod' ? 'COD ကြိုတင်ငွေရှိပါက Wallet မှ ဖြတ်ပြီး ကျန်ငွေကို ပစ္စည်းရောက်မှပေးရပါမည်။' : 'Prepaid စာအုပ်ဖိုးကို Wallet ဖြင့် အပြည့်ပေးချေရပါမည်။'}`;
             document.getElementById('checkout-error').textContent = '';
             document.getElementById('checkout-modal').classList.remove('hidden');
         }
@@ -1064,7 +1078,7 @@
             submitButton.disabled = false;
             if (!res.ok) { errorBox.textContent = data.error || 'အော်ဒါတင်၍ မရပါ'; return; }
             closeCheckoutModal();
-            alert(`အော်ဒါတင်ပြီးပါပြီ\nစာအုပ်ဖိုး ${Number(data.merchandise_total).toLocaleString()} Ks\nပို့ခ ${Number(data.shipping_total).toLocaleString()} Ks\nစုစုပေါင်း ${Number(data.total).toLocaleString()} Ks`);
+            alert(`အော်ဒါတင်ပြီးပါပြီ\nအခု ပေးချေငွေ ${Number(data.total).toLocaleString()} Ks\nပို့ခခန့်မှန်း ${Number(data.shipping_estimate_total || 0).toLocaleString()} Ks (ပစ္စည်းရောက်မှပေးရန်)`);
             cart = [];
             localStorage.setItem('spz_cart', JSON.stringify(cart));
             navigateTo('orders');

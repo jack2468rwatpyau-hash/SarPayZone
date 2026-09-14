@@ -335,7 +335,17 @@ body.night-mode {
     aspect-ratio: 3/4;
     overflow: hidden;
     background: var(--surface);
+    position: relative;
 }
+.sale-type-badge, .detail-sale-badge { display:inline-block; padding:4px 7px; border-radius:5px; background:var(--primary); color:#fff; font-size:10px; font-weight:700; letter-spacing:.03em; }
+.sale-type-badge { position:absolute; top:7px; left:7px; z-index:2; }
+.sale-type-badge.closed, .detail-sale-badge.closed { background:#8d3f37; }
+.detail-sale-badge { margin:5px 0 8px; }
+.shipping-estimate-line { display:block; color:var(--text-secondary); font-size:10px; line-height:1.4; }
+.delivery-estimate-card { display:flex; gap:9px; align-items:flex-start; margin:12px 0; padding:10px; border:1px solid var(--border); border-radius:9px; background:var(--surface); font-size:12px; }
+.delivery-estimate-card i { color:var(--primary); margin-top:2px; }
+.delivery-estimate-card div { display:grid; gap:3px; }
+.delivery-estimate-card small { color:var(--text-secondary); line-height:1.45; }
 
 .product-image img {
     width: 100%;
