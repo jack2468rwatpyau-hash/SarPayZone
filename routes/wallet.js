@@ -34,6 +34,19 @@ router.get('/', authenticate, async (req, res) => {
     }
 });
 
+// Verify a P2P recipient before the sender enters an amount.
+router.get('/p2p/recipient/:public_id', authenticate, requireRole('buyer'), async (req, res) => {
+    try {
+        const recipient = await db.execute({
+            sql: `SELECT user_id, public_id, name, phone, account_status FROM users WHERE public_id = ?`,
+            args: [String(req.params.public_id || '').trim()]
+        });
+        if (!recipient.rows.length || recipient.rows[0].account_status !== 'active') return res.status(404).json({ error: 'Active recipient not found' });
+        const row = recipient.rows[0];
+        res.json({ recipient: { user_id: row.user_id, public_id: row.public_id, name: row.name, phone: row.phone } });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // P2P Transfer
 router.post('/p2p', authenticate, async (req, res) => {
     try {
@@ -95,6 +108,16 @@ router.post('/p2p', authenticate, async (req, res) => {
     }
 });
 
+router.get('/p2p/receipt/:reference', authenticate, requireRole('buyer'), async (req, res) => {
+    try {
+        const userId = req.user.user_id || req.user.id;
+        const own = await db.execute({ sql: `SELECT transaction_id, amount, fee, reference_id, created_at FROM transactions WHERE wallet_owner_type = 'user' AND wallet_owner_id = ? AND type = 'p2p' AND reference_id = ? LIMIT 1`, args: [userId, req.params.reference] });
+        if (!own.rows.length) return res.status(404).json({ error: 'Receipt not found' });
+        const peer = await db.execute({ sql: `SELECT t.amount, t.fee, u.public_id, u.name FROM transactions t JOIN users u ON t.wallet_owner_type = 'user' AND t.wallet_owner_id = u.user_id WHERE t.type = 'p2p' AND t.reference_id = ? AND t.wallet_owner_id <> ? LIMIT 1`, args: [req.params.reference, userId] });
+        res.json({ receipt: { amount: Math.abs(Number(own.rows[0].amount)), fee: Number(own.rows[0].fee || 0), reference_id: own.rows[0].reference_id, created_at: own.rows[0].created_at, peer: peer.rows[0] || null, direction: Number(own.rows[0].amount) < 0 ? 'sent' : 'received' } });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Withdrawal (Buyers)
 router.post('/withdraw', authenticate, requireRole('buyer'), async (req, res) => {
     try {
@@ -128,6 +151,20 @@ router.post('/withdraw', authenticate, requireRole('buyer'), async (req, res) =>
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+});
+
+// Buyer withdrawal receipts become visible only after Admin marks the request paid.
+router.get('/withdrawals', authenticate, requireRole('buyer'), async (req, res) => {
+    try {
+        const userId = req.user.user_id || req.user.id;
+        const rows = await db.execute({
+            sql: `SELECT withdrawal_id, amount, fee, net_amount, payment_method, account_name, account_phone, status, requested_at, paid_at, admin_reference
+                  FROM withdrawal_requests WHERE owner_type = 'user' AND owner_id = ? AND status = 'paid'
+                  ORDER BY paid_at DESC, withdrawal_id DESC`,
+            args: [userId]
+        });
+        res.json(rows.rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // Search a buyer before an agent cash-in. Never reveal wallet balances here.

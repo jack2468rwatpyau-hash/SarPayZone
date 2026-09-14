@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Sar Pay Zone - စာပေဇုန်</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Myanmar:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
@@ -60,7 +61,7 @@
         <div class="modal-content wallet-receipt-dialog">
             <div class="modal-header"><div><p class="eyebrow">SarPayPay</p><h2 id="wallet-receipt-title">လုပ်ဆောင်မှုအောင်မြင်ပါသည်</h2></div><button class="icon-btn" onclick="closeWalletReceipt()" aria-label="ပိတ်ရန်"><i class="fas fa-times"></i></button></div>
             <div class="receipt wallet-receipt-card" id="wallet-receipt-card"><div id="wallet-receipt-amount" class="r-amount"></div><div id="wallet-receipt-recipient" class="r-name"></div><div id="wallet-receipt-reference" class="r-id"></div><div id="wallet-receipt-received" class="r-received"></div><div id="wallet-receipt-type" class="r-type"></div><div id="wallet-receipt-date" class="r-date"></div><div id="wallet-receipt-time" class="r-time"></div><div id="wallet-receipt-fee" class="r-fee"></div><div id="wallet-receipt-transaction" class="r-transaction"></div><div id="wallet-receipt-note" class="r-note"></div></div>
-            <div class="wallet-receipt-actions"><button class="btn-secondary" onclick="window.print()"><i class="fas fa-print"></i> ပြေစာထုတ်မည်</button><button class="btn-primary" onclick="closeWalletReceipt()">ပြီးပါပြီ</button></div>
+            <div class="wallet-receipt-actions"><button class="btn-secondary" onclick="downloadWalletReceiptJpg()"><i class="fas fa-download"></i> JPG ဒေါင်းလုဒ်</button><button class="btn-primary" onclick="closeWalletReceipt()">ပြီးပါပြီ</button></div>
         </div>
     </div>
 
@@ -650,6 +651,8 @@
                 headers: { 'Authorization': `Bearer ${authToken}` }
             });
             const data = await res.json();
+            const withdrawalRes = await fetch(`${API_URL}/wallet/withdrawals`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+            const paidWithdrawals = withdrawalRes.ok ? await withdrawalRes.json() : [];
             
             container.innerHTML = `
                 <div class="wallet-page">
@@ -668,7 +671,7 @@
                     <h3>Recent Transactions</h3>
                     <div class="transaction-list">
                         ${data.transactions.map(t => `
-                            <div class="transaction-item">
+                            <div class="transaction-item ${t.type === 'p2p' && t.reference_id ? 'transaction-clickable' : ''}" ${t.type === 'p2p' && t.reference_id ? `onclick="openWalletTransactionReceipt('${String(t.reference_id).replace(/'/g, '')}')"` : ''}>
                                 <div class="trans-icon ${t.type}">
                                     <i class="fas fa-${t.type === 'purchase' ? 'shopping-cart' : t.type === 'cash_in' ? 'arrow-down' : t.type === 'withdrawal' ? 'arrow-up' : 'exchange-alt'}"></i>
                                 </div>
@@ -679,12 +682,17 @@
                                 <div class="trans-amount ${t.amount < 0 ? 'negative' : 'positive'}">
                                     ${t.amount < 0 ? '' : '+'}${t.amount.toLocaleString()} Ks
                                 </div>
+                                ${t.type === 'p2p' && t.reference_id ? '<button class="receipt-link" type="button">ပြေစာကြည့်မည်</button>' : ''}
                             </div>
                         `).join('')}
                     </div>
+                    ${paidWithdrawals.length ? `<h3>Admin အတည်ပြုပြီးသော ငွေထုတ်ပြေစာများ</h3><div class="receipt-history-list">${paidWithdrawals.map(w => `<button class="receipt-history-item" type="button" onclick="openPaidWithdrawalReceipt(${Number(w.withdrawal_id)})"><span>ငွေထုတ် — ${Number(w.net_amount || 0).toLocaleString()} Ks</span><small>${new Date(w.paid_at).toLocaleString()}</small><i class="fas fa-receipt"></i></button>`).join('')}</div>` : ''}
                 </div>
             `;
         }
+
+        async function openWalletTransactionReceipt(reference) { const res = await fetch(`${API_URL}/wallet/p2p/receipt/${encodeURIComponent(reference)}`, { headers: { 'Authorization': `Bearer ${authToken}` } }); const data = await res.json(); if (!res.ok) return alert(data.error || 'Receipt unavailable'); const r = data.receipt; showWalletReceipt({ type: r.direction === 'received' ? 'P2P ငွေလက်ခံခြင်း' : 'P2P ငွေလွှဲခြင်း', amount: r.amount, recipient: r.peer?.name || r.peer?.public_id || '', reference: r.reference_id, fee: r.fee, createdAt: r.created_at, note: r.direction === 'received' ? 'လက်ခံသူ၏ Wallet ထဲသို့ ငွေဝင်ရောက်ပါပြီ' : '', status: r.direction === 'received' ? 'ငွေလက်ခံခြင်း အောင်မြင်ပါသည်' : 'ငွေလွှဲခြင်း အောင်မြင်ပါသည်' }); }
+        async function openPaidWithdrawalReceipt(withdrawalId) { const res = await fetch(`${API_URL}/wallet/withdrawals`, { headers: { 'Authorization': `Bearer ${authToken}` } }); const rows = await res.json(); const w = rows.find(row => Number(row.withdrawal_id) === Number(withdrawalId)); if (!w) return alert('Paid withdrawal receipt unavailable'); showWalletReceipt({ type: 'ငွေထုတ်ခြင်း', amount: w.amount, recipient: `${String(w.payment_method).toUpperCase()} — ${w.account_phone}`, reference: w.admin_reference || `WD#${w.withdrawal_id}`, fee: w.fee, createdAt: w.paid_at, note: 'Admin မှ ငွေပေးချေပြီးပါပြီ', status: 'ငွေထုတ်ခြင်း အောင်မြင်ပါသည်' }); }
 
         // ===== ORDERS =====
         async function renderOrders(container) {
@@ -1146,8 +1154,9 @@
         }
 
         function closeWalletReceipt() { document.getElementById('wallet-receipt-modal')?.classList.add('hidden'); }
-        function showWalletReceipt({ type, amount, recipient = '', reference = '', status = 'အောင်မြင်ပါသည်', fee = 0, note = '' }) {
-            const now = new Date();
+        async function downloadWalletReceiptJpg() { const receipt = document.getElementById('wallet-receipt-card'); const canvas = await html2canvas(receipt, { useCORS: true, backgroundColor: '#ffffff', scale: 2 }); const link = document.createElement('a'); link.download = `SarPayZone-receipt-${Date.now()}.jpg`; link.href = canvas.toDataURL('image/jpeg', 0.94); link.click(); }
+        function showWalletReceipt({ type, amount, recipient = '', reference = '', status = 'အောင်မြင်ပါသည်', fee = 0, note = '', createdAt = null }) {
+            const now = createdAt ? new Date(createdAt) : new Date();
             const money = value => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             document.getElementById('wallet-receipt-amount').textContent = `${money(amount)} Ks`;
             document.getElementById('wallet-receipt-recipient').textContent = recipient || status;
@@ -1193,8 +1202,17 @@
             if (!currentUser) { showAuthModal(); return; }
             const walletRes = await fetch(`${API_URL}/wallet`, { headers: { 'Authorization': `Bearer ${authToken}` } });
             const wallet = await walletRes.json();
-            container.innerHTML = `<div class="transfer-page"><button class="btn-text" onclick="navigateTo('wallet')"><i class="fas fa-arrow-left"></i> Back to wallet</button><div class="page-heading"><p class="eyebrow">Wallet</p><h2>Transfer to another user</h2><p class="text-secondary">လွှဲမည့်သူ၏ Public ID နှင့် ပမာဏကို ထည့်ပါ။ ငွေလွှဲမတိုင်မီ နှစ်ဆင့် အတည်ပြုရပါမည်။</p></div><div class="transfer-balance">Available balance: <strong>${Number(wallet.balance || 0).toLocaleString()} Ks</strong></div><form id="transfer-form" class="transfer-form"><div class="form-group"><label>Recipient Public ID *</label><input id="transfer-recipient" required placeholder="ဥပမာ U#000001"></div><div class="form-group"><label>Amount (Ks) *</label><input id="transfer-amount" type="number" min="1" max="150000" step="1" required placeholder="10000"><small>Daily limit: 150,000 Ks · Transfer fee: 3%</small></div><div class="form-group"><label>Note</label><textarea id="transfer-note" rows="3" maxlength="200" placeholder="မှတ်ချက် (optional)"></textarea></div><p id="transfer-error" class="error-text"></p><button class="btn-primary" type="submit">Review Transfer</button></form></div>`;
+            container.innerHTML = `<div class="transfer-page"><button class="btn-text" onclick="navigateTo('wallet')"><i class="fas fa-arrow-left"></i> Back to wallet</button><div class="page-heading"><p class="eyebrow">Wallet</p><h2>Transfer to another user</h2><p class="text-secondary">ID ကို အရင်ရှာပြီး အမည်/အကောင့်ကို အတည်ပြုပြီးမှ ပမာဏထည့်ကာ လွှဲပါ။</p></div><div class="transfer-balance">Available balance: <strong>${Number(wallet.balance || 0).toLocaleString()} Ks</strong></div><form id="transfer-form" class="transfer-form"><div class="form-group"><label>Recipient Public ID *</label><div class="recipient-lookup-row"><input id="transfer-recipient" required placeholder="ဥပမာ U#000001"><button type="button" class="btn-secondary" id="verify-recipient-btn">ရှာမည်</button></div><div id="recipient-preview" class="recipient-preview hidden"></div></div><div class="form-group"><label>Amount (Ks) *</label><input id="transfer-amount" type="number" min="1" max="150000" step="1" required placeholder="10000" disabled><small>Daily limit: 150,000 Ks · Transfer fee: 3%</small></div><div class="form-group"><label>Note</label><textarea id="transfer-note" rows="3" maxlength="200" placeholder="မှတ်ချက် (optional)" disabled></textarea></div><p id="transfer-error" class="error-text"></p><button class="btn-primary" type="submit" disabled>Review Transfer</button></form></div>`;
             document.getElementById('transfer-form').addEventListener('submit', submitTransfer);
+            document.getElementById('verify-recipient-btn').addEventListener('click', verifyTransferRecipient);
+        }
+        let verifiedTransferRecipient = null;
+        async function verifyTransferRecipient() {
+            const input = document.getElementById('transfer-recipient'); const preview = document.getElementById('recipient-preview'); const button = document.getElementById('verify-recipient-btn');
+            const publicId = input.value.trim(); verifiedTransferRecipient = null; preview.classList.add('hidden'); document.getElementById('transfer-amount').disabled = true; document.getElementById('transfer-note').disabled = true; document.querySelector('#transfer-form button[type="submit"]').disabled = true;
+            if (!publicId) return;
+            button.disabled = true;
+            try { const res = await fetch(`${API_URL}/wallet/p2p/recipient/${encodeURIComponent(publicId)}`, { headers: { 'Authorization': `Bearer ${authToken}` } }); const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Recipient not found'); verifiedTransferRecipient = data.recipient; preview.innerHTML = `<strong>${escapeChatText(data.recipient.name || 'အမည်မဖော်ပြထားပါ')}</strong><span>${escapeChatText(data.recipient.public_id)}</span><small>${escapeChatText(data.recipient.phone || '')}</small><label><input id="recipient-confirm" type="checkbox"> ဤအကောင့်သည် မှန်ကန်ကြောင်း အတည်ပြုပါ</label>`; preview.classList.remove('hidden'); document.getElementById('recipient-confirm').addEventListener('change', e => { const enabled = e.target.checked; document.getElementById('transfer-amount').disabled = !enabled; document.getElementById('transfer-note').disabled = !enabled; document.querySelector('#transfer-form button[type="submit"]').disabled = !enabled; }); } catch (err) { document.getElementById('transfer-error').textContent = err.message; } finally { button.disabled = false; }
         }
 
         async function submitTransfer(event) {
@@ -1203,7 +1221,7 @@
             const amount = Number(document.getElementById('transfer-amount').value);
             const note = document.getElementById('transfer-note').value.trim();
             const error = document.getElementById('transfer-error');
-            if (!recipient || !Number.isFinite(amount) || amount <= 0 || amount > 150000) { error.textContent = 'Enter a valid recipient and amount up to 150,000 Ks.'; return; }
+            if (!verifiedTransferRecipient || verifiedTransferRecipient.public_id !== recipient || !Number.isFinite(amount) || amount <= 0 || amount > 150000) { error.textContent = 'လက်ခံသူအကောင့်ကို ရှာဖွေပြီး အတည်ပြုပြီးမှ ပမာဏထည့်ပါ။'; return; }
             const fee = amount * 0.03; const total = amount + fee;
             if (!confirm(`Step 1 of 2 — Review\n\nRecipient: ${recipient}\nSend amount: ${amount.toLocaleString()} Ks\nFee (3%): ${fee.toLocaleString()} Ks\nTotal deducted: ${total.toLocaleString()} Ks\n\nContinue to final confirmation?`)) return;
             if (!confirm(`Step 2 of 2 — Final confirmation\n\nYou are about to transfer ${amount.toLocaleString()} Ks to ${recipient}.\nThis action cannot be reversed after completion.\n\nConfirm and send now?`)) return;
