@@ -1086,7 +1086,7 @@
             const res = await fetch(`${API_URL}/orders/bulk`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify({ items: cart.map(item => ({ product_id: item.book_id, quantity: item.qty })), shipping_address, payment_method })
+                body: JSON.stringify({ items: cart.map(item => ({ product_id: Number(item.book_id), quantity: Number(item.qty) || 1, variation_id: item.variation_id == null ? null : Number(item.variation_id) })), shipping_address, shipping_state: null, shipping_district: null, shipping_township: null, p2p_friend_id: null, payment_method })
             });
             const data = await res.json();
             submitButton.disabled = false;

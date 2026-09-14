@@ -186,11 +186,13 @@ router.post('/bulk', authenticate, async (req, res) => {
             }
             if (Number(prod.stock_quantity || 0) < quantity) return res.status(400).json({ error: `${prod.title} has insufficient stock` });
             const unitPrice = Number(prod.discounted_price || prod.original_price);
+            if (!Number.isFinite(unitPrice) || unitPrice < 0) return res.status(400).json({ error: `${prod.title} has an invalid price` });
             const subtotal = unitPrice * quantity;
             if (saleType === 'prepaid' && payment_method !== 'wallet') return res.status(400).json({ error: 'Prepaid products require Wallet payment' });
             if (saleType === 'preorder' && payment_method !== 'wallet') return res.status(400).json({ error: 'Preorder products require Wallet payment' });
             if (saleType === 'cod' && payment_method !== 'cod') return res.status(400).json({ error: 'COD products require Cash on delivery' });
             const sellerShipping = Number(prod.free_shipping) ? 0 : Number(prod.estimated_shipping_fee || 0);
+            if (!Number.isFinite(sellerShipping) || sellerShipping < 0) return res.status(400).json({ error: `${prod.title} has an invalid shipping fee` });
             const amountDueNow = saleType === 'preorder' ? Number(prod.preorder_deposit_amount || 0) : saleType === 'cod' ? Number(prod.cod_deposit_amount || 0) : subtotal;
             if (amountDueNow > subtotal) return res.status(400).json({ error: `${prod.title} advance payment cannot exceed the book price` });
             if (!shippingBySeller.has(prod.seller_id)) shippingBySeller.set(prod.seller_id, sellerShipping);
