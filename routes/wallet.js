@@ -76,19 +76,20 @@ router.post('/p2p', authenticate, async (req, res) => {
         });
 
         // Record transactions
+        const referenceId = `P2P#${Date.now()}${String(senderId).padStart(4, '0')}`;
         await db.execute({
             sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id) 
                   VALUES (?, ?, 'p2p', ?, ?, (SELECT wallet_balance FROM ${senderTable} WHERE ${senderType === 'user' ? 'user_id' : 'seller_id'} = ?), ?)`,
-            args: [senderType, senderId, -amount, fee, senderId, note || 'P2P Transfer']
+            args: [senderType, senderId, -amount, fee, senderId, referenceId]
         });
 
         await db.execute({
             sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id) 
                   VALUES ('user', ?, 'p2p', ?, 0, (SELECT wallet_balance FROM users WHERE user_id = ?), ?)`,
-            args: [recipient.rows[0].user_id, amount, recipient.rows[0].user_id, note || 'P2P Receive']
+            args: [recipient.rows[0].user_id, amount, recipient.rows[0].user_id, referenceId]
         });
 
-        res.json({ success: true, fee, total_deducted: totalDeduction });
+        res.json({ success: true, fee, total_deducted: totalDeduction, reference_id: referenceId });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

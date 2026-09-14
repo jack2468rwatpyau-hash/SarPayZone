@@ -1196,6 +1196,17 @@ body.night-mode {
     position: relative;
 }
 
+.wallet-receipt-dialog { padding: 18px; max-width: 520px; }
+.wallet-receipt-card { position: relative; overflow: hidden; border-radius: var(--radius); background: #eafcff; box-shadow: var(--shadow-md); }
+.wallet-receipt-card > img { display: block; width: 100%; height: auto; }
+.wallet-receipt-details { position: absolute; top: 31%; left: 8%; right: 8%; display: grid; gap: 8px; padding: 18px 16px; color: #111; font-size: 14px; }
+.wallet-receipt-details strong { font-size: 20px; margin-bottom: 6px; }
+.wallet-receipt-details span { min-height: 20px; }
+.wallet-receipt-details span:empty { display: none; }
+.wallet-receipt-details small { margin-top: 6px; color: #475569; }
+.wallet-receipt-actions { display: flex; gap: 10px; margin-top: 14px; }
+.wallet-receipt-actions > button { flex: 1; }
+
 .close-btn {
     position: absolute;
     top: 16px;

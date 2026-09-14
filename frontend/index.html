@@ -56,6 +56,13 @@
             <p id="checkout-error" class="error-text"></p><button onclick="submitCheckout()" class="btn-primary">အော်ဒါတင်မည်</button>
         </div>
     </div>
+    <div id="wallet-receipt-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="wallet-receipt-title">
+        <div class="modal-content wallet-receipt-dialog">
+            <div class="modal-header"><div><p class="eyebrow">SarPayPay</p><h2 id="wallet-receipt-title">လုပ်ဆောင်မှုအောင်မြင်ပါသည်</h2></div><button class="icon-btn" onclick="closeWalletReceipt()" aria-label="ပိတ်ရန်"><i class="fas fa-times"></i></button></div>
+            <div class="wallet-receipt-card" id="wallet-receipt-card"><img src="/assets/wallet-invoice-template.png" alt="Wallet transaction receipt template"><div class="wallet-receipt-details"><strong id="wallet-receipt-type">ငွေလွှဲခြင်း</strong><span id="wallet-receipt-amount"></span><span id="wallet-receipt-recipient"></span><span id="wallet-receipt-reference"></span><span id="wallet-receipt-status">အောင်မြင်ပါသည်</span><small id="wallet-receipt-time"></small></div></div>
+            <div class="wallet-receipt-actions"><button class="btn-secondary" onclick="window.print()"><i class="fas fa-print"></i> ပြေစာထုတ်မည်</button><button class="btn-primary" onclick="closeWalletReceipt()">ပြီးပါပြီ</button></div>
+        </div>
+    </div>
 
     <!-- Main App -->
     <div id="app" class="hidden">
@@ -1138,6 +1145,18 @@
             alert(voteRes.ok ? 'Vote submitted' : (data.error || 'Unable to vote'));
         }
 
+        function closeWalletReceipt() { document.getElementById('wallet-receipt-modal')?.classList.add('hidden'); }
+        function showWalletReceipt({ type, amount, recipient = '', reference = '', status = 'အောင်မြင်ပါသည်' }) {
+            document.getElementById('wallet-receipt-type').textContent = type;
+            document.getElementById('wallet-receipt-amount').textContent = `ပမာဏ — ${Number(amount || 0).toLocaleString()} Ks`;
+            document.getElementById('wallet-receipt-recipient').textContent = recipient ? `လက်ခံသူ — ${recipient}` : '';
+            document.getElementById('wallet-receipt-reference').textContent = reference ? `လုပ်ဆောင်မှု ID — ${reference}` : '';
+            document.getElementById('wallet-receipt-status').textContent = status;
+            document.getElementById('wallet-receipt-time').textContent = new Date().toLocaleString('my-MM');
+            document.getElementById('wallet-receipt-modal').classList.remove('hidden');
+            const audio = new Audio('/assets/wallet-success.mp3'); audio.volume = 0.9; audio.play().catch(() => {});
+        }
+
         async function renderWithdraw(container) {
             if (!authToken) { showAuthModal(); return; }
             const walletRes = await fetch(`${API_URL}/wallet`, { headers: { 'Authorization': `Bearer ${authToken}` } }); const wallet = await walletRes.json();
@@ -1150,7 +1169,7 @@
             if (!confirm(`Step 1 of 2 — Review withdrawal\n\nAmount: ${amount.toLocaleString()} Ks\nWallet: ${method}\nPhone: ${phone}\nAccount name: ${name}\n\nContinue?`)) return;
             if (!confirm(`Step 2 of 2 — Final confirmation\n\nSubmit withdrawal of ${amount.toLocaleString()} Ks?\n\nConfirm and continue?`)) return;
             const button = event.currentTarget.querySelector('button[type="submit"]'); button.disabled = true;
-            try { const res = await fetch(`${API_URL}/wallet/withdraw`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ amount, payment_method: method, account_name: name, account_phone: phone }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Withdrawal failed'); alert('Withdrawal request submitted for Admin review'); navigateTo('wallet'); } catch (err) { error.textContent = err.message; button.disabled = false; }
+            try { const res = await fetch(`${API_URL}/wallet/withdraw`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ amount, payment_method: method, account_name: name, account_phone: phone }) }); const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Withdrawal failed'); showWalletReceipt({ type: 'ငွေထုတ်ရန် တင်ပြခြင်း', amount, recipient: `${method.toUpperCase()} — ${phone}`, reference: data.withdrawal_id || data.withdrawal_public_id || '', status: 'Admin စစ်ဆေးရန် တင်ပြပြီးပါပြီ' }); navigateTo('wallet'); } catch (err) { error.textContent = err.message; button.disabled = false; }
         }
 
         function showP2PForm() {
@@ -1161,7 +1180,7 @@
             fetch(`${API_URL}/wallet/p2p`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
                 body: JSON.stringify({ recipient_public_id, amount: Number(amount), note })
-            }).then(r => r.json().then(data => alert(r.ok ? 'Transfer completed' : (data.error || 'Transfer failed'))));
+            }).then(r => r.json().then(data => { if (r.ok) showWalletReceipt({ type: 'P2P ငွေလွှဲခြင်း', amount: Number(amount), recipient: recipient_public_id, reference: data.transaction_id || data.reference_id || '', status: 'ငွေလွှဲခြင်း အောင်မြင်ပါသည်' }); else alert(data.error || 'Transfer failed'); }));
         }
 
         async function renderTransfer(container) {
@@ -1187,7 +1206,7 @@
                 const res = await fetch(`${API_URL}/wallet/p2p`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ recipient_public_id: recipient, amount, note }) });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Transfer failed');
-                alert(`Transfer completed. ${amount.toLocaleString()} Ks sent.`);
+                showWalletReceipt({ type: 'P2P ငွေလွှဲခြင်း', amount, recipient, reference: data.transaction_id || data.reference_id || '', status: 'ငွေလွှဲခြင်း အောင်မြင်ပါသည်' });
                 navigateTo('wallet');
             } catch (err) { error.textContent = err.message; button.disabled = false; }
         }
