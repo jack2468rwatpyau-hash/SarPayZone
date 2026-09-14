@@ -34,6 +34,14 @@ router.get('/', authenticate, async (req, res) => {
     }
 });
 
+router.get('/transactions', authenticate, requireRole('buyer'), async (req, res) => {
+    try {
+        const userId = req.user.user_id || req.user.id;
+        const rows = await db.execute({ sql: `SELECT transaction_id, type, amount, fee, balance_after, reference_id, created_at FROM transactions WHERE wallet_owner_type = 'user' AND wallet_owner_id = ? ORDER BY created_at DESC, transaction_id DESC LIMIT 1000`, args: [userId] });
+        res.json(rows.rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Verify a P2P recipient before the sender enters an amount.
 router.get('/p2p/recipient/:public_id', authenticate, requireRole('buyer'), async (req, res) => {
     try {

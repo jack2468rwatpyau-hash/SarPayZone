@@ -651,6 +651,8 @@
                 headers: { 'Authorization': `Bearer ${authToken}` }
             });
             const data = await res.json();
+            const transactionRes = await fetch(`${API_URL}/wallet/transactions`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+            if (transactionRes.ok) data.transactions = await transactionRes.json();
             const withdrawalRes = await fetch(`${API_URL}/wallet/withdrawals`, { headers: { 'Authorization': `Bearer ${authToken}` } });
             const paidWithdrawals = withdrawalRes.ok ? await withdrawalRes.json() : [];
             
