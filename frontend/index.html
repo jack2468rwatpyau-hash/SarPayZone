@@ -345,6 +345,11 @@
             
             const res = await fetch(`${API_URL}/products/${bookId}`);
             const p = await res.json();
+            let reviewEligibility = { can_review: false, order_id: null };
+            if (authToken) {
+                const eligibilityRes = await fetch(`${API_URL}/orders/buyer/review-eligibility/${Number(bookId)}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+                reviewEligibility = await eligibilityRes.json().catch(() => reviewEligibility);
+            }
             
             const images = p.images ? JSON.parse(p.images) : [];
             const variations = p.variations || [];
@@ -406,6 +411,7 @@
 
                     <div class="reviews-section">
                         <h4>Reviews (${p.reviews?.length || 0})</h4>
+                        ${reviewEligibility.can_review ? `<div class="product-review-form"><strong>သင်ဝယ်ယူထားသော ပစ္စည်းအတွက် Review ပေးရန်</strong><div class="review-form-row"><label>Rating <select id="product-review-rating"><option value="5">★★★★★ (5)</option><option value="4">★★★★☆ (4)</option><option value="3">★★★☆☆ (3)</option><option value="2">★★☆☆☆ (2)</option><option value="1">★☆☆☆☆ (1)</option></select></label></div><textarea id="product-review-comment" maxlength="2000" placeholder="သုံးသပ်ချက်ရေးပါ (optional)"></textarea><button class="btn-primary" onclick="submitProductReview(${Number(reviewEligibility.order_id)}, ${Number(bookId)})">Submit Review</button></div>` : ''}
                         ${p.reviews?.length ? p.reviews.map(r => `
                             <div class="review-card">
                                 <div class="review-header">
@@ -418,6 +424,16 @@
                     </div>
                 </div>
             `;
+        }
+
+        async function submitProductReview(orderId, bookId) {
+            const rating = Number(document.getElementById('product-review-rating')?.value);
+            const comment = document.getElementById('product-review-comment')?.value || '';
+            const res = await fetch(`${API_URL}/orders/${Number(orderId)}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ rating, comment }) });
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'Review failed');
+            alert('Review submitted successfully');
+            openProductDetail(bookId);
         }
 
         function closeModal(id) {
@@ -733,7 +749,7 @@
                         ${o.order_status === 'new' ? `<button onclick="cancelOrder(${o.order_id})" class="btn-text danger">Cancel</button>` : ''}
                         ${o.payment_method === 'cod' && o.order_status === 'shipping' && !o.buyer_delivery_confirmed_at ? `<button type="button" class="btn-text success cod-proof-picker" onclick="document.getElementById('cod-proof-${Number(o.order_id)}').click()"><i class="fas fa-camera"></i> စာအုပ်ရောက်ပြီ + ပုံတင်ရန်</button><input id="cod-proof-${Number(o.order_id)}" class="cod-proof-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onchange="uploadCodProof(this, ${Number(o.order_id)})">` : ''}
                         ${o.payment_method === 'cod' && o.buyer_delivery_confirmed_at && !o.seller_delivery_confirmed_at ? `<span class="small text-secondary">Waiting for shop confirmation</span>` : ''}
-                        ${o.order_status === 'delivered' ? `<button onclick="openReviewForm(${o.order_id})" class="btn-text">Review</button>` : ''}
+                        ${o.order_status === 'delivered' ? `<button onclick="${o.product_id ? `closeModal('product-modal'); openProductDetail(${Number(o.product_id)})` : `openReviewForm(${Number(o.order_id)})`}" class="btn-text"><i class="fas fa-star"></i> Review</button>` : ''}
                         ${['approved', 'shipping', 'delivered'].includes(o.order_status) ? `<button onclick="navigateTo('receipt', {orderId: ${Number(o.order_id)}})" class="btn-text"><i class="fas fa-receipt"></i> Receipt</button>` : ''}<button onclick="navigateTo('chat')" class="btn-text">Contact</button>
                     </div>
                 </div>

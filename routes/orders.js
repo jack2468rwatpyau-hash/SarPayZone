@@ -270,6 +270,22 @@ router.get('/buyer', authenticate, async (req, res) => {
     }
 });
 
+// Check whether the signed-in buyer can review a delivered purchase of a product.
+router.get('/buyer/review-eligibility/:bookId', authenticate, async (req, res) => {
+    try {
+        const buyerId = req.user.user_id || req.user.id;
+        const result = await db.execute({
+            sql: `SELECT o.order_id
+                  FROM orders o
+                  LEFT JOIN reviews r ON r.order_id = o.order_id
+                  WHERE o.buyer_id = ? AND o.product_id = ? AND o.order_status = 'delivered' AND r.review_id IS NULL
+                  ORDER BY o.created_at DESC LIMIT 1`,
+            args: [buyerId, req.params.bookId]
+        });
+        res.json({ can_review: result.rows.length > 0, order_id: result.rows[0]?.order_id || null });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Return signed receipt data for a buyer's own order. The signature makes
 // edited receipt images detectable by comparing the printed receipt payload.
 router.get('/buyer/:id/receipt', authenticate, async (req, res) => {
@@ -518,12 +534,19 @@ router.patch('/:id/status', authenticate, async (req, res) => {
 // Create review (only after delivered)
 router.post('/:id/review', authenticate, async (req, res) => {
     try {
-        const { rating, comment } = req.body;
+        const rating = Number(req.body.rating);
+        const comment = String(req.body.comment || '').trim();
+        if (!Number.isInteger(rating) || rating < 1 || rating > 5) return res.status(400).json({ error: 'Rating must be a whole number from 1 to 5' });
+        if (comment.length > 2000) return res.status(400).json({ error: 'Review comment is too long' });
         const order = await db.execute({
             sql: `SELECT * FROM orders WHERE order_id = ? AND buyer_id = ? AND order_status = 'delivered'`,
             args: [req.params.id, req.user.user_id || req.user.id]
         });
         if (order.rows.length === 0) return res.status(400).json({ error: 'Can only review delivered orders' });
+
+        const existing = await db.execute({ sql: `SELECT review_id FROM reviews WHERE order_id = ?`, args: [req.params.id] });
+        if (existing.rows.length) return res.status(409).json({ error: 'This order has already been reviewed' });
+        if (!order.rows[0].product_id) return res.status(400).json({ error: 'This resell order cannot be reviewed from the standard product page yet' });
 
         await db.execute({
             sql: `INSERT INTO reviews (book_id, user_id, order_id, rating, comment) VALUES (?, ?, ?, ?, ?)`,
