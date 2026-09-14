@@ -456,8 +456,8 @@
             variationDrafts = [];
             document.getElementById('product-section').innerHTML = `
                 <form id="add-product-form" class="product-form single-view-product-form" onsubmit="submitProduct(event)">
-                    <div class="product-tab-panel active" data-product-tab="0"><div class="form-group"><label>Title *</label><input type="text" name="title" required></div><div class="form-group"><label>Author</label><input type="text" name="author_name"></div><div class="form-group"><label>Category</label><select name="category_id" id="cat-select"></select></div><div class="form-group"><label>Description</label><textarea name="description" rows="5"></textarea></div><div class="product-form-actions"><button type="button" class="btn-primary" onclick="setProductTab(1)">Next <i class="fas fa-arrow-right"></i></button></div></div>
-                    <div class="product-tab-panel" data-product-tab="1"><div class="form-group"><label>စာအုပ်ရောင်းချခြင်းအမျိုးအစား *</label><select name="sale_type" id="product-sale-type" onchange="toggleSaleFields(this.value)"><option value="prepaid">Prepaid — Wallet ဖြင့် အပြည့်ပေးချေ</option><option value="preorder">Preorder — ကြိုတင်အော်ဒါ</option><option value="cod">Cash on Delivery (COD)</option></select></div><div class="form-group"><label>Original Price (Ks) *</label><input type="number" name="original_price" required step="0.01" min="0"></div><div class="form-group"><label>Discounted Price (Ks)</label><input type="number" name="discounted_price" step="0.01" min="0"></div><div class="form-group"><label>Stock Quantity</label><input type="number" name="stock_quantity" value="0" min="0"></div><div class="sale-extra-fields"><div class="form-group preorder-only"><label>ရောင်းချမှုစတင်မည့်အချိန်</label><input type="datetime-local" name="preorder_start_at"></div><div class="form-group preorder-only"><label>ရောင်းချမှုကုန်ဆုံးမည့်အချိန်</label><input type="datetime-local" name="preorder_end_at"></div><div class="form-group preorder-only"><label>Preorder ကြိုတင်ပေးချေရမည့်ဈေး (Ks)</label><input type="number" name="preorder_deposit_amount" min="0" step="0.01" value="0"></div><div class="form-group cod-only"><label>COD ကြိုတင်ငွေ (Ks, optional)</label><input type="number" name="cod_deposit_amount" min="0" step="0.01" value="0"></div><div class="form-group"><label>ခန့်မှန်းပို့ဆောင်ချိန်</label><input type="text" name="estimated_delivery_time" placeholder="ဥပမာ 2-5 ရက်"></div><div class="form-group"><label>မြန်မာပြည်တစ်ဝှမ်း ခန့်မှန်းပို့ဆောင်ခ (Ks)</label><input type="number" name="estimated_shipping_fee" min="0" step="1" value="5000"></div><label class="checkbox-label"><input type="checkbox" name="free_shipping" value="1"> ပို့ဆောင်ခအခမဲ့</label></div><div class="product-form-actions"><button type="button" class="btn-secondary" onclick="setProductTab(0)">Back</button><button type="button" class="btn-primary" onclick="setProductTab(2)">Next <i class="fas fa-arrow-right"></i></button></div></div>
+                    <div class="product-tab-panel active" data-product-tab="0"><div class="form-group sale-type-top"><label>စာအုပ်ရောင်းချခြင်းအမျိုးအစား *</label><select id="product-sale-type-top" onchange="document.getElementById('product-sale-type').value=this.value; toggleSaleFields(this.value)"><option value="prepaid">Prepaid — Wallet ဖြင့် အပြည့်ပေးချေ</option><option value="preorder">Preorder — ကြိုတင်အော်ဒါ</option><option value="cod">Cash on Delivery (COD)</option></select></div><div class="form-group"><label>Title *</label><input type="text" name="title" required></div><div class="form-group"><label>Author</label><input type="text" name="author_name"></div><div class="form-group"><label>Category</label><select name="category_id" id="cat-select"></select></div><div class="form-group"><label>Description</label><textarea name="description" rows="5"></textarea></div><div class="product-form-actions"><button type="button" class="btn-primary" onclick="setProductTab(1)">Next <i class="fas fa-arrow-right"></i></button></div></div>
+                    <div class="product-tab-panel" data-product-tab="1"><div class="form-group legacy-sale-type-field"><label>စာအုပ်ရောင်းချခြင်းအမျိုးအစား *</label><select name="sale_type" id="product-sale-type" onchange="toggleSaleFields(this.value)"><option value="prepaid">Prepaid — Wallet ဖြင့် အပြည့်ပေးချေ</option><option value="preorder">Preorder — ကြိုတင်အော်ဒါ</option><option value="cod">Cash on Delivery (COD)</option></select></div><div class="form-group"><label>Original Price (Ks) *</label><input type="number" name="original_price" required step="0.01" min="0"></div><div class="form-group"><label>Discounted Price (Ks)</label><input type="number" name="discounted_price" step="0.01" min="0"></div><div class="form-group"><label>Stock Quantity</label><input type="number" name="stock_quantity" value="0" min="0"></div><div class="sale-extra-fields"><div class="form-group preorder-only"><label>ရောင်းချမှုစတင်မည့်အချိန်</label><input type="datetime-local" name="preorder_start_at"></div><div class="form-group preorder-only"><label>ရောင်းချမှုကုန်ဆုံးမည့်အချိန်</label><input type="datetime-local" name="preorder_end_at"></div><div class="form-group preorder-only"><label>Preorder ကြိုတင်ပေးချေရမည့်ဈေး (Ks)</label><input type="number" name="preorder_deposit_amount" min="0" step="0.01" value="0"></div><div class="form-group cod-only"><label>COD ကြိုတင်ငွေ (Ks, optional)</label><input type="number" name="cod_deposit_amount" min="0" step="0.01" value="0"></div><div class="form-group"><label>ခန့်မှန်းပို့ဆောင်ချိန်</label><input type="text" name="estimated_delivery_time" placeholder="ဥပမာ 2-5 ရက်"></div><div class="form-group"><label>မြန်မာပြည်တစ်ဝှမ်း ခန့်မှန်းပို့ဆောင်ခ (Ks)</label><input type="number" name="estimated_shipping_fee" min="0" step="1" value="5000"></div><label class="checkbox-label"><input type="checkbox" name="free_shipping" value="1"> ပို့ဆောင်ခအခမဲ့</label></div><div class="product-form-actions"><button type="button" class="btn-secondary" onclick="setProductTab(0)">Back</button><button type="button" class="btn-primary" onclick="setProductTab(2)">Next <i class="fas fa-arrow-right"></i></button></div></div>
                     <div class="product-tab-panel" data-product-tab="2"><div class="form-group"><label>Product Images (Max 5)</label><div class="image-upload-zone" onclick="document.getElementById('prod-images').click()"><i class="fas fa-cloud-upload-alt fa-2x"></i><p>Click to upload images</p></div><input type="file" id="prod-images" multiple accept="image/*" style="display:none" onchange="handleImageSelect(this)"><div id="image-preview" class="image-preview-grid"></div></div><div class="product-form-actions"><button type="button" class="btn-secondary" onclick="setProductTab(1)">Back</button><button type="button" class="btn-primary" onclick="setProductTab(3)">Next <i class="fas fa-arrow-right"></i></button></div></div>
                     <div class="product-tab-panel" data-product-tab="3"><section class="variation-editor" aria-labelledby="variation-heading"><div class="variation-editor-header"><div><span class="form-eyebrow">OPTIONAL</span><h3 id="variation-heading">Book options</h3><p>Add Box Set, Single, Set, or any format with its own price, stock, and images.</p></div><button type="button" class="btn-secondary add-variation-btn" onclick="addVariation()"><i class="fas fa-plus"></i> Add option</button></div><div id="variations-list" class="variations-list"><div class="variation-empty"><i class="fas fa-layer-group"></i><span>No options added yet</span><small>Use one when the same book has different formats.</small></div></div></section><div class="product-form-actions"><button type="button" class="btn-secondary" onclick="setProductTab(2)">Back</button><button type="submit" class="btn-primary">Publish Product</button></div></div>
                 </form>`;
@@ -678,66 +678,15 @@
                 });
                 const rates = await res.json();
 
+                const nationwide = rates.find(r => r.state === 'ALL' && r.city === 'ALL' && r.township === 'ALL') || rates[0];
                 document.getElementById('shipping-config').innerHTML = `
-                    <div class="form-group">
-                        <label>တိုင်းဒေသကြီး/ပြည်နယ် (State/Region)</label>
-                        <select id="ship-state" onchange="loadCities()">
-                            <option value="">တိုင်းဒေသကြီး / ပြည်နယ် ရွေးချယ်ပါ</option>
-                            <option value="Kachin">Kachin (ကချင်ပြည်နယ်)</option>
-                            <option value="Kayah">Kayah (ကယားပြည်နယ်)</option>
-                            <option value="Kayin">Kayin (ကရင်ပြည်နယ်)</option>
-                            <option value="Chin">Chin (ချင်းပြည်နယ်)</option>
-                            <option value="Sagaing">Sagaing (စစ်ကိုင်းတိုင်းဒေသကြီး)</option>
-                            <option value="Tanintharyi">Tanintharyi (တနင်္သာရီတိုင်းဒေသကြီး)</option>
-                            <option value="Bago">Bago (ပဲခူးတိုင်းဒေသကြီး)</option>
-                            <option value="Magway">Magway (မကွေးတိုင်းဒေသကြီး)</option>
-                            <option value="Mandalay">Mandalay (မန္တလေးတိုင်းဒေသကြီး)</option>
-                            <option value="Mon">Mon (မွန်ပြည်နယ်)</option>
-                            <option value="Rakhine">Rakhine (ရခိုင်ပြည်နယ်)</option>
-                            <option value="Yangon">Yangon (ရန်ကုန်တိုင်းဒေသကြီး)</option>
-                            <option value="Shan">Shan (ရှမ်းပြည်နယ်)</option>
-                            <option value="Ayeyarwady">Ayeyarwady (ဧရာဝတီတိုင်းဒေသကြီး)</option>
-                            <option value="Naypyitaw">Naypyitaw (နေပြည်တော်)</option>
-                        </select>
+                    <div class="nationwide-shipping-card">
+                        <div class="shipping-card-heading"><i class="fas fa-truck"></i><div><h4>မြန်မာပြည်တစ်ဝှမ်း ခန့်မှန်းပို့ဆောင်ခ</h4><p class="small text-secondary">မြို့နယ်အလိုက် ပို့ခမသတ်မှတ်တော့ပါ။ Buyer က ခန့်မှန်းငွေကိုသာ မြင်ပြီး ပစ္စည်းရောက်မှ ပေးချေပါမည်။</p></div></div>
+                        <div class="form-group"><label for="ship-fee">ခန့်မှန်းပို့ဆောင်ခ (ကျပ်)</label><input type="number" id="ship-fee" value="${Number(nationwide?.prepay_shipping_fee || 5000)}" min="0" step="500" placeholder="ဥပမာ ၅၀၀၀"></div>
+                        <label class="checkbox-label"><input type="checkbox" id="ship-no" ${Number(nationwide?.is_no_shipping) ? 'checked' : ''}> ပို့ဆောင်ခအခမဲ့</label>
+                        <button onclick="saveShippingRate()" class="btn-primary"><i class="fas fa-save"></i> Nationwide ပို့ခ သိမ်းမည်</button>
                     </div>
-                    <div class="form-group">
-                        <label>ခရိုင် (District)</label>
-                        <select id="ship-city" onchange="loadTownships()">
-                            <option value="">ခရိုင် ရွေးချယ်ပါ</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>မြို့နယ် (Township)</label>
-                        <select id="ship-township">
-                            <option value="">မြို့နယ် ရွေးချယ်ပါ</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>
-                            <input type="checkbox" id="ship-no"> ဤမြို့နယ်သို့ ပို့ဆောင်မည်မဟုတ်ပါ
-                        </label>
-                        <label>
-                            <input type="checkbox" id="ship-cod" checked> COD လက်ခံမည်
-                        </label>
-                        <label>
-                            <input type="checkbox" id="ship-prepay" checked> Wallet ကြိုတင်ပေးချေမှု လက်ခံမည်
-                        </label>
-                    </div>
-                    <div class="form-group">
-                        <label>ပို့ခ (ကျပ်)</label>
-                        <input type="number" id="ship-fee" value="5000" min="0" step="500" placeholder="ဥပမာ ၃၀၀၀">
-                    </div>
-                    <button onclick="saveShippingRate()" class="btn-primary">ဤမြို့နယ်ပို့ခကို သိမ်းမည်</button>
-                    <hr>
-                    <h4>သတ်မှတ်ပြီးသော ပို့ခများ</h4>
-                    <div style="max-height:200px;overflow-y:auto;">
-                        ${rates.map(r => `
-                            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
-                                <span>${r.state} → ${r.city || r.district} → ${r.township}</span>
-                                <strong>${Number(r.prepay_shipping_fee || 0).toLocaleString()} ကျပ်</strong>
-                            </div>
-                        `).join('') || '<p class="small text-secondary">No shipping rates configured</p>'}
-                    </div>
+                    <p class="small text-secondary shipping-rate-note"><i class="fas fa-info-circle"></i> Prepaid / Preorder / COD အားလုံးတွင် ပို့ခကို checkout အချိန်တွင် မဖြတ်ပါ။ ပစ္စည်းရောက်မှသာ ပေးချေရပါမည်။</p>
                 `;
             } catch (err) {
                 document.getElementById('shipping-config').innerHTML = `<p class="error-text">Error loading shipping rates: ${err.message}</p>`;
@@ -923,19 +872,10 @@
 
         async function saveShippingRate() {
             const body = {
-                state: document.getElementById('ship-state').value,
-                city: document.getElementById('ship-city').value,
-                township: document.getElementById('ship-township').value,
+                nationwide: true,
                 is_no_shipping: document.getElementById('ship-no').checked ? 1 : 0,
-                is_cod_allowed: document.getElementById('ship-cod').checked ? 1 : 0,
-                is_prepay_allowed: document.getElementById('ship-prepay').checked ? 1 : 0,
                 prepay_shipping_fee: parseFloat(document.getElementById('ship-fee').value) || 5000
             };
-
-            if (!body.state || !body.city || !body.township) {
-                alert('တိုင်းဒေသကြီး/ပြည်နယ်၊ ခရိုင်နှင့် မြို့နယ်ကို ရွေးချယ်ပါ');
-                return;
-            }
 
             try {
                 const res = await fetch(`${API_URL}/shipping`, {
@@ -1013,7 +953,8 @@
                 <section data-store-subpage="overview" class="settings-section"><h3>Store Profile & Information</h3><p class="small text-secondary">ဒီနေရာမှ ဆိုင်အမည်၊ ဆိုင်ပိုင်ရှင်အချက်အလက်နှင့် ဆိုင်ပုံများကို ပြင်ဆင်နိုင်ပါတယ်။</p><form onsubmit="saveStoreProfile(event)" class="product-form"><div class="form-group"><label>ဆိုင်အမည်</label><input name="store_name" required maxlength="160" value="${storeUser.store_name || ''}"></div><div class="form-group"><label>ဆိုင်ပိုင်ရှင်အမည်</label><input name="name" required maxlength="120" value="${storeUser.name || ''}"></div><div class="form-group"><label>Email</label><input name="email" type="email" maxlength="160" value="${storeUser.email || ''}"></div><div class="profile-image-picker"><label>ဆိုင် Logo ပုံ</label>${storeUser.logo ? `<img class="profile-image-preview" src="${storeUser.logo}" alt="Current logo">` : ''}<input name="logo" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><small class="text-secondary">JPG, PNG, WEBP, GIF — 5MB အထိ</small></div><div class="profile-image-picker"><label>ဆိုင် Banner ပုံ</label>${storeUser.banner ? `<img class="profile-banner-preview" src="${storeUser.banner}" alt="Current banner">` : ''}<input name="banner" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><small class="text-secondary">JPG, PNG, WEBP, GIF — 5MB အထိ</small></div><p class="small text-secondary">Phone: ${storeUser.phone || '-'} (Login phone ကို ဒီနေရာမှ မပြောင်းနိုင်ပါ)</p><button class="btn-primary" type="submit">Save Store Profile</button></form></section>
                 <section data-store-subpage="password" class="settings-section" style="display:none;margin-top:16px;"><h3>ဆိုင် Password Code</h3><p class="small text-secondary">ဝယ်သူများ ဆိုင်စာမျက်နှာဝင်ရန် အသုံးပြုမည့် ၆ လုံးကုဒ်။ ၁၅ ရက်တစ်ကြိမ် အလိုအလျောက်ပြောင်းပါမယ်။</p><div style="font-size:30px;font-weight:800;letter-spacing:8px;color:var(--primary);margin:12px 0;">${storePasswordCode?.code || '------'}</div><p class="small text-secondary">နောက်တစ်ကြိမ်ပြောင်းမည့်အချိန်: ${storePasswordCode?.next_rotation_at ? new Date(storePasswordCode.next_rotation_at).toLocaleString('my-MM') : '-'}</p></section>
                 <div data-store-subpage="commission" class="commission-display" style="display:none;">
-                    <h3>Commission Rates</h3>
+                    <h3>Commission Rates &amp; 25-Day Settlement</h3>
+                    <p class="small text-secondary">COD commission dues are payable every 25 days after the buyer confirms delivery. Use COD Settlement to submit payment for Admin review.</p>
                     <div class="commission-row"><span>0 - 10,000 Ks</span><span>6%</span></div>
                     <div class="commission-row"><span>10,001 - 20,000 Ks</span><span>5%</span></div>
                     <div class="commission-row"><span>20,001 - 50,000 Ks</span><span>4%</span></div>

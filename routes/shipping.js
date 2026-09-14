@@ -20,8 +20,18 @@ router.get('/', authenticate, requireRole('publisher', 'bookstore', 'commission_
 // Update/Create shipping rate
 router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
     try {
-        const { state, city, township, is_no_shipping, is_cod_allowed, is_prepay_allowed } = req.body;
+        const { state, city, township, is_no_shipping, is_cod_allowed, is_prepay_allowed, nationwide } = req.body;
         const fee = Number(req.body.prepay_shipping_fee);
+        if (nationwide) {
+            if (!Number.isFinite(fee) || fee < 0 || fee > 1000000) return res.status(400).json({ error: 'ပို့ခကို မှန်ကန်စွာ ထည့်ပါ' });
+            const noShipping = Number(is_no_shipping) === 1 ? 1 : 0;
+            await db.execute({ sql: `DELETE FROM shipping_rates WHERE seller_id = ?`, args: [req.user.seller_id] });
+            await db.execute({
+                sql: `INSERT INTO shipping_rates (seller_id, state, city, township, is_no_shipping, is_cod_allowed, is_prepay_allowed, prepay_shipping_fee) VALUES (?, 'ALL', 'ALL', 'ALL', ?, 1, 1, ?)`,
+                args: [req.user.seller_id, noShipping, fee]
+            });
+            return res.json({ success: true, nationwide: true, estimated_shipping_fee: noShipping ? 0 : fee });
+        }
         if (!String(state || '').trim() || !String(city || '').trim() || !String(township || '').trim()) return res.status(400).json({ error: 'ပြည်နယ်၊ ခရိုင်နှင့် မြို့နယ်ကို ရွေးချယ်ပါ' });
         if (!Number.isFinite(fee) || fee < 0 || fee > 1000000) return res.status(400).json({ error: 'ပို့ခကို မှန်ကန်စွာ ထည့်ပါ' });
         const noShipping = Number(is_no_shipping) === 1 ? 1 : 0;

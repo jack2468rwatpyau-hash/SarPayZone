@@ -1760,3 +1760,30 @@ button, .btn-primary, .btn-secondary, .filter-btn, .nav-item { min-height: 40px;
     .shop-identity img { width: 48px; height: 48px; }
     .product-grid { gap: 10px; }
 }
+
+/* Compact seller product form: all fields stay on one page with minimal scrolling. */
+.single-view-product-form { display:grid; gap:10px; padding:12px; }
+.single-view-product-form .product-tab-panel { display:block !important; padding:0; border:0; }
+.single-view-product-form .product-tab-panel + .product-tab-panel { margin-top:0; }
+.single-view-product-form .product-form-actions button:not([type="submit"]) { display:none; }
+.single-view-product-form .legacy-sale-type-field { display:none; }
+.single-view-product-form .sale-type-top { grid-column:1 / -1; }
+.single-view-product-form .product-tab-panel[data-product-tab="0"],
+.single-view-product-form .product-tab-panel[data-product-tab="1"] { display:grid !important; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
+.single-view-product-form .product-tab-panel[data-product-tab="0"] .form-group:nth-last-of-type(1),
+.single-view-product-form .product-tab-panel[data-product-tab="1"] .sale-extra-fields { grid-column:1 / -1; }
+.single-view-product-form .sale-extra-fields { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
+.single-view-product-form .product-tab-panel[data-product-tab="2"],
+.single-view-product-form .product-tab-panel[data-product-tab="3"] { margin-top:2px; }
+.single-view-product-form .form-group { margin-bottom:0; }
+.single-view-product-form label, .single-view-product-form input, .single-view-product-form select, .single-view-product-form textarea { font-size:12px; }
+.single-view-product-form input, .single-view-product-form select, .single-view-product-form textarea { padding:8px 9px; }
+.single-view-product-form .image-upload-zone { min-height:76px; padding:12px; }
+.single-view-product-form .variation-editor { padding:10px; }
+.nationwide-shipping-card { display:grid; gap:10px; padding:12px; border:1px solid var(--border); border-radius:10px; background:var(--surface); }
+.shipping-card-heading { display:flex; gap:10px; align-items:flex-start; }
+.shipping-card-heading i { color:var(--primary); margin-top:3px; }
+.shipping-card-heading h4 { margin:0 0 3px; font-size:14px; }
+.shipping-card-heading p { margin:0; }
+.shipping-rate-note { margin-top:10px; line-height:1.5; }
+@media (max-width:560px) { .single-view-product-form .product-tab-panel[data-product-tab="0"], .single-view-product-form .product-tab-panel[data-product-tab="1"], .single-view-product-form .sale-extra-fields { grid-template-columns:1fr 1fr; } }
