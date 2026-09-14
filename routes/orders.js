@@ -358,13 +358,16 @@ router.get('/seller', authenticate, requireRole('publisher', 'bookstore', 'commi
 router.get('/seller/analytics', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
     try {
         const sellerId = req.user.seller_id;
-        const [daily, monthly, yearly, topProducts] = await Promise.all([
+        const [daily, monthly, weekly, yearly, topProducts] = await Promise.all([
             db.execute({ sql: `SELECT date(created_at) AS label, COALESCE(SUM(total_amount), 0) AS sales, COALESCE(SUM(quantity), 0) AS quantity
                 FROM orders WHERE seller_id = ? AND payment_status = 'paid' AND order_status <> 'cancelled' AND date(created_at) >= date('now', '-6 days')
                 GROUP BY date(created_at) ORDER BY label`, args: [sellerId] }),
             db.execute({ sql: `SELECT strftime('%Y-%m', created_at) AS label, COALESCE(SUM(total_amount), 0) AS sales, COALESCE(SUM(quantity), 0) AS quantity
                 FROM orders WHERE seller_id = ? AND payment_status = 'paid' AND order_status <> 'cancelled' AND date(created_at) >= date('now', '-11 months')
                 GROUP BY strftime('%Y-%m', created_at) ORDER BY label`, args: [sellerId] }),
+            db.execute({ sql: `SELECT strftime('%Y-W%W', created_at) AS label, COALESCE(SUM(total_amount), 0) AS sales, COALESCE(SUM(quantity), 0) AS quantity
+                FROM orders WHERE seller_id = ? AND payment_status = 'paid' AND order_status <> 'cancelled' AND date(created_at) >= date('now', '-11 weeks')
+                GROUP BY strftime('%Y-W%W', created_at) ORDER BY label`, args: [sellerId] }),
             db.execute({ sql: `SELECT strftime('%Y', created_at) AS label, COALESCE(SUM(total_amount), 0) AS sales, COALESCE(SUM(quantity), 0) AS quantity
                 FROM orders WHERE seller_id = ? AND payment_status = 'paid' AND order_status <> 'cancelled' AND date(created_at) >= date('now', '-4 years')
                 GROUP BY strftime('%Y', created_at) ORDER BY label`, args: [sellerId] }),
@@ -373,10 +376,31 @@ router.get('/seller/analytics', authenticate, requireRole('publisher', 'bookstor
                 WHERE o.seller_id = ? AND o.payment_status = 'paid' AND o.order_status <> 'cancelled'
                 GROUP BY o.product_id ORDER BY quantity DESC, sales DESC LIMIT 5`, args: [sellerId] })
         ]);
-        res.json({ daily: daily.rows, monthly: monthly.rows, yearly: yearly.rows, top_products: topProducts.rows });
+        res.json({ daily: daily.rows, weekly: weekly.rows, monthly: monthly.rows, yearly: yearly.rows, top_products: topProducts.rows });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+});
+
+// Date-filtered sales report used by the seller dashboard charts and printable A4 view.
+router.get('/seller/sales-report', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
+    try {
+        const sellerId = req.user.seller_id;
+        const today = new Date().toISOString().slice(0, 10);
+        const dateFrom = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date_from || '') ? req.query.date_from : today;
+        const dateTo = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date_to || '') ? req.query.date_to : today;
+        const result = await db.execute({
+            sql: `SELECT o.order_number, date(o.created_at) AS sale_date, p.title, COALESCE(p.author_name, '') AS author_name,
+                         o.quantity, o.total_amount, o.payment_method, o.order_status, u.name AS buyer_name
+                  FROM orders o JOIN products p ON p.book_id = o.product_id
+                  LEFT JOIN users u ON u.user_id = o.buyer_id
+                  WHERE o.seller_id = ? AND date(o.created_at) BETWEEN ? AND ?
+                    AND o.payment_status = 'paid' AND o.order_status <> 'cancelled'
+                  ORDER BY o.created_at ASC`,
+            args: [sellerId, dateFrom, dateTo]
+        });
+        res.json({ date_from: dateFrom, date_to: dateTo, rows: result.rows, total: result.rows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0), quantity: result.rows.reduce((sum, row) => sum + Number(row.quantity || 0), 0) });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // Buyer confirms COD delivery and optionally uploads a delivery photo.

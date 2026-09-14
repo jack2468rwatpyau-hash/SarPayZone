@@ -104,6 +104,21 @@
         .product-form-tabs { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-bottom:16px; background:var(--surface); border-radius:12px; padding:4px; position:sticky; top:56px; z-index:5; }
         .product-form-tabs .store-tab { border:0; border-radius:9px; padding:10px 4px; font-size:12px; }
         .product-form-tabs .store-tab.active { background:var(--card); box-shadow:var(--shadow); }
+        .sales-bar-chart { min-height:180px; display:flex; align-items:end; gap:8px; overflow-x:auto; padding:16px 4px 28px; border-bottom:1px solid var(--border); }
+        .sales-bar { min-width:42px; max-width:64px; position:relative; border:0; border-radius:7px 7px 0 0; background:var(--primary); color:#fff; cursor:pointer; padding:3px; transition:filter .15s; }
+        .sales-bar:hover { filter:brightness(1.18); }
+        .sales-bar span { position:absolute; bottom:100%; left:50%; transform:translateX(-50%); color:var(--text); font-size:10px; white-space:nowrap; }
+        .sales-bar small { position:absolute; top:100%; left:50%; transform:translateX(-50%) rotate(-35deg); transform-origin:top left; color:var(--text-secondary); white-space:nowrap; font-size:10px; }
+        .analytics-date-filter { display:flex; gap:8px; align-items:end; flex-wrap:wrap; }
+        .analytics-date-filter label { width:100%; font-weight:700; }
+        .analytics-date-filter input { padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); }
+        .a4-sales-report { background:#fff; color:#17231d; padding:24px; margin-top:18px; box-shadow:var(--shadow); }
+        .a4-sales-report table { width:100%; border-collapse:collapse; margin:16px 0; font-size:12px; }
+        .a4-sales-report th,.a4-sales-report td { border:1px solid #cbd5cf; padding:7px; text-align:left; }
+        .a4-sales-report th { background:#eaf1eb; }
+        .conv-avatar img { width:42px; height:42px; border-radius:50%; object-fit:cover; }
+        .chat-delete-btn { margin-left:auto; border:0; background:transparent; color:var(--danger); cursor:pointer; padding:10px; }
+        @media print { @page { size:A4 portrait; margin:12mm; } body * { visibility:hidden; } #a4-sales-report, #a4-sales-report * { visibility:visible; } #a4-sales-report { position:absolute; left:0; top:0; width:100%; box-shadow:none; } #a4-sales-report button { display:none; } }
     </style>
 </head>
 <body>
@@ -229,21 +244,15 @@
         }
 
         function renderSellerAnalytics(data) {
-            const series = [{ key: 'daily', title: 'Sales — Day', type: 'line' }, { key: 'monthly', title: 'Sales — Month', type: 'column' }, { key: 'yearly', title: 'Sales — Year', type: 'line' }];
-            const charts = series.map(seriesItem => {
-                const values = Array.isArray(data[seriesItem.key]) ? data[seriesItem.key] : [];
-                if (!values.length) return `<div class="analytics-card"><h3>${seriesItem.title}</h3><p class="empty-text">No paid sales data yet</p></div>`;
-                const max = Math.max(...values.map(value => Number(value.sales || 0)), 1);
-                if (seriesItem.type === 'column') {
-                    return `<div class="analytics-card"><h3>${seriesItem.title}</h3><div class="sales-column-chart">${values.map(value => `<div class="chart-column" style="height:${Math.max(4, Math.round(Number(value.sales || 0) / max * 126))}px" title="${value.label}: ${Number(value.sales || 0).toLocaleString()} Ks"><span>${Number(value.sales || 0).toLocaleString()}</span></div>`).join('')}</div><div class="chart-labels">${values.map(value => `<span>${value.label}</span>`).join('')}</div></div>`;
-                }
-                const width = 640; const height = 180; const points = values.map((value, index) => `${values.length > 1 ? Math.round(index * width / (values.length - 1)) : width / 2},${Math.round(height - (Number(value.sales || 0) / max) * 162)}`).join(' ');
-                return `<div class="analytics-card"><h3>${seriesItem.title}</h3><svg class="sales-line-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${seriesItem.title}"><polyline points="${points}" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></polyline>${values.map((value, index) => `<circle cx="${values.length > 1 ? Math.round(index * width / (values.length - 1)) : width / 2}" cy="${Math.round(height - (Number(value.sales || 0) / max) * 162)}" r="4" fill="currentColor"><title>${value.label}: ${Number(value.sales || 0).toLocaleString()} Ks</title></circle>`).join('')}</svg><div class="chart-labels">${values.map(value => `<span>${value.label}</span>`).join('')}</div></div>`;
-            }).join('');
+            const chart = (key, title, mode) => { const values = Array.isArray(data[key]) ? data[key] : []; const max = Math.max(...values.map(v => Number(v.sales || 0)), 1); return `<div class="analytics-card"><h3>${title}</h3><p class="small text-secondary">ဘားကိုနှိပ်ပါက A4 အရောင်းစာရင်း ပြပါမယ်။</p>${values.length ? `<div class="sales-bar-chart">${values.map(value => { const end = mode === 'day' ? value.label : (mode === 'week' ? value.label : value.label + '-28'); return `<button class="sales-bar" style="height:${Math.max(8, Math.round(Number(value.sales || 0) / max * 150))}px" title="${value.label}: ${Number(value.sales || 0).toLocaleString()} Ks" onclick="openSalesReport('${value.label}', '${mode}')"><span>${Number(value.sales || 0).toLocaleString()}</span><small>${value.label}</small></button>`; }).join('')}</div>` : '<p class="empty-text">No paid sales data yet</p>'}</div>`; };
+            const charts = chart('daily', 'Daily Sales', 'day') + chart('weekly', 'Weekly Sales', 'week');
             const best = data.top_products?.[0]?.quantity || 1;
             const topProducts = (data.top_products || []).map((product, index) => `<div class="top-product-row"><div class="top-product-name">${index + 1}. ${escapeSellerProductText(product.title || 'Product')}</div><strong>${Number(product.quantity || 0).toLocaleString()} sold</strong><div class="top-product-bar"><i style="width:${Math.min(100, Number(product.quantity || 0) / best * 100)}%"></i></div></div>`).join('') || '<p class="empty-text">No paid sales data yet</p>';
-            return `<section class="seller-analytics"><div class="analytics-heading"><h2>Sales Dashboard</h2><span>Paid orders only</span></div><div class="analytics-grid">${charts}</div><div class="analytics-card top-products-card"><h3>Best-selling products</h3>${topProducts}</div></section>`;
+            return `<section class="seller-analytics"><div class="analytics-heading"><h2>Sales Dashboard</h2><span>Paid orders only</span></div><div class="analytics-card analytics-date-filter"><label>ကြည့်မည့်ကာလ</label><input id="analytics-from" type="date"><input id="analytics-to" type="date"><button class="btn-primary" onclick="reloadSellerAnalytics()">ကြည့်မည်</button></div><div class="analytics-grid">${charts}</div><div class="analytics-card top-products-card"><h3>Best-selling products</h3>${topProducts}</div><div id="sales-report-panel"></div></section>`;
         }
+
+        async function reloadSellerAnalytics() { const from = document.getElementById('analytics-from')?.value; const to = document.getElementById('analytics-to')?.value; if (!from || !to) return alert('နေ့စွဲနှစ်ခုလုံး ရွေးပါ'); const res = await fetch(`${API_URL}/orders/seller/sales-report?date_from=${from}&date_to=${to}`, { headers: { 'Authorization': `Bearer ${storeToken}` } }); const report = await res.json(); if (!res.ok) return alert(report.error || 'Unable to load sales report'); const dailyMap = {}; const weeklyMap = {}; (report.rows || []).forEach(row => { dailyMap[row.sale_date] = (dailyMap[row.sale_date] || 0) + Number(row.total_amount || 0); const date = new Date(`${row.sale_date}T00:00:00`); date.setDate(date.getDate() - date.getDay()); const week = date.toISOString().slice(0, 10); weeklyMap[week] = (weeklyMap[week] || 0) + Number(row.total_amount || 0); }); const data = { daily: Object.entries(dailyMap).map(([label, sales]) => ({ label, sales })), weekly: Object.entries(weeklyMap).map(([label, sales]) => ({ label, sales })), top_products: [] }; document.getElementById('store-content').innerHTML = `<div class="store-header"><h2>${storeUser.store_name || storeUser.name}</h2></div>${renderSellerAnalytics(data)}`; }
+        async function openSalesReport(label, mode) { const from = label; const end = new Date(`${label}T00:00:00`); if (mode === 'week') end.setDate(end.getDate() + 6); const to = end.toISOString().slice(0, 10); const res = await fetch(`${API_URL}/orders/seller/sales-report?date_from=${from}&date_to=${to}`, { headers: { 'Authorization': `Bearer ${storeToken}` } }); const data = await res.json(); if (!res.ok) return alert(data.error || 'Unable to load sales report'); const rows = data.rows || []; document.getElementById('sales-report-panel').innerHTML = `<div class="a4-sales-report" id="a4-sales-report"><h2>${storeUser.store_name || 'Store'} — Sales Report</h2><p>${data.date_from} to ${data.date_to}</p><table><thead><tr><th>Date</th><th>Order</th><th>Book</th><th>Author</th><th>Buyer</th><th>Qty</th><th>Total Ks</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r.sale_date}</td><td>${r.order_number}</td><td>${escapeSellerProductText(r.title)}</td><td>${escapeSellerProductText(r.author_name)}</td><td>${escapeSellerProductText(r.buyer_name)}</td><td>${r.quantity}</td><td>${Number(r.total_amount || 0).toLocaleString()}</td></tr>`).join('') || '<tr><td colspan="7">No sales</td></tr>'}</tbody></table><strong>Total: ${Number(data.total || 0).toLocaleString()} Ks</strong><button class="btn-primary" onclick="window.print()">Print / Save A4 PDF</button></div>`; document.getElementById('sales-report-panel').scrollIntoView({ behavior: 'smooth' }); }
 
         function renderOrderCard(o) {
             const statusClass = o.order_status || 'new';
@@ -581,15 +590,17 @@
             container.innerHTML = `<div class="chat-page"><h2>Shop Messages</h2><div id="store-conversation-list" class="conversation-list"><p class="loading">Loading messages...</p></div></div>`;
             const res = await fetch(`${API_URL}/chat/conversations`, { headers: { 'Authorization': `Bearer ${storeToken}` } });
             const convs = await res.json();
-            document.getElementById('store-conversation-list').innerHTML = convs.map(c => `<div class="conversation-item" onclick="openStoreChat(${c.conversation_id})"><div class="conv-avatar"><i class="fas fa-user"></i></div><div class="conv-info"><h4>Conversation #${c.conversation_id}</h4><p>${String(c.last_message || 'No messages yet').replace(/[&<>"']/g, '')}</p><span>${c.last_message_time ? new Date(c.last_message_time).toLocaleString() : ''}</span></div></div>`).join('') || '<p class="empty-text">No conversations yet</p>';
+            document.getElementById('store-conversation-list').innerHTML = convs.map(c => `<div class="conversation-item" onclick="openStoreChat(${c.conversation_id})"><div class="conv-avatar">${c.peer_profile?.image ? `<img src="${escapeSellerProductText(c.peer_profile.image)}" alt="">` : '<i class="fas fa-user"></i>'}</div><div class="conv-info"><h4>${escapeSellerProductText(c.peer_profile?.display_name || `Conversation #${c.conversation_id}`)}</h4><small>${c.peer_profile?.type === 'buyer' ? 'ဝယ်သူ' : 'ဆိုင်'}${c.peer_profile?.public_id ? ` · ${escapeSellerProductText(c.peer_profile.public_id)}` : ''}</small><p>${String(c.last_message || 'No messages yet').replace(/[&<>"']/g, '')}</p><span>${c.last_message_time ? new Date(c.last_message_time).toLocaleString() : ''}</span></div><button class="chat-delete-btn" aria-label="Delete chat" onclick="event.stopPropagation(); deleteStoreChat(${c.conversation_id})"><i class="fas fa-trash-alt"></i></button></div>`).join('') || '<p class="empty-text">No conversations yet</p>';
         }
 
         async function openStoreChat(conversationId) {
             const main = document.getElementById('store-content');
-            main.innerHTML = `<div class="chat-page"><button class="btn-text" onclick="navigateStore('chat')"><i class="fas fa-arrow-left"></i> Back</button><h2>Conversation #${conversationId}</h2><div id="store-message-list" class="message-list">Loading...</div><form onsubmit="sendStoreChat(event, ${conversationId})" class="chat-compose"><input id="store-chat-input" required maxlength="2000" placeholder="Write a reply..."><button class="btn-primary">Send</button></form></div>`;
+            main.innerHTML = `<div class="chat-page"><button class="btn-text" onclick="navigateStore('chat')"><i class="fas fa-arrow-left"></i> Back</button><h2 id="store-chat-peer-title">Conversation #${conversationId}</h2><div id="store-message-list" class="message-list">Loading...</div><form onsubmit="sendStoreChat(event, ${conversationId})" class="chat-compose"><input id="store-chat-input" required maxlength="2000" placeholder="Write a reply..."><button class="btn-primary">Send</button></form></div>`;
             const res = await fetch(`${API_URL}/chat/${conversationId}`, { headers: { 'Authorization': `Bearer ${storeToken}` } });
             const messages = await res.json();
             if (!res.ok) return document.getElementById('store-message-list').textContent = messages.error || 'Unable to load messages';
+            const peer = messages.find(m => String(m.sender_id) !== `S${storeUser.seller_id}`)?.sender_name;
+            if (peer) document.getElementById('store-chat-peer-title').textContent = peer;
             document.getElementById('store-message-list').innerHTML = messages.map(m => `<div class="message-bubble"><div>${String(m.content || '').replace(/[&<>"']/g, '')}</div><small>${String(m.sender_name || '')}</small></div>`).join('') || 'No messages yet';
         }
 
@@ -597,6 +608,14 @@
             event.preventDefault(); const input = document.getElementById('store-chat-input'); const content = input.value.trim(); if (!content) return;
             const res = await fetch(`${API_URL}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${storeToken}` }, body: JSON.stringify({ conversation_id: conversationId, content }) });
             const data = await res.json(); if (!res.ok) return alert(data.error || 'Unable to send message'); openStoreChat(conversationId);
+        }
+
+        async function deleteStoreChat(conversationId) {
+            if (!confirm('ဒီ chat ကို သင့် chat list မှ ဖျက်မလား?')) return;
+            const res = await fetch(`${API_URL}/chat/conversations/${conversationId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${storeToken}` } });
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'Unable to delete chat');
+            renderStoreChat(document.getElementById('store-content'));
         }
 
         // ===== SETTINGS TAB =====

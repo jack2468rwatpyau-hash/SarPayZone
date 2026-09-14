@@ -502,9 +502,10 @@
             
             document.getElementById('conversation-list').innerHTML = filtered.map(c => `
                 <div class="conversation-item" onclick="openChat(${c.conversation_id})">
-                    <div class="conv-avatar"><i class="fas fa-user-circle"></i></div>
+                    <div class="conv-avatar">${c.peer_profile?.image ? `<img src="${escapeChatText(c.peer_profile.image)}" alt="">` : `<i class="fas fa-${c.peer_profile?.type === 'seller' ? 'store' : 'user-circle'}"></i>`}</div>
                     <div class="conv-info">
-                        <h4>Conversation #${c.conversation_id}</h4>
+                        <h4>${escapeChatText(c.peer_profile?.display_name || `Conversation #${c.conversation_id}`)}</h4>
+                        <small>${c.peer_profile?.type === 'seller' ? 'ဆိုင်' : 'ဝယ်သူ'}${c.peer_profile?.public_id ? ` · ${escapeChatText(c.peer_profile.public_id)}` : ''}</small>
                         <p class="conv-preview">${escapeChatText(c.last_message || 'No messages yet')}</p>
                         <span class="conv-time">${c.last_message_time ? new Date(c.last_message_time).toLocaleDateString() : ''}</span>
                     </div>
@@ -515,12 +516,14 @@
 
         async function openChat(conversationId) {
             const main = document.getElementById('main-content');
-            main.innerHTML = `<div class="chat-page"><button class="btn-text" onclick="navigateTo('chat')"><i class="fas fa-arrow-left"></i> Back to messages</button><h2>Conversation #${conversationId}</h2><div id="message-list" class="message-list"><p class="loading">Loading messages...</p></div><form class="chat-compose" onsubmit="sendChatMessage(event, ${conversationId})"><input id="chat-message-input" required maxlength="2000" placeholder="Write a message..."><button class="btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Send</button></form></div>`;
+            main.innerHTML = `<div class="chat-page"><button class="btn-text" onclick="navigateTo('chat')"><i class="fas fa-arrow-left"></i> Back to messages</button><h2 id="chat-peer-title">Conversation #${conversationId}</h2><div id="message-list" class="message-list"><p class="loading">Loading messages...</p></div><form class="chat-compose" onsubmit="sendChatMessage(event, ${conversationId})"><input id="chat-message-input" required maxlength="2000" placeholder="Write a message..."><button class="btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Send</button></form></div>`;
             try {
                 const res = await fetch(`${API_URL}/chat/${conversationId}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
                 const messages = await res.json();
                 if (!res.ok) throw new Error(messages.error || 'Unable to load messages');
                 if (!Array.isArray(messages)) throw new Error('Unable to load messages');
+                const peer = messages.find(m => String(m.sender_id) !== myId && m.sender_name)?.sender_name;
+                if (peer) document.getElementById('chat-peer-title').textContent = peer;
                 const myId = `U${currentUser.user_id || currentUser.id}`;
                 document.getElementById('message-list').innerHTML = messages.map(m => `<div class="message-bubble ${String(m.sender_id) === myId ? 'mine' : 'theirs'}"><div>${m.message_type === 'image' ? `<img src="${escapeChatText(m.content)}" alt="Chat image">` : escapeChatText(m.content)}</div><small>${m.sender_public_id ? `<button class="chat-user-link" onclick="navigateTo('user', {publicId: '${escapeChatText(m.sender_public_id)}'})">${escapeChatText(m.sender_name || 'View profile')}</button>` : escapeChatText(m.sender_name || '')} · ${m.created_at ? new Date(m.created_at).toLocaleString() : ''}</small></div>`).join('') || '<p class="empty-text">No messages yet</p>';
             } catch (err) { document.getElementById('message-list').innerHTML = `<p class="error-text">${escapeChatText(err.message)}</p>`; }

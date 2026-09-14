@@ -8,6 +8,7 @@ const { uploadToCloudinary } = require('../utils/cloudinary');
 const { sendPushNotification } = require('../utils/webpush');
 
 let visibilityTableReady;
+let sellerVisibilityTableReady;
 function ensureVisibilityTable() {
     visibilityTableReady ||= db.execute({ sql: `CREATE TABLE IF NOT EXISTS conversation_hidden (
         conversation_id INTEGER NOT NULL,
@@ -18,6 +19,17 @@ function ensureVisibilityTable() {
         FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
     )` });
     return visibilityTableReady;
+}
+
+function ensureSellerVisibilityTable() {
+    sellerVisibilityTableReady ||= db.execute({ sql: `CREATE TABLE IF NOT EXISTS conversation_hidden_sellers (
+        conversation_id INTEGER NOT NULL,
+        seller_id INTEGER NOT NULL,
+        hidden_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (conversation_id, seller_id),
+        FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE
+    )` });
+    return sellerVisibilityTableReady;
 }
 
 const getIdentity = (user) => {
@@ -35,10 +47,27 @@ const getConversationForUser = async (conversationId, user) => {
     return result.rows[0];
 };
 
+async function getPeerProfile(participants, user) {
+    const identity = getIdentity(user).identifier;
+    const peer = (JSON.parse(participants || '[]')).find(value => value !== identity);
+    if (!peer) return null;
+    const id = Number(peer.slice(1));
+    if (peer.startsWith('S')) {
+        const result = await db.execute({ sql: `SELECT seller_id AS id, 'seller' AS type, store_name AS display_name, logo AS image, public_id FROM sellers WHERE seller_id = ?`, args: [id] });
+        return result.rows[0] || null;
+    }
+    if (peer.startsWith('U')) {
+        const result = await db.execute({ sql: `SELECT user_id AS id, 'buyer' AS type, name AS display_name, profile_image_id AS image, public_id FROM users WHERE user_id = ?`, args: [id] });
+        return result.rows[0] || null;
+    }
+    return null;
+}
+
 // Get conversations
 router.get('/conversations', authenticate, async (req, res) => {
     try {
         await ensureVisibilityTable();
+        await ensureSellerVisibilityTable();
         const userId = req.user.user_id || req.user.id;
         const userPrefix = req.user.role === 'buyer' ? 'U' : 'S';
         const userIdentifier = `${userPrefix}${userId}`;
@@ -50,9 +79,11 @@ router.get('/conversations', authenticate, async (req, res) => {
                   FROM conversations c 
                   WHERE JSON_EXTRACT(c.participants, '$') LIKE ?
                     AND NOT EXISTS (SELECT 1 FROM conversation_hidden h WHERE h.conversation_id = c.conversation_id AND h.user_id = ?)
+                    AND NOT EXISTS (SELECT 1 FROM conversation_hidden_sellers sh WHERE sh.conversation_id = c.conversation_id AND sh.seller_id = ?)
                   ORDER BY last_message_at DESC`,
-            args: [`%${userIdentifier}%`, userId]
+            args: [`%${userIdentifier}%`, userId, req.user.seller_id || -1]
         });
+        for (const conversation of convs.rows) conversation.peer_profile = await getPeerProfile(conversation.participants, req.user);
         res.json(convs.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -72,8 +103,14 @@ router.get('/:conversationId', authenticate, async (req, res) => {
                   END as sender_name,
                   CASE
                     WHEN m.sender_type = 'user' THEN (SELECT public_id FROM users WHERE user_id = CAST(SUBSTR(m.sender_id, 2) AS INTEGER))
+                    WHEN m.sender_type = 'seller' THEN (SELECT public_id FROM sellers WHERE seller_id = CAST(SUBSTR(m.sender_id, 2) AS INTEGER))
                     ELSE NULL
-                  END as sender_public_id
+                  END as sender_public_id,
+                  CASE
+                    WHEN m.sender_type = 'user' THEN (SELECT profile_image_id FROM users WHERE user_id = CAST(SUBSTR(m.sender_id, 2) AS INTEGER))
+                    WHEN m.sender_type = 'seller' THEN (SELECT logo FROM sellers WHERE seller_id = CAST(SUBSTR(m.sender_id, 2) AS INTEGER))
+                    ELSE NULL
+                  END as sender_image
                   FROM messages m 
                   WHERE m.conversation_id = ? ORDER BY m.created_at ASC`,
             args: [req.params.conversationId]
@@ -89,14 +126,14 @@ router.get('/:conversationId', authenticate, async (req, res) => {
 router.delete('/conversations/:conversationId', authenticate, async (req, res) => {
     try {
         await ensureVisibilityTable();
-        const userId = req.user.user_id || req.user.id;
-        if (req.user.role !== 'buyer' || !await getConversationForUser(req.params.conversationId, req.user)) {
-            return res.status(403).json({ error: 'Only a participating buyer can delete this chat' });
-        }
-        await db.execute({
-            sql: `INSERT OR IGNORE INTO conversation_hidden (conversation_id, user_id) VALUES (?, ?)`,
-            args: [Number(req.params.conversationId), userId]
-        });
+        const conversationId = Number(req.params.conversationId);
+        if (!await getConversationForUser(conversationId, req.user)) return res.status(403).json({ error: 'Not a conversation participant' });
+        if (req.user.role === 'buyer') {
+            await db.execute({ sql: `INSERT OR IGNORE INTO conversation_hidden (conversation_id, user_id) VALUES (?, ?)`, args: [conversationId, req.user.user_id || req.user.id] });
+        } else if (req.user.seller_id) {
+            await ensureSellerVisibilityTable();
+            await db.execute({ sql: `INSERT OR IGNORE INTO conversation_hidden_sellers (conversation_id, seller_id) VALUES (?, ?)`, args: [conversationId, req.user.seller_id] });
+        } else return res.status(403).json({ error: 'Only a participating buyer or seller can delete this chat' });
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
