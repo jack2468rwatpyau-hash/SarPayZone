@@ -126,19 +126,20 @@ router.patch('/:id', authenticate, requireRole('publisher', 'bookstore', 'commis
     }
 });
 
-// Soft-delete a product so historical orders and foreign-key references remain intact
+// Permanently remove a seller's product from the catalog. Historical orders are
+// retained, but their optional product reference is detached before deletion.
 router.delete('/:id', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
     try {
-        const result = await db.execute({
-            sql: `UPDATE products SET is_active = 0, updated_at = CURRENT_TIMESTAMP
-                  WHERE book_id = ? AND seller_id = ?`,
-            args: [req.params.id, req.user.seller_id]
-        });
-        if (!result.rowsAffected) return res.status(404).json({ error: 'Product not found' });
-        res.json({ success: true, book_id: Number(req.params.id) });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+        const bookId = Number(req.params.id);
+        if (!Number.isSafeInteger(bookId)) return res.status(400).json({ error: 'Invalid product ID' });
+        const owned = await db.execute({ sql: `SELECT book_id FROM products WHERE book_id = ? AND seller_id = ?`, args: [bookId, req.user.seller_id] });
+        if (!owned.rows.length) return res.status(404).json({ error: 'Product not found' });
+        await db.execute({ sql: `UPDATE orders SET product_id = NULL, variation_id = NULL WHERE product_id = ?`, args: [bookId] });
+        await db.execute({ sql: `UPDATE resell_listings SET product_id = NULL WHERE product_id = ?`, args: [bookId] });
+        await db.execute({ sql: `DELETE FROM product_variations WHERE product_id = ?`, args: [bookId] });
+        await db.execute({ sql: `DELETE FROM products WHERE book_id = ? AND seller_id = ?`, args: [bookId, req.user.seller_id] });
+        res.json({ success: true, deleted: true, book_id: bookId });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // Get single product

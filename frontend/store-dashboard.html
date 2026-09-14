@@ -104,6 +104,8 @@
         .product-form-tabs { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-bottom:16px; background:var(--surface); border-radius:12px; padding:4px; position:sticky; top:56px; z-index:5; }
         .product-form-tabs .store-tab { border:0; border-radius:9px; padding:10px 4px; font-size:12px; }
         .product-form-tabs .store-tab.active { background:var(--card); box-shadow:var(--shadow); }
+        .store-profile-form { min-height:640px; }
+        .store-profile-form > button[type="submit"] { margin-top:auto; }
         .sales-bar-chart { min-height:180px; display:flex; align-items:end; gap:8px; overflow-x:auto; padding:16px 4px 28px; border-bottom:1px solid var(--border); }
         .sales-bar { min-width:42px; max-width:64px; position:relative; border:0; border-radius:7px 7px 0 0; background:var(--primary); color:#fff; cursor:pointer; padding:3px; transition:filter .15s; }
         .sales-bar:hover { filter:brightness(1.18); }
@@ -138,7 +140,7 @@
                 <button onclick="navigateStore('products');toggleStoreMenu(false)"><i class="fas fa-book"></i><span data-i18n="nav.products">ပစ္စည်းများ</span></button>
                 <button onclick="navigateStore('settings');toggleStoreMenu(false)"><i class="fas fa-cog"></i><span data-i18n="nav.settings">ဆက်တင်</span></button>
                 <button onclick="navigateStore('store');toggleStoreMenu(false)"><i class="fas fa-shop"></i><span data-i18n="nav.store">ဆိုင်</span></button>
-                <button onclick="navigateStore('wallet');toggleStoreMenu(false)"><i class="fas fa-wallet"></i><span>My Store Wallet</span></button>
+                <button onclick="navigateStore('wallet');toggleStoreMenu(false)"><i class="fas fa-wallet"></i><span data-i18n="nav.wallet">ဆိုင် Wallet</span></button>
                 <button onclick="navigateStore('chat');toggleStoreMenu(false)"><i class="fas fa-comments"></i><span data-i18n="nav.messages">စာတိုများ</span></button>
             </nav>
             <div class="drawer-footer"><span class="small text-secondary" data-i18n="lang.select">ဘာသာစကား</span><div class="language-switch"><button id="lang-my" onclick="setStoreLanguage('my')">မြန်မာ</button><button id="lang-en" onclick="setStoreLanguage('en')">English</button></div><button class="btn-text danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i><span data-i18n="nav.logout">ထွက်မည်</span></button></div>
@@ -149,7 +151,7 @@
 
     <script>
         const API_URL = 'https://sarpayzone-production.up.railway.app/api';
-        const SPZ_TRANSLATIONS = { my: { 'app.store_portal':'ဆိုင်ပေါ်တယ်','nav.menu':'မီနူး','nav.dashboard':'ဒက်ရှ်ဘုတ်','nav.orders':'အော်ဒါများ','nav.products':'ပစ္စည်းများ','nav.settings':'ဆက်တင်','nav.store':'ဆိုင်','nav.messages':'စာတိုများ','nav.logout':'ထွက်မည်','lang.select':'ဘာသာစကား','common.next':'ရှေ့သို့','common.back':'နောက်သို့','form.basic':'အခြေခံ','form.pricing':'ဈေးနှုန်း','form.images':'ပုံများ','form.options':'ရွေးချယ်စရာများ' }, en: { 'app.store_portal':'Store Portal','nav.menu':'Menu','nav.dashboard':'Dashboard','nav.orders':'Orders','nav.products':'Products','nav.settings':'Settings','nav.store':'Store','nav.messages':'Messages','nav.logout':'Logout','lang.select':'Language','common.next':'Next','common.back':'Back','form.basic':'Basic','form.pricing':'Pricing','form.images':'Images','form.options':'Options' } };
+        const SPZ_TRANSLATIONS = { my: { 'app.store_portal':'ဆိုင်ပေါ်တယ်','nav.menu':'မီနူး','nav.dashboard':'ဒက်ရှ်ဘုတ်','nav.orders':'အော်ဒါများ','nav.products':'ပစ္စည်းများ','nav.settings':'ဆက်တင်','nav.store':'ဆိုင်','nav.wallet':'ဆိုင် Wallet','nav.messages':'စာတိုများ','nav.logout':'ထွက်မည်','lang.select':'ဘာသာစကား','common.next':'ရှေ့သို့','common.back':'နောက်သို့','form.basic':'အခြေခံ','form.pricing':'ဈေးနှုန်း','form.images':'ပုံများ','form.options':'ရွေးချယ်စရာများ' }, en: { 'app.store_portal':'Store Portal','nav.menu':'Menu','nav.dashboard':'Dashboard','nav.orders':'Orders','nav.products':'Products','nav.settings':'Settings','nav.store':'Store','nav.wallet':'Store Wallet','nav.messages':'Messages','nav.logout':'Logout','lang.select':'Language','common.next':'Next','common.back':'Back','form.basic':'Basic','form.pricing':'Pricing','form.images':'Images','form.options':'Options' } };
         let storeLanguage = localStorage.getItem('spz_lang') || 'my';
         function t(key) { return SPZ_TRANSLATIONS[storeLanguage]?.[key] || SPZ_TRANSLATIONS.en[key] || key; }
         function setStoreLanguage(language) { storeLanguage = language === 'en' ? 'en' : 'my'; localStorage.setItem('spz_lang', storeLanguage); document.documentElement.lang = storeLanguage; document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); }); document.getElementById('lang-my')?.classList.toggle('active', storeLanguage === 'my'); document.getElementById('lang-en')?.classList.toggle('active', storeLanguage === 'en'); }
@@ -449,12 +451,12 @@
 
         async function deleteProduct(bookId) {
             const product = sellerProductsCache.find(item => Number(item.book_id) === Number(bookId));
-            if (!product || !confirm(`Remove "${product.title || 'this product'}" from the storefront?`)) return;
+            if (!product || !confirm(`"${product.title || 'ဒီပစ္စည်း'}" ကို အပြီးတိုင်ဖျက်မလား? ဖျက်ပြီးပါက ပြန်ယူ၍မရပါ။`)) return;
             try {
                 const res = await fetch(`${API_URL}/products/${bookId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${storeToken}` } });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Unable to delete product');
-                alert('Product removed from the storefront.');
+                alert('ပစ္စည်းကို အပြီးတိုင်ဖျက်ပြီးပါပြီ။');
                 await showProductList();
             } catch (err) {
                 alert(err.message);
@@ -1005,12 +1007,13 @@
                     <p>Monthly Commission: ${(storeUser.monthly_commission_due || 0).toLocaleString()} Ks</p>
                     <button onclick="payCommission()" class="btn-primary" style="margin-top:12px;width:auto;padding:10px 24px;">Pay Commission Now</button>
                 </div>
-                <div class="store-subnav"><button class="active" onclick="showStoreSubpage('overview')">Overview</button><button onclick="showStoreSubpage('commission')">Commission Rates</button><button onclick="showStoreSubpage('cod')">COD Settlement</button><button onclick="showStoreSubpage('withdrawal')">Withdrawal</button><button onclick="showStoreSubpage('password')">Password Code</button></div>
-                <section data-store-subpage="overview" class="settings-section"><h3>Store Profile & Information</h3><p class="small text-secondary">ဒီနေရာမှ ဆိုင်အမည်၊ ဆိုင်ပိုင်ရှင်အချက်အလက်နှင့် ဆိုင်ပုံများကို ပြင်ဆင်နိုင်ပါတယ်။</p><form onsubmit="saveStoreProfile(event)" class="product-form"><div class="form-group"><label>ဆိုင်အမည်</label><input name="store_name" required maxlength="160" value="${storeUser.store_name || ''}"></div><div class="form-group"><label>ဆိုင်ပိုင်ရှင်အမည်</label><input name="name" required maxlength="120" value="${storeUser.name || ''}"></div><div class="form-group"><label>Email</label><input name="email" type="email" maxlength="160" value="${storeUser.email || ''}"></div><div class="profile-image-picker"><label>ဆိုင် Logo ပုံ</label>${storeUser.logo ? `<img class="profile-image-preview" src="${storeUser.logo}" alt="Current logo">` : ''}<input name="logo" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><small class="text-secondary">JPG, PNG, WEBP, GIF — 5MB အထိ</small></div><div class="profile-image-picker"><label>ဆိုင် Banner ပုံ</label>${storeUser.banner ? `<img class="profile-banner-preview" src="${storeUser.banner}" alt="Current banner">` : ''}<input name="banner" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><small class="text-secondary">JPG, PNG, WEBP, GIF — 5MB အထိ</small></div><p class="small text-secondary">Phone: ${storeUser.phone || '-'} (Login phone ကို ဒီနေရာမှ မပြောင်းနိုင်ပါ)</p><button class="btn-primary" type="submit">Save Store Profile</button></form></section>
+                <div class="store-subnav"><button class="active" onclick="showStoreSubpage('overview')">အကျဉ်းချုပ်</button><button onclick="showStoreSubpage('commission')">ကော်မရှင်နှုန်းထား</button><button onclick="showStoreSubpage('password')">Password Code</button></div>
+                <section data-store-subpage="overview" class="settings-section"><h3>ဆိုင် Profile နှင့် အချက်အလက်</h3><p class="small text-secondary">ဒီနေရာမှ ဆိုင်အမည်၊ ဆိုင်ပိုင်ရှင်အချက်အလက်နှင့် ဆိုင်ပုံများကို ပြင်ဆင်နိုင်ပါတယ်။</p><form onsubmit="saveStoreProfile(event)" class="product-form store-profile-form"><div class="form-group"><label>ဆိုင်အမည်</label><input name="store_name" required maxlength="160" value="${storeUser.store_name || ''}"></div><div class="form-group"><label>ဆိုင်ပိုင်ရှင်အမည်</label><input name="name" required maxlength="120" value="${storeUser.name || ''}"></div><div class="form-group"><label>Email</label><input name="email" type="email" maxlength="160" value="${storeUser.email || ''}"></div><div class="profile-image-picker"><label>ဆိုင် Logo ပုံ</label>${storeUser.logo ? `<img class="profile-image-preview" src="${storeUser.logo}" alt="ဆိုင် Logo">` : ''}<input name="logo" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><small class="text-secondary">JPG, PNG, WEBP, GIF — 5MB အထိ</small></div><div class="profile-image-picker"><label>ဆိုင် Banner ပုံ</label>${storeUser.banner ? `<img class="profile-banner-preview" src="${storeUser.banner}" alt="ဆိုင် Banner">` : ''}<input name="banner" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><small class="text-secondary">JPG, PNG, WEBP, GIF — 5MB အထိ</small></div><p class="small text-secondary">ဖုန်း: ${storeUser.phone || '-'} (Login ဖုန်းနံပါတ်ကို ဒီနေရာမှ မပြောင်းနိုင်ပါ)</p><button class="btn-primary" type="submit">ဆိုင်အချက်အလက် သိမ်းမည်</button></form></section>
                 <section data-store-subpage="password" class="settings-section" style="display:none;margin-top:16px;"><h3>ဆိုင် Password Code</h3><p class="small text-secondary">ဝယ်သူများ ဆိုင်စာမျက်နှာဝင်ရန် အသုံးပြုမည့် ၆ လုံးကုဒ်။ ၁၅ ရက်တစ်ကြိမ် အလိုအလျောက်ပြောင်းပါမယ်။</p><div style="font-size:30px;font-weight:800;letter-spacing:8px;color:var(--primary);margin:12px 0;">${storePasswordCode?.code || '------'}</div><p class="small text-secondary">နောက်တစ်ကြိမ်ပြောင်းမည့်အချိန်: ${storePasswordCode?.next_rotation_at ? new Date(storePasswordCode.next_rotation_at).toLocaleString('my-MM') : '-'}</p></section>
                 <div data-store-subpage="commission" class="commission-display" style="display:none;">
-                    <h3>Commission Rates &amp; 25-Day Settlement</h3>
-                    <p class="small text-secondary">COD commission dues are payable every 25 days after the buyer confirms delivery. Use COD Settlement to submit payment for Admin review.</p>
+                    <h3>ကော်မရှင်နှုန်းထားနှင့် ပေးသွင်းရန်</h3>
+                    <p class="small text-secondary">လစဉ်ပေးရန်ရှိသော ကော်မရှင်ငွေကို အောက်တွင်ကြည့်ပြီး Pay Commission Now ကိုနှိပ်၍ ပေးသွင်းနိုင်ပါတယ်။</p>
+                    <div class="commission-row monthly-commission-row"><strong>Monthly Commission</strong><strong id="monthly-commission-display">${Number(storeUser.monthly_commission_due || 0).toLocaleString()} Ks</strong></div><button onclick="payCommission()" class="btn-primary">Pay Commission Now</button>
                     <div class="commission-row"><span>0 - 10,000 Ks</span><span>6%</span></div>
                     <div class="commission-row"><span>10,001 - 20,000 Ks</span><span>5%</span></div>
                     <div class="commission-row"><span>20,001 - 50,000 Ks</span><span>4%</span></div>
@@ -1018,43 +1021,12 @@
                     <div class="commission-row" style="border-bottom:none;"><span>Bookstore</span><span>2%</span></div>
                     <div class="commission-row" style="border-bottom:none;"><span>Commission Store</span><span>0%</span></div>
                 </div>
-                <section data-store-subpage="cod" class="settings-section cod-settlement-card" style="display:none;">
-                    <h3>COD Platform Settlement</h3>
-                    <p class="small text-secondary">Buyer pays cash to you. Submit the platform commission every 25 days.</p>
-                    <div id="cod-settlement-panel"><p class="small text-secondary">Loading COD settlement...</p></div>
-                </section>
-                <div data-store-subpage="withdrawal" class="settings-section" style="display:none;"><h3>My Store Wallet</h3><p class="small text-secondary">ငွေထုတ်ခြင်းကို My Store Wallet စာမျက်နှာမှသာ ပြုလုပ်နိုင်ပါသည်။</p><button onclick="navigateStore('wallet')" class="btn-primary">My Store Wallet သို့သွားမည်</button></div>
             `;
             document.querySelectorAll('.store-subnav button').forEach((button, index) => button.addEventListener('click', () => document.querySelectorAll('.store-subnav button').forEach((b, i) => b.classList.toggle('active', i === index))));
-            loadCodSettlement();
+            try { const res = await fetch(`${API_URL}/wallet/seller/summary`, { headers: { 'Authorization': `Bearer ${storeToken}` } }); const summary = await res.json(); if (res.ok && document.getElementById('monthly-commission-display')) document.getElementById('monthly-commission-display').textContent = `${Number(summary.seller?.monthly_commission_due || 0).toLocaleString()} Ks`; } catch (err) { console.warn('Commission summary unavailable'); }
         }
 
         function showStoreSubpage(page) { document.querySelectorAll('[data-store-subpage]').forEach(section => section.style.display = section.dataset.storeSubpage === page ? '' : 'none'); }
-
-        async function loadCodSettlement() {
-            const panel = document.getElementById('cod-settlement-panel');
-            if (!panel) return;
-            try {
-                const [settleRes, accountRes] = await Promise.all([
-                    fetch(`${API_URL}/settlements/seller/cod`, { headers: { 'Authorization': `Bearer ${storeToken}` } }),
-                    fetch(`${API_URL}/settlements/seller/payment-accounts`, { headers: { 'Authorization': `Bearer ${storeToken}` } })
-                ]);
-                const data = await settleRes.json();
-                const accounts = await accountRes.json();
-                const accountText = ['kpay', 'wavepay', 'ayapay'].map(k => accounts[k]?.phone ? `<li>${k.toUpperCase()}: ${accounts[k].name || ''} ${accounts[k].phone}</li>` : '').join('');
-                panel.innerHTML = `<div class="cod-due-summary"><span>Amount due every 25 days</span><strong>${Number(data.due || 0).toLocaleString()} Ks</strong><small>Late fee included: ${Number(data.late_fee || 0).toLocaleString()} Ks</small></div>${data.due > 0 ? `<div class="cod-payment-instructions"><strong>ပေးသွင်းရန် — Admin သို့ ငွေလွှဲပါ</strong><ul>${accountText || '<li>Admin payment accounts are not configured yet.</li>'}</ul></div><div class="form-row"><div class="form-group"><label>Payment wallet</label><select id="cod-pay-method"><option value="kpay">K-Pay</option><option value="wavepay">Wave Pay</option><option value="ayapay">AYA Pay</option></select></div><div class="form-group"><label>Amount (Ks)</label><input id="cod-pay-amount" type="number" value="${data.due}" readonly></div></div><div class="form-group"><label>Transaction reference</label><input id="cod-pay-reference" placeholder="Transaction ID / last 6 digits"></div><div class="form-group"><label>Note</label><input id="cod-pay-note" placeholder="Optional note"></div><button onclick="submitCodSettlement()" class="btn-primary">I have paid — submit for review</button>` : '<p class="success-text">No COD commission is currently due.</p>'}<h4>Recent submissions</h4>${(data.submissions || []).map(s => `<div class="cod-submission-row"><span>#${s.submission_id} · ${s.payment_method.toUpperCase()}</span><strong>${Number(s.amount).toLocaleString()} Ks · ${s.status}</strong></div>`).join('') || '<p class="small text-secondary">No submissions yet.</p>'}`;
-            } catch (err) { panel.innerHTML = `<p class="error-text">${err.message}</p>`; }
-        }
-
-        async function submitCodSettlement() {
-            const payload = { amount: Number(document.getElementById('cod-pay-amount').value), payment_method: document.getElementById('cod-pay-method').value, reference: document.getElementById('cod-pay-reference').value.trim(), note: document.getElementById('cod-pay-note').value.trim() };
-            if (!payload.reference) return alert('Enter the payment transaction reference');
-            const res = await fetch(`${API_URL}/settlements/seller/cod/submit`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${storeToken}` }, body: JSON.stringify(payload) });
-            const data = await res.json();
-            if (!res.ok) return alert(data.error || 'Unable to submit payment');
-            alert('Payment submitted to Admin for verification.');
-            loadCodSettlement();
-        }
 
         async function payCommission() {
             if (!confirm('Pay all commission dues?')) return;
