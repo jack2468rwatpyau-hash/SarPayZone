@@ -59,7 +59,7 @@
     <div id="wallet-receipt-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="wallet-receipt-title">
         <div class="modal-content wallet-receipt-dialog">
             <div class="modal-header"><div><p class="eyebrow">SarPayPay</p><h2 id="wallet-receipt-title">လုပ်ဆောင်မှုအောင်မြင်ပါသည်</h2></div><button class="icon-btn" onclick="closeWalletReceipt()" aria-label="ပိတ်ရန်"><i class="fas fa-times"></i></button></div>
-            <div class="wallet-receipt-card" id="wallet-receipt-card"><img src="/assets/wallet-invoice-template.png" alt="Wallet transaction receipt template"><div class="wallet-receipt-details"><strong id="wallet-receipt-type">ငွေလွှဲခြင်း</strong><span id="wallet-receipt-amount"></span><span id="wallet-receipt-recipient"></span><span id="wallet-receipt-reference"></span><span id="wallet-receipt-status">အောင်မြင်ပါသည်</span><small id="wallet-receipt-time"></small></div></div>
+            <div class="receipt wallet-receipt-card" id="wallet-receipt-card"><div id="wallet-receipt-amount" class="r-amount"></div><div id="wallet-receipt-recipient" class="r-name"></div><div id="wallet-receipt-reference" class="r-id"></div><div id="wallet-receipt-received" class="r-received"></div><div id="wallet-receipt-type" class="r-type"></div><div id="wallet-receipt-date" class="r-date"></div><div id="wallet-receipt-time" class="r-time"></div><div id="wallet-receipt-fee" class="r-fee"></div><div id="wallet-receipt-transaction" class="r-transaction"></div><div id="wallet-receipt-note" class="r-note"></div></div>
             <div class="wallet-receipt-actions"><button class="btn-secondary" onclick="window.print()"><i class="fas fa-print"></i> ပြေစာထုတ်မည်</button><button class="btn-primary" onclick="closeWalletReceipt()">ပြီးပါပြီ</button></div>
         </div>
     </div>
@@ -1146,13 +1146,19 @@
         }
 
         function closeWalletReceipt() { document.getElementById('wallet-receipt-modal')?.classList.add('hidden'); }
-        function showWalletReceipt({ type, amount, recipient = '', reference = '', status = 'အောင်မြင်ပါသည်' }) {
+        function showWalletReceipt({ type, amount, recipient = '', reference = '', status = 'အောင်မြင်ပါသည်', fee = 0, note = '' }) {
+            const now = new Date();
+            const money = value => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('wallet-receipt-amount').textContent = `${money(amount)} Ks`;
+            document.getElementById('wallet-receipt-recipient').textContent = recipient || status;
+            document.getElementById('wallet-receipt-reference').textContent = `ID - ${reference || 'N/A'}`;
+            document.getElementById('wallet-receipt-received').textContent = money(amount);
             document.getElementById('wallet-receipt-type').textContent = type;
-            document.getElementById('wallet-receipt-amount').textContent = `ပမာဏ — ${Number(amount || 0).toLocaleString()} Ks`;
-            document.getElementById('wallet-receipt-recipient').textContent = recipient ? `လက်ခံသူ — ${recipient}` : '';
-            document.getElementById('wallet-receipt-reference').textContent = reference ? `လုပ်ဆောင်မှု ID — ${reference}` : '';
-            document.getElementById('wallet-receipt-status').textContent = status;
-            document.getElementById('wallet-receipt-time').textContent = new Date().toLocaleString('my-MM');
+            document.getElementById('wallet-receipt-date').textContent = `${now.getDate()}/${now.getMonth() + 1}.${now.getFullYear()}`;
+            document.getElementById('wallet-receipt-time').textContent = `(${now.toLocaleTimeString('en-US')})`;
+            document.getElementById('wallet-receipt-fee').textContent = money(fee);
+            document.getElementById('wallet-receipt-transaction').textContent = reference || 'N/A';
+            document.getElementById('wallet-receipt-note').textContent = note || status;
             document.getElementById('wallet-receipt-modal').classList.remove('hidden');
             const audio = new Audio('/assets/wallet-success.mp3'); audio.volume = 0.9; audio.play().catch(() => {});
         }
@@ -1180,7 +1186,7 @@
             fetch(`${API_URL}/wallet/p2p`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
                 body: JSON.stringify({ recipient_public_id, amount: Number(amount), note })
-            }).then(r => r.json().then(data => { if (r.ok) showWalletReceipt({ type: 'P2P ငွေလွှဲခြင်း', amount: Number(amount), recipient: recipient_public_id, reference: data.transaction_id || data.reference_id || '', status: 'ငွေလွှဲခြင်း အောင်မြင်ပါသည်' }); else alert(data.error || 'Transfer failed'); }));
+            }).then(r => r.json().then(data => { if (r.ok) showWalletReceipt({ type: 'P2P ငွေလွှဲခြင်း', amount: Number(amount), recipient: recipient_public_id, reference: data.transaction_id || data.reference_id || '', fee: data.fee || Number(amount) * 0.03, note, status: 'ငွေလွှဲခြင်း အောင်မြင်ပါသည်' }); else alert(data.error || 'Transfer failed'); }));
         }
 
         async function renderTransfer(container) {
@@ -1206,7 +1212,7 @@
                 const res = await fetch(`${API_URL}/wallet/p2p`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ recipient_public_id: recipient, amount, note }) });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Transfer failed');
-                showWalletReceipt({ type: 'P2P ငွေလွှဲခြင်း', amount, recipient, reference: data.transaction_id || data.reference_id || '', status: 'ငွေလွှဲခြင်း အောင်မြင်ပါသည်' });
+                showWalletReceipt({ type: 'P2P ငွေလွှဲခြင်း', amount, recipient, reference: data.transaction_id || data.reference_id || '', fee: data.fee || amount * 0.03, note, status: 'ငွေလွှဲခြင်း အောင်မြင်ပါသည်' });
                 navigateTo('wallet');
             } catch (err) { error.textContent = err.message; button.disabled = false; }
         }
