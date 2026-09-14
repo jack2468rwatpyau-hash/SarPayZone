@@ -8,11 +8,12 @@ const sellerRoles = requireRole('publisher', 'bookstore', 'commission_store');
 const adminOnly = requireRole('admin');
 const money = (value) => Math.round(Number(value || 0) * 100) / 100;
 
-const payableSql = `SELECT p.payable_id, p.order_id, p.commission_amount, p.due_date, p.status,
+const payableSql = `SELECT p.payable_id, p.order_id, p.seller_id, p.commission_amount, p.due_date, p.status,
+    s.store_name, s.name AS seller_name, s.public_id AS seller_public_id, s.logo AS seller_logo, s.banner AS seller_banner,
     o.order_number, o.total_amount, o.shipping_fee,
     CASE WHEN datetime('now') > p.due_date
          THEN CAST((julianday('now') - julianday(p.due_date)) AS INTEGER) * 500 ELSE 0 END AS late_fee
-    FROM cod_payables p JOIN orders o ON o.order_id = p.order_id`;
+    FROM cod_payables p JOIN orders o ON o.order_id = p.order_id LEFT JOIN sellers s ON s.seller_id = p.seller_id`;
 
 router.get('/seller/cod', authenticate, sellerRoles, async (req, res) => {
     try {

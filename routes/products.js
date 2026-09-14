@@ -100,7 +100,8 @@ router.patch('/:id', authenticate, requireRole('publisher', 'bookstore', 'commis
         const numericStock = Number(stock_quantity);
         const numericPreorderDeposit = Number(preorder_deposit_amount || 0);
         const numericCodDeposit = Number(cod_deposit_amount || 0);
-        const numericShipping = Number(estimated_shipping_fee || 0);
+        const shippingConfig = await db.execute({ sql: `SELECT is_no_shipping, prepay_shipping_fee FROM shipping_rates WHERE seller_id = ? AND state = 'ALL' AND city = 'ALL' AND township = 'ALL' LIMIT 1`, args: [req.user.seller_id] });
+        const numericShipping = Number(shippingConfig.rows[0]?.is_no_shipping) ? 0 : Number(shippingConfig.rows[0]?.prepay_shipping_fee ?? 5000);
         const isValidWindow = sale_type !== 'preorder' || (preorder_start_at && preorder_end_at && new Date(preorder_end_at) > new Date(preorder_start_at));
         if (!['preorder', 'prepaid', 'cod'].includes(sale_type) || !isValidWindow || numericPreorderDeposit < 0 || numericCodDeposit < 0 || numericShipping < 0 || !String(title || '').trim() || !Number.isFinite(numericOriginal) || numericOriginal < 0 || !Number.isFinite(numericDiscounted) || numericDiscounted < 0 || !Number.isInteger(numericStock) || numericStock < 0) {
             return res.status(400).json({ error: 'Title, price, discount price, and whole-number stock are required.' });
@@ -199,7 +200,8 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
         const numericStock = stock_quantity === undefined || stock_quantity === '' ? 0 : Number(stock_quantity);
         const numericPreorderDeposit = Number(preorder_deposit_amount || 0);
         const numericCodDeposit = Number(cod_deposit_amount || 0);
-        const numericShipping = Number(estimated_shipping_fee || 0);
+        const shippingConfig = await db.execute({ sql: `SELECT is_no_shipping, prepay_shipping_fee FROM shipping_rates WHERE seller_id = ? AND state = 'ALL' AND city = 'ALL' AND township = 'ALL' LIMIT 1`, args: [req.user.seller_id] });
+        const numericShipping = Number(shippingConfig.rows[0]?.is_no_shipping) ? 0 : Number(shippingConfig.rows[0]?.prepay_shipping_fee ?? 5000);
         const isValidWindow = sale_type !== 'preorder' || (preorder_start_at && preorder_end_at && new Date(preorder_end_at) > new Date(preorder_start_at));
         if (!['preorder', 'prepaid', 'cod'].includes(sale_type) || !isValidWindow || numericPreorderDeposit < 0 || numericCodDeposit < 0 || numericShipping < 0 || !String(title || '').trim() || !Number.isFinite(numericOriginal) || numericOriginal < 0 || !Number.isFinite(numericDiscounted) || numericDiscounted < 0 || !Number.isInteger(numericStock) || numericStock < 0) return res.status(400).json({ error: 'Sale type, prices, shipping estimate, and stock must be valid.' });
         

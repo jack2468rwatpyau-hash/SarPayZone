@@ -234,6 +234,21 @@ router.post('/cashin', authenticate, requireRole('agent'), async (req, res) => {
     }
 });
 
+// Seller wallet summary, receipt history, commission deductions, and withdrawal history.
+router.get('/seller/summary', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
+    try {
+        const sellerId = req.user.seller_id;
+        const [seller, transactions, receipts, withdrawals] = await Promise.all([
+            db.execute({ sql: `SELECT seller_id, public_id, store_name, wallet_balance, monthly_commission_due FROM sellers WHERE seller_id = ?`, args: [sellerId] }),
+            db.execute({ sql: `SELECT transaction_id, type, amount, fee, balance_after, reference_id, created_at FROM transactions WHERE wallet_owner_type = 'seller' AND wallet_owner_id = ? ORDER BY created_at DESC, transaction_id DESC LIMIT 100`, args: [sellerId] }),
+            db.execute({ sql: `SELECT o.order_id, o.order_number, o.created_at, o.total_amount, o.amount_paid, o.shipping_estimate, o.commission_amount, o.payment_method, o.order_status, p.title FROM orders o LEFT JOIN products p ON p.book_id = o.product_id WHERE o.seller_id = ? AND o.order_status = 'delivered' ORDER BY o.created_at DESC LIMIT 100`, args: [sellerId] }),
+            db.execute({ sql: `SELECT withdrawal_id, amount, fee, net_amount, payment_method, account_name, account_phone, status, requested_at, paid_at FROM withdrawal_requests WHERE owner_type = 'seller' AND owner_id = ? ORDER BY requested_at DESC LIMIT 50`, args: [sellerId] })
+        ]);
+        if (!seller.rows.length) return res.status(404).json({ error: 'Seller not found' });
+        res.json({ seller: seller.rows[0], transactions: transactions.rows, receipts: receipts.rows, withdrawals: withdrawals.rows });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Seller Withdrawal Request
 router.post('/seller/withdraw', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
     try {

@@ -30,6 +30,7 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
                 sql: `INSERT INTO shipping_rates (seller_id, state, city, township, is_no_shipping, is_cod_allowed, is_prepay_allowed, prepay_shipping_fee) VALUES (?, 'ALL', 'ALL', 'ALL', ?, 1, 1, ?)`,
                 args: [req.user.seller_id, noShipping, fee]
             });
+            await db.execute({ sql: `UPDATE products SET estimated_shipping_fee = ? WHERE seller_id = ?`, args: [noShipping ? 0 : fee, req.user.seller_id] });
             return res.json({ success: true, nationwide: true, estimated_shipping_fee: noShipping ? 0 : fee });
         }
         if (!String(state || '').trim() || !String(city || '').trim() || !String(township || '').trim()) return res.status(400).json({ error: 'ပြည်နယ်၊ ခရိုင်နှင့် မြို့နယ်ကို ရွေးချယ်ပါ' });

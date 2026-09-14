@@ -1786,4 +1786,19 @@ button, .btn-primary, .btn-secondary, .filter-btn, .nav-item { min-height: 40px;
 .shipping-card-heading h4 { margin:0 0 3px; font-size:14px; }
 .shipping-card-heading p { margin:0; }
 .shipping-rate-note { margin-top:10px; line-height:1.5; }
+.store-wallet-balance { display:grid; gap:5px; padding:18px; margin:12px 0; border-radius:12px; color:#fff; background:linear-gradient(135deg,var(--primary),#153c43); }
+.store-wallet-balance span, .store-wallet-balance small { font-size:12px; opacity:.86; }
+.store-wallet-balance strong { font-size:24px; }
+.wallet-panel { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; margin:12px 0; }
+.wallet-panel-heading { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; }
+.wallet-panel-heading h3 { margin:0; font-size:15px; }
+.wallet-panel-heading span { color:var(--text-secondary); font-size:10px; }
+.wallet-receipt-row, .wallet-transaction-row { display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); font-size:12px; }
+.wallet-receipt-row:last-child, .wallet-transaction-row:last-child { border-bottom:0; }
+.wallet-receipt-row span, .wallet-receipt-row small, .wallet-transaction-row small { display:block; color:var(--text-secondary); font-size:10px; margin-top:3px; }
+.wallet-receipt-amount { text-align:right; white-space:nowrap; }
+.wallet-receipt-amount small { color:var(--text-secondary); }
+.wallet-transaction-row strong.positive { color:#16824f; }
+.wallet-transaction-row strong.negative { color:#b5413c; }
+.wallet-withdraw-form .btn-primary { width:100%; }
 @media (max-width:560px) { .single-view-product-form .product-tab-panel[data-product-tab="0"], .single-view-product-form .product-tab-panel[data-product-tab="1"], .single-view-product-form .sale-extra-fields { grid-template-columns:1fr 1fr; } }

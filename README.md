@@ -38,6 +38,8 @@ Apply the complete `database/schema.sql` to a new configured Turso database befo
 
 Payment policy: an Agent only adds verified cash to a Buyer wallet. Prepaid and Preorder products use Wallet payment; COD products use Cash on Delivery and may optionally collect a seller-defined advance from the wallet. Nationwide shipping is an estimate shown to the buyer and is not charged at checkout; the buyer pays the actual delivery charge on arrival. Seller Settings → Shipping Rates stores one nationwide estimate and removes legacy city-by-city rates for that seller. COD commission dues are recorded with a due date 25 days after buyer delivery confirmation and are submitted through Store Settings → COD Settlement. Buyer cancellation restores product stock or reopens a resell listing and refunds the amount actually paid (minus the documented cancellation fee where applicable).
 
+Seller financial records are available under Store Menu → My Store Wallet. The page shows the available store balance, completed-sale receipts with the platform commission for each receipt, transaction history, withdrawal history, and the two-step seller withdrawal form. Buyer checkout now requests only a detailed delivery address and contact phone; township selection is not required.
+
 Store owners can use `Store Dashboard → Settings → Store availability` to open or close the storefront, pause new orders, set a buyer-facing reply time, configure a closed-store message, and configure the first-chat auto-reply. Apply `database/migrations/004_store_availability_settings.sql` to an existing Turso database before using this panel. Closed stores remain visible to buyers, but new orders are rejected by the API and purchase buttons are disabled in the product detail view.
 
 ## Verification

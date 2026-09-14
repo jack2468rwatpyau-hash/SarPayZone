@@ -156,7 +156,7 @@ router.post('/bulk', authenticate, async (req, res) => {
         const buyerId = req.user.user_id || req.user.id;
         if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
         if (!['wallet', 'cod'].includes(payment_method)) return res.status(400).json({ error: 'Payment must use wallet or COD. Agents add funds to the buyer wallet.' });
-        if (!shipping_address || !shipping_state || !shipping_district || !shipping_township) return res.status(400).json({ error: 'ပြည်နယ်၊ ခရိုင်၊ မြို့နယ်နှင့် အသေးစိတ်လိပ်စာကို ထည့်ပါ' });
+        if (!shipping_address || String(shipping_address).trim().length < 8) return res.status(400).json({ error: 'လက်ခံမည့်အသေးစိတ်လိပ်စာနှင့် ဆက်သွယ်ရန်ဖုန်းနံပါတ်ကို ထည့်ပါ' });
 
         const prepared = [];
         const shippingBySeller = new Map();
