@@ -1001,19 +1001,36 @@
         }
 
         async function renderStoreProfile(container) {
+            let walletSummary = { seller: {} };
+            let codAccounts = {};
+            try {
+                const [walletRes, accountsRes] = await Promise.all([
+                    fetch(`${API_URL}/wallet/seller/summary`, { headers: { 'Authorization': `Bearer ${storeToken}` } }),
+                    fetch(`${API_URL}/settlements/seller/payment-accounts`, { headers: { 'Authorization': `Bearer ${storeToken}` } })
+                ]);
+                if (walletRes.ok) walletSummary = await walletRes.json();
+                if (accountsRes.ok) codAccounts = await accountsRes.json();
+            } catch (_) {}
+            const walletSeller = walletSummary.seller || {};
+            const monthlyDue = Number(walletSeller.monthly_commission_due || 0);
+            const codDue = Number(walletSeller.cod_commission_due || 0);
+            const walletInfo = ['kpay', 'wavepay', 'ayapay'].map(k => codAccounts[k]?.phone ? `<div class="cod-wallet-info"><strong>${k.toUpperCase()}</strong><span>${escapeSellerProductText(codAccounts[k].name || '')} · ${escapeSellerProductText(codAccounts[k].phone)}</span></div>` : '').join('') || '<p class="small text-secondary">Admin COD wallet information has not been configured yet.</p>';
             container.innerHTML = `
                 <div class="store-header">
                     <h2>${storeUser.store_name || storeUser.name}</h2>
-                    <p>Monthly Commission: ${(storeUser.monthly_commission_due || 0).toLocaleString()} Ks</p>
-                    <button onclick="payCommission()" class="btn-primary" style="margin-top:12px;width:auto;padding:10px 24px;">Pay Commission Now</button>
+                    <p>Monthly Commission: ${monthlyDue.toLocaleString()} Ks</p>
+                    <p>COD Commission: ${codDue.toLocaleString()} Ks</p>
+                    ${monthlyDue > 0 ? '<button onclick="payCommission()" class="btn-primary" style="margin-top:12px;width:auto;padding:10px 24px;">Pay Monthly Commission</button>' : ''}
                 </div>
-                <div class="store-subnav"><button class="active" onclick="showStoreSubpage('overview')">အကျဉ်းချုပ်</button><button onclick="showStoreSubpage('commission')">ကော်မရှင်နှုန်းထား</button><button onclick="showStoreSubpage('password')">Password Code</button></div>
+                <div class="store-subnav"><button class="active" onclick="showStoreSubpage('overview')">အကျဉ်းချုပ်</button><button onclick="showStoreSubpage('commission')">ကော်မရှင်နှုန်းထား</button><button onclick="showStoreSubpage('cod')">COD Settlement</button><button onclick="showStoreSubpage('withdrawal')">Withdrawal</button><button onclick="showStoreSubpage('password')">Password Code</button></div>
                 <section data-store-subpage="overview" class="settings-section"><h3>ဆိုင် Profile နှင့် အချက်အလက်</h3><p class="small text-secondary">ဒီနေရာမှ ဆိုင်အမည်၊ ဆိုင်ပိုင်ရှင်အချက်အလက်နှင့် ဆိုင်ပုံများကို ပြင်ဆင်နိုင်ပါတယ်။</p><form onsubmit="saveStoreProfile(event)" class="product-form store-profile-form"><div class="form-group"><label>ဆိုင်အမည်</label><input name="store_name" required maxlength="160" value="${storeUser.store_name || ''}"></div><div class="form-group"><label>ဆိုင်ပိုင်ရှင်အမည်</label><input name="name" required maxlength="120" value="${storeUser.name || ''}"></div><div class="form-group"><label>Email</label><input name="email" type="email" maxlength="160" value="${storeUser.email || ''}"></div><div class="profile-image-picker"><label>ဆိုင် Logo ပုံ</label>${storeUser.logo ? `<img class="profile-image-preview" src="${storeUser.logo}" alt="ဆိုင် Logo">` : ''}<input name="logo" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><small class="text-secondary">JPG, PNG, WEBP, GIF — 5MB အထိ</small></div><div class="profile-image-picker"><label>ဆိုင် Banner ပုံ</label>${storeUser.banner ? `<img class="profile-banner-preview" src="${storeUser.banner}" alt="ဆိုင် Banner">` : ''}<input name="banner" type="file" accept="image/jpeg,image/png,image/webp,image/gif"><small class="text-secondary">JPG, PNG, WEBP, GIF — 5MB အထိ</small></div><p class="small text-secondary">ဖုန်း: ${storeUser.phone || '-'} (Login ဖုန်းနံပါတ်ကို ဒီနေရာမှ မပြောင်းနိုင်ပါ)</p><button class="btn-primary" type="submit">ဆိုင်အချက်အလက် သိမ်းမည်</button></form></section>
                 <section data-store-subpage="password" class="settings-section" style="display:none;margin-top:16px;"><h3>ဆိုင် Password Code</h3><p class="small text-secondary">ဝယ်သူများ ဆိုင်စာမျက်နှာဝင်ရန် အသုံးပြုမည့် ၆ လုံးကုဒ်။ ၁၅ ရက်တစ်ကြိမ် အလိုအလျောက်ပြောင်းပါမယ်။</p><div style="font-size:30px;font-weight:800;letter-spacing:8px;color:var(--primary);margin:12px 0;">${storePasswordCode?.code || '------'}</div><p class="small text-secondary">နောက်တစ်ကြိမ်ပြောင်းမည့်အချိန်: ${storePasswordCode?.next_rotation_at ? new Date(storePasswordCode.next_rotation_at).toLocaleString('my-MM') : '-'}</p></section>
                 <div data-store-subpage="commission" class="commission-display" style="display:none;">
                     <h3>ကော်မရှင်နှုန်းထားနှင့် ပေးသွင်းရန်</h3>
-                    <p class="small text-secondary">လစဉ်ပေးရန်ရှိသော ကော်မရှင်ငွေကို အောက်တွင်ကြည့်ပြီး Pay Commission Now ကိုနှိပ်၍ ပေးသွင်းနိုင်ပါတယ်။</p>
-                    <div class="commission-row monthly-commission-row"><strong>Monthly Commission</strong><strong id="monthly-commission-display">${Number(storeUser.monthly_commission_due || 0).toLocaleString()} Ks</strong></div><button onclick="payCommission()" class="btn-primary">Pay Commission Now</button>
+                    <p class="small text-secondary">လစဉ်နှင့် COD ကော်မရှင် ပေးသွင်းရန်ရှိသောငွေကို အောက်တွင်ကြည့်နိုင်ပါတယ်။</p>
+                    <div class="commission-row monthly-commission-row"><strong>Monthly Commission</strong><strong id="monthly-commission-display">${monthlyDue.toLocaleString()} Ks</strong></div>
+                    <div class="commission-due-highlight">COD Commission Due: <strong>${codDue.toLocaleString()} Ks</strong></div>
+                    ${monthlyDue > 0 ? '<button onclick="payCommission()" class="btn-primary">Pay Monthly Commission</button>' : ''}
                     <div class="commission-row"><span>0 - 10,000 Ks</span><span>6%</span></div>
                     <div class="commission-row"><span>10,001 - 20,000 Ks</span><span>5%</span></div>
                     <div class="commission-row"><span>20,001 - 50,000 Ks</span><span>4%</span></div>
@@ -1021,6 +1038,12 @@
                     <div class="commission-row" style="border-bottom:none;"><span>Bookstore</span><span>2%</span></div>
                     <div class="commission-row" style="border-bottom:none;"><span>Commission Store</span><span>0%</span></div>
                 </div>
+                <section data-store-subpage="cod" class="settings-section cod-settlement-card" style="display:none;">
+                    <h3>COD Platform Settlement</h3>
+                    <p class="small text-secondary">Buyer pays cash to you. Submit the platform commission every 25 days.</p><div class="cod-wallet-info-panel"><h4>Admin COD Verification Wallet Info</h4>${walletInfo}</div>
+                    <div id="cod-settlement-panel"><p class="small text-secondary">Loading COD settlement...</p></div>
+                </section>
+                <div data-store-subpage="withdrawal" class="settings-section" style="display:none;"><h3>My Store Wallet</h3><p class="small text-secondary">ငွေထုတ်ခြင်းကို My Store Wallet စာမျက်နှာမှသာ ပြုလုပ်နိုင်ပါသည်။</p><button onclick="navigateStore('wallet')" class="btn-primary">My Store Wallet သို့သွားမည်</button></div>
             `;
             document.querySelectorAll('.store-subnav button').forEach((button, index) => button.addEventListener('click', () => document.querySelectorAll('.store-subnav button').forEach((b, i) => b.classList.toggle('active', i === index))));
             try { const res = await fetch(`${API_URL}/wallet/seller/summary`, { headers: { 'Authorization': `Bearer ${storeToken}` } }); const summary = await res.json(); if (res.ok && document.getElementById('monthly-commission-display')) document.getElementById('monthly-commission-display').textContent = `${Number(summary.seller?.monthly_commission_due || 0).toLocaleString()} Ks`; } catch (err) { console.warn('Commission summary unavailable'); }

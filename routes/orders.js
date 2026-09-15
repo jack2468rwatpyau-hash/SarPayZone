@@ -508,6 +508,10 @@ router.patch('/:id/status', authenticate, async (req, res) => {
                     args: [sellerAmount, ord.seller_id]
                 });
                 await db.execute({
+                    sql: `UPDATE sellers SET monthly_commission_due = monthly_commission_due + ? WHERE seller_id = ?`,
+                    args: [Number(ord.commission_amount || 0), ord.seller_id]
+                });
+                await db.execute({
                     sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id) 
                           VALUES ('seller', ?, 'purchase', ?, ?, (SELECT wallet_balance FROM sellers WHERE seller_id = ?), ?)`,
                     args: [ord.seller_id, sellerAmount, ord.commission_amount, ord.seller_id, ord.order_number]
