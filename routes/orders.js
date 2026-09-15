@@ -442,9 +442,13 @@ router.post('/:id/cod/seller-confirm', authenticate, requireRole('publisher', 'b
             args: [ord.order_id]
         });
         await db.execute({
-            sql: `INSERT OR IGNORE INTO cod_payables (order_id, seller_id, commission_amount, due_date)
-                  VALUES (?, ?, ?, datetime('now', '+25 days'))`,
-            args: [ord.order_id, ord.seller_id, Number(ord.commission_amount || 0)]
+            sql: `INSERT INTO monthly_cod_commissions
+                    (seller_id, period_start, period_end, commission_amount, due_date)
+                  VALUES (?, date('now', 'start of month'), date('now', 'start of month', '+1 month', '-1 day'), ?, date('now', 'start of month', '+1 month'))
+                  ON CONFLICT(seller_id, period_start) DO UPDATE SET
+                    commission_amount = monthly_cod_commissions.commission_amount + excluded.commission_amount,
+                    updated_at = datetime('now')`,
+            args: [ord.seller_id, Number(ord.commission_amount || 0)]
         });
         res.json({ success: true, order_status: 'delivered', commission_due: Number(ord.commission_amount || 0), due_in_days: 25 });
     } catch (err) {

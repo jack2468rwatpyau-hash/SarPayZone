@@ -1671,6 +1671,21 @@ button, .btn-primary, .btn-secondary, .filter-btn, .nav-item { min-height: 40px;
 .cod-wallet-info:last-child, .cod-admin-wallet:last-child { border-bottom:0; }
 .commission-due-highlight { margin:10px 0; padding:10px; border-radius:9px; background:var(--surface); font-size:12px; }
 .commission-due-highlight strong { color:var(--primary); font-size:15px; }
+.cod-commission-page { max-width:680px; margin:0 auto; display:grid; gap:12px; }
+.cod-total-card { display:grid; gap:4px; padding:16px; border-radius:14px; background:linear-gradient(135deg, var(--secondary), var(--primary)); color:#fff; }
+.cod-total-card strong { font-size:22px; }
+.cod-total-card small { opacity:.82; font-size:11px; }
+.cod-month-list, .cod-payment-form { padding:14px; border:1px solid var(--border); border-radius:12px; background:var(--card); }
+.cod-month-row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); font-size:12px; }
+.cod-month-row:last-child { border-bottom:0; }
+.cod-month-row small { display:block; margin-top:3px; color:var(--text-secondary); font-size:10px; }
+.cod-month-row strong { white-space:nowrap; color:var(--primary); }
+.cod-payment-form { display:grid; gap:10px; font-size:12px; }
+.cod-payment-form h3 { margin:0; }
+.cod-payment-form label { display:grid; gap:5px; }
+.cod-payment-form label:has(input[type="radio"]) { display:flex; align-items:center; gap:7px; }
+.cod-payment-form select, .cod-payment-form input:not([type="radio"]), .cod-payment-form textarea { width:100%; box-sizing:border-box; padding:9px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); font:inherit; }
+.success-box { padding:12px; border-radius:10px; background:rgba(22,130,79,.12); color:var(--primary); font-size:12px; }
 .user-city { margin-top: 8px !important; }
 .public-user-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 22px; }
 .public-user-stats > div { display: flex; flex-direction: column; gap: 3px; padding: 14px 8px; border-radius: 12px; background: var(--surface); }
