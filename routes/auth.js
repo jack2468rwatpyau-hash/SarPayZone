@@ -48,7 +48,7 @@ router.post('/buyer/register', async (req, res) => {
         const publicId = `CU#${String(count.rows[0].c + 1).padStart(4, '0')}`;
 
         await db.execute({
-            sql: `INSERT INTO users (public_id, name, phone, password_hash, city) 
+            sql: `INSERT INTO users (public_id, name, phone, password_hash, city)
                   VALUES (?, ?, ?, ?, ?)`,
             args: [publicId, name, phone, hash, city || null]
         });
@@ -116,6 +116,26 @@ router.post('/seller/login', async (req, res) => {
 // Get current user
 router.get('/me', authenticate, async (req, res) => {
     res.json({ user: req.user });
+});
+
+// Update the seller Telegram destination used by order notifications.
+// The seller dashboard sends this as PATCH /auth/me; keep the write scoped to
+// seller roles so buyer/admin identity fields cannot be changed through this
+// compatibility endpoint.
+router.patch('/me', authenticate, async (req, res) => {
+    try {
+        if (!['publisher', 'bookstore', 'commission_store'].includes(req.user.role)) return res.status(403).json({ error: 'Only sellers can update this field' });
+        const telegramUserId = String(req.body?.telegram_user_id || '').trim();
+        if (!/^\d{3,32}$/.test(telegramUserId)) return res.status(400).json({ error: 'A valid Telegram User ID is required' });
+        const result = await db.execute({
+            sql: `UPDATE sellers SET telegram_user_id = ?, updated_at = datetime('now') WHERE seller_id = ?`,
+            args: [telegramUserId, req.user.seller_id]
+        });
+        if (!result.rowsAffected) return res.status(404).json({ error: 'Seller not found' });
+        res.json({ success: true, telegram_user_id: telegramUserId });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 module.exports = router;
