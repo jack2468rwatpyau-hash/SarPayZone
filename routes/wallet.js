@@ -1,16 +1,31 @@
 const express = require('express');
 const router = express.Router();
+
+// Monthly COD late fee: 500/day for days 1-10, then the daily rate doubles
+// for each subsequent ten-day band (1,000, 2,000, 4,000, ...).
+function monthlyCodLateFee(daysLate) {
+    const days = Math.max(0, Math.floor(Number(daysLate || 0)));
+    let remaining = days;
+    let daily = 500;
+    let total = 0;
+    while (remaining > 0) {
+        const bandDays = Math.min(10, remaining);
+        total += bandDays * daily;
+        remaining -= bandDays;
+        daily *= 2;
+    }
+    return Math.round(total * 100) / 100;
+}
+
+function daysLateFromDate(value) {
+    if (!value) return 0;
+    const due = Date.parse(`${String(value).slice(0, 10)}T00:00:00Z`);
+    if (!Number.isFinite(due)) return 0;
+    return Math.max(0, Math.floor((Date.now() - due) / 86400000));
+}
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roleCheck');
-
-function monthlyCodLateFee(daysLate) {
-    let remaining = Math.max(0, Math.floor(Number(daysLate || 0)));
-    let daily = 500;
-    let total = 0;
-    while (remaining > 0) { const band = Math.min(10, remaining); total += band * daily; remaining -= band; daily *= 2; }
-    return Math.round(total * 100) / 100;
-}
 
 // Get wallet info
 router.get('/', authenticate, async (req, res) => {
@@ -297,13 +312,14 @@ router.get('/seller/summary', authenticate, requireRole('publisher', 'bookstore'
             db.execute({ sql: `SELECT transaction_id, type, amount, fee, balance_after, reference_id, created_at FROM transactions WHERE wallet_owner_type = 'seller' AND wallet_owner_id = ? ORDER BY created_at DESC, transaction_id DESC LIMIT 100`, args: [sellerId] }),
             db.execute({ sql: `SELECT o.order_id, o.order_number, o.created_at, o.total_amount, o.amount_paid, o.shipping_estimate, o.commission_amount, o.payment_method, o.order_status, p.title FROM orders o LEFT JOIN products p ON p.book_id = o.product_id WHERE o.seller_id = ? AND o.order_status = 'delivered' ORDER BY o.created_at DESC LIMIT 100`, args: [sellerId] }),
             db.execute({ sql: `SELECT withdrawal_id, amount, fee, net_amount, payment_method, account_name, account_phone, status, requested_at, paid_at FROM withdrawal_requests WHERE owner_type = 'seller' AND owner_id = ? ORDER BY requested_at DESC LIMIT 50`, args: [sellerId] }),
-            db.execute({ sql: `SELECT commission_amount, due_date FROM monthly_cod_commissions WHERE seller_id = ? AND status IN ('unpaid', 'rejected')`, args: [sellerId] })
+            db.execute({ sql: `SELECT commission_amount, due_date, status FROM monthly_cod_commissions WHERE seller_id = ? AND status IN ('unpaid', 'rejected', 'submitted')`, args: [sellerId] })
         ]);
         if (!seller.rows.length) return res.status(404).json({ error: 'Seller not found' });
         const monthlyCodRows = codDue.rows || [];
         const codCommission = monthlyCodRows.reduce((sum, row) => sum + Number(row.commission_amount || 0), 0);
-        const codLateFee = monthlyCodRows.reduce((sum, row) => { const days = Math.max(0, Math.floor((Date.now() - new Date(`${row.due_date}T00:00:00Z`).getTime()) / 86400000)); return sum + monthlyCodLateFee(days); }, 0);
-        const sellerRow = { ...seller.rows[0], monthly_commission_due: Number(seller.rows[0].monthly_commission_due || 0), monthly_cod_commission: Math.round(codCommission * 100) / 100, cod_late_fee: Math.round(codLateFee * 100) / 100, cod_commission_due: Math.round((codCommission + codLateFee) * 100) / 100 };
+        const codLateFee = monthlyCodRows.reduce((sum, row) => sum + monthlyCodLateFee(daysLateFromDate(row.due_date)), 0);
+        const submittedCod = monthlyCodRows.filter(row => row.status === 'submitted').reduce((sum, row) => sum + Number(row.commission_amount || 0), 0);
+        const sellerRow = { ...seller.rows[0], monthly_commission_due: Number(seller.rows[0].monthly_commission_due || 0), monthly_cod_commission: Math.round(codCommission * 100) / 100, cod_late_fee: Math.round(codLateFee * 100) / 100, cod_commission_due: Math.round((codCommission + codLateFee) * 100) / 100, cod_commission_submitted: Math.round(submittedCod * 100) / 100 };
         res.json({ seller: sellerRow, transactions: transactions.rows, receipts: receipts.rows, withdrawals: withdrawals.rows });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -323,8 +339,9 @@ router.post('/seller/withdraw', authenticate, requireRole('publisher', 'bookstor
             args: [sellerId]
         });
         if (!seller.rows.length || Number(seller.rows[0].wallet_balance) < numericAmount) return res.status(400).json({ error: 'Insufficient balance' });
-        const monthlyDue = await db.execute({ sql: `SELECT COALESCE(SUM(commission_amount), 0) AS commission FROM monthly_cod_commissions WHERE seller_id = ? AND status IN ('unpaid', 'rejected')`, args: [sellerId] });
-        if (Number(monthlyDue.rows[0]?.commission || 0) > 0) return res.status(403).json({ error: 'Monthly COD Commission must be settled before withdrawals are allowed' });
+        const monthlyDue = await db.execute({ sql: `SELECT commission_amount, due_date FROM monthly_cod_commissions WHERE seller_id = ? AND status IN ('unpaid', 'rejected', 'submitted')`, args: [sellerId] });
+        const lockedDue = (monthlyDue.rows || []).reduce((sum, row) => sum + Number(row.commission_amount || 0) + monthlyCodLateFee(daysLateFromDate(row.due_date)), 0);
+        if (lockedDue > 0) return res.status(403).json({ error: `Monthly COD Commission must be settled before withdrawals are allowed. Outstanding amount: ${Math.round(lockedDue * 100) / 100} Ks` });
 
         await db.execute({
             sql: `UPDATE sellers SET wallet_balance = wallet_balance - ? WHERE seller_id = ? AND wallet_balance >= ?`,

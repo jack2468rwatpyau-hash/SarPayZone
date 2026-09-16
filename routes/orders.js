@@ -427,7 +427,8 @@ router.post('/:id/cod/buyer-confirm', authenticate, upload.single('proof'), asyn
 });
 
 // Seller confirms COD delivery after buyer proof is submitted. Cash was collected directly by the seller;
-// the platform records only the commission payable due in 25 days.
+// the platform records the sale in the current calendar month's commission ledger,
+// payable on the first day of the following month.
 router.post('/:id/cod/seller-confirm', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
     try {
         const order = await db.execute({ sql: `SELECT * FROM orders WHERE order_id = ?`, args: [req.params.id] });
@@ -436,6 +437,8 @@ router.post('/:id/cod/seller-confirm', authenticate, requireRole('publisher', 'b
         if (Number(ord.seller_id) !== Number(req.user.seller_id) || ord.payment_method !== 'cod') return res.status(403).json({ error: 'Invalid COD order' });
         if (!ord.buyer_delivery_confirmed_at) return res.status(409).json({ error: 'Buyer delivery confirmation and photo are required first' });
         if (ord.order_status === 'cancelled') return res.status(400).json({ error: 'Cancelled orders cannot be confirmed' });
+        if (ord.order_status === 'delivered' || ord.seller_delivery_confirmed_at) return res.status(409).json({ error: 'This COD order has already been confirmed' });
+        if (ord.order_status !== 'shipping') return res.status(409).json({ error: 'COD order must be in shipping status before confirmation' });
         await db.execute({
             sql: `UPDATE orders SET seller_delivery_confirmed_at = datetime('now'), order_status = 'delivered',
                   payment_status = 'paid', updated_at = datetime('now') WHERE order_id = ?`,
@@ -450,7 +453,10 @@ router.post('/:id/cod/seller-confirm', authenticate, requireRole('publisher', 'b
                     updated_at = datetime('now')`,
             args: [ord.seller_id, Number(ord.commission_amount || 0)]
         });
-        res.json({ success: true, order_status: 'delivered', commission_due: Number(ord.commission_amount || 0), due_in_days: 25 });
+        const dueDate = new Date();
+        dueDate.setUTCDate(1);
+        dueDate.setUTCMonth(dueDate.getUTCMonth() + 1);
+        res.json({ success: true, order_status: 'delivered', commission_due: Number(ord.commission_amount || 0), due_date: dueDate.toISOString().slice(0, 10) });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
