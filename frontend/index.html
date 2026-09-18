@@ -1104,7 +1104,12 @@
             submitButton.disabled = false;
             if (!res.ok) { errorBox.textContent = data.error || 'အော်ဒါတင်၍ မရပါ'; return; }
             closeCheckoutModal();
-            alert(`အော်ဒါတင်ပြီးပါပြီ\nအခု ပေးချေငွေ ${Number(data.total).toLocaleString()} Ks\nပို့ခခန့်မှန်း ${Number(data.shipping_estimate_total || 0).toLocaleString()} Ks (ပစ္စည်းရောက်မှပေးရန်)`);
+            const amountPaid = Number(data.amount_paid ?? data.total ?? 0);
+            const remaining = Number(data.remaining_due_on_delivery ?? Math.max(0, Number(data.merchandise_total || 0) - amountPaid));
+            const paymentSummary = payment_method === 'cod'
+                ? `အခု ပေးရမည့် COD စရံ ${amountPaid.toLocaleString()} Ks\nပစ္စည်းရောက်မှ ပေးရမည့်ကျန်ငွေ ${remaining.toLocaleString()} Ks`
+                : `အခု ပေးချေငွေ ${amountPaid.toLocaleString()} Ks`;
+            alert(`အော်ဒါတင်ပြီးပါပြီ\n${paymentSummary}\nပို့ခခန့်မှန်း ${Number(data.shipping_estimate_total || 0).toLocaleString()} Ks (ပစ္စည်းရောက်မှပေးရန်)`);
             cart = [];
             localStorage.setItem('spz_cart', JSON.stringify(cart));
             navigateTo('orders');

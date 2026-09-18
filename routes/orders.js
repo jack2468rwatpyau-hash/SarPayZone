@@ -59,8 +59,9 @@ router.post('/', authenticate, async (req, res) => {
 
         const commissionRate = resell_listing_id ? 0.08 : calculateCommission(prod.role, total);
         const commission = total * commissionRate;
-        const amountDueNow = resell_listing_id ? total : saleType === 'preorder' ? Number(prod.preorder_deposit_amount || 0) : saleType === 'cod' ? Number(prod.cod_deposit_amount || 0) : total;
-        if ((saleType === 'preorder' || saleType === 'cod') && amountDueNow > total) return res.status(400).json({ error: 'The required advance payment cannot exceed the book price' });
+        const unitAmountDueNow = resell_listing_id ? unitPrice : saleType === 'preorder' ? Number(prod.preorder_deposit_amount || 0) : saleType === 'cod' ? Number(prod.cod_deposit_amount || 0) : unitPrice;
+        const amountDueNow = unitAmountDueNow * parsedQuantity;
+        if ((saleType === 'preorder' || saleType === 'cod') && unitAmountDueNow > unitPrice) return res.status(400).json({ error: 'The required advance payment cannot exceed the book price' });
         const finalTotal = amountDueNow;
 
         // Check wallet balance for prepaid orders and optional COD deposits.
@@ -143,7 +144,8 @@ router.post('/', authenticate, async (req, res) => {
             data: { order_id: orderId }
         });
 
-        res.json({ success: true, order_id: orderId, order_number: orderNumber });
+        res.json({ success: true, order_id: orderId, order_number: orderNumber, total: total, amount_paid: amountDueNow,
+            remaining_due_on_delivery: Math.max(0, total - amountDueNow), payment_method, sale_type: saleType });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -255,7 +257,9 @@ router.post('/bulk', authenticate, async (req, res) => {
         await sendPushNotification(buyerId, 'buyer', {
             title: 'Orders placed successfully', body: `${orderIds.length} order(s) have been placed.`, tag: `orders-${orderIds.join('-')}`, url: '/index.html#orders'
         });
-        res.json({ success: true, order_ids: orderIds, merchandise_total: merchandiseTotal, shipping_total: shippingTotal, shipping_estimate_total: estimatedShippingTotal, total: finalTotal });
+        res.json({ success: true, order_ids: orderIds, merchandise_total: merchandiseTotal, shipping_total: shippingTotal,
+            shipping_estimate_total: estimatedShippingTotal, total: finalTotal, amount_paid: finalTotal,
+            remaining_due_on_delivery: Math.max(0, merchandiseTotal - finalTotal), payment_method, sale_type: cartSaleType });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
