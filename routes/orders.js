@@ -361,15 +361,15 @@ router.get('/seller/analytics', authenticate, requireRole('publisher', 'bookstor
     try {
         const sellerId = req.user.seller_id;
         const periodSql = {
-            today: `date(o.created_at) = date('now')`,
-            week: `date(o.created_at) >= date('now', '-6 days')`,
-            month: `strftime('%Y-%m', o.created_at) = strftime('%Y-%m', 'now')`
+            today: { order: `date(o.created_at) = date('now')`, view: `date(v.viewed_at) = date('now')` },
+            week: { order: `date(o.created_at) >= date('now', '-6 days')`, view: `date(v.viewed_at) >= date('now', '-6 days')` },
+            month: { order: `strftime('%Y-%m', o.created_at) = strftime('%Y-%m', 'now')`, view: `strftime('%Y-%m', v.viewed_at) = strftime('%Y-%m', 'now')` }
         };
-        const kpiQueries = Object.entries(periodSql).map(([period, condition]) => db.execute({
+        const kpiQueries = Object.entries(periodSql).map(([period, conditions]) => db.execute({
             sql: `SELECT COALESCE(SUM(o.total_amount), 0) AS revenue, COUNT(*) AS orders, COUNT(DISTINCT o.buyer_id) AS buyers,
                          (SELECT COUNT(*) FROM product_views v JOIN products vp ON vp.book_id = v.book_id
-                          WHERE vp.seller_id = ? AND ${condition.replaceAll('o.', 'v.')}) AS visitors
-                  FROM orders o WHERE o.seller_id = ? AND o.payment_status = 'paid' AND o.order_status <> 'cancelled' AND ${condition}`,
+                          WHERE vp.seller_id = ? AND ${conditions.view}) AS visitors
+                  FROM orders o WHERE o.seller_id = ? AND o.payment_status = 'paid' AND o.order_status <> 'cancelled' AND ${conditions.order}`,
             args: [sellerId, sellerId]
         }).then(result => [period, result.rows[0] || {}]));
         const [daily, monthly, weekly, yearly, topProducts, inventory, ...kpiRows] = await Promise.all([
