@@ -155,6 +155,11 @@
     .info-text.show { display: block; }
 
     @media (max-width: 760px) { .analytics-grid { grid-template-columns:1fr; } }
+@media (max-width: 560px) {
+    #store-app {
+        padding-top: 0 !important;
+    }
+}
 </style>
 <!-- ================= PART 5: HTML APP SHELL & DRAWER ================= -->
 <body>
@@ -266,25 +271,40 @@
         const chart = (key, title, mode) => {
             const values = Array.isArray(data[key]) ? data[key] : [];
             const max = Math.max(...values.map(v => Number(v.sales || 0)), 1);
+            const width = 600, height = 145, pad = 18;
+            const points = values.map((value, index) => {
+                const x = values.length === 1 ? width / 2 : pad + (index * (width - pad * 2) / (values.length - 1));
+                const y = height - pad - (Number(value.sales || 0) / max) * (height - pad * 2);
+                return `${x.toFixed(1)},${y.toFixed(1)}`;
+            }).join(' ');
             return `
             <div class="analytics-card">
                 <h3>${title} <i class="fas fa-info-circle info-icon" onclick="toggleInfo('info-${key}')"></i></h3>
                 <p id="info-${key}" class="info-text">ရောင်းအားအခြေအနေများအားရက်စွဲ/ရက်သတ္တပတ် အလိုက်ကြည့်ရှုနိုင်သည်။</p>
                 ${values.length ? `
-                <div class="sales-bar-chart">
-                    ${values.map(value => `
-                        <div class="sales-bar-wrapper">
-                            <span class="sales-value-top">${Number(value.sales || 0).toLocaleString()}</span>
-                            <button class="sales-bar" style="height:${Math.max(8, Math.round(Number(value.sales || 0) / max * 100))}px" title="${value.label}: ${Number(value.sales || 0).toLocaleString()} Ks" onclick="openSalesReport('${value.label}', '${mode}')"></button>
-                            <small class="sales-date-bottom">${value.label}</small>
-                        </div>
-                    `).join('')}
-                </div>` : '<p class="empty-text">No paid sales data yet</p>'}
+                <svg class="sales-line-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${title}">
+                    <polyline points="${points}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                    ${values.map((value, index) => { const [x, y] = points.split(' ')[index].split(','); const label = String(value.label || '').replace(/'/g, "\\'"); return `<circle cx="${x}" cy="${y}" r="4" fill="var(--card)" stroke="currentColor" stroke-width="2" onclick="openSalesReport('${label}', '${mode}')"><title>${value.label}: ${Number(value.sales || 0).toLocaleString()} Ks</title></circle>`; }).join('')}
+                </svg>
+                <div class="chart-labels">${values.map(value => `<span>${value.label}</span>`).join('')}</div>` : '<p class="empty-text">No paid sales data yet</p>'}
             </div>`;
         };
         const charts = chart('daily', 'Daily Sales', 'day') + chart('weekly', 'Weekly Sales', 'week');
+        window._sellerKpis = data.kpis || {};
+        const kpi = data.kpis?.month || data.kpis?.week || {};
+        const money = value => `${Number(value || 0).toLocaleString()} Ks`;
+        const percent = value => `${Number(value || 0).toFixed(1)}%`;
+        const kpiCards = [
+            ['Total Revenue', money(kpi.revenue), 'This month', 'fa-coins'],
+            ['Total Orders', Number(kpi.orders || 0).toLocaleString(), 'Paid orders', 'fa-shopping-bag'],
+            ['Average Order Value', money(kpi.aov), 'Revenue ÷ orders', 'fa-receipt'],
+            ['Conversion Rate', percent(kpi.conversion_rate), `${Number(kpi.visitors || 0).toLocaleString()} visitors`, 'fa-chart-line']
+        ].map(([label, value, note, icon]) => `<div class="seller-kpi-card"><i class="fas ${icon}"></i><span>${label}</span><strong>${value}</strong><small>${note}</small></div>`).join('');
         const best = data.top_products?.[0]?.quantity || 1;
         const topProducts = (data.top_products || []).map((product, index) => `<div class="top-product-row"><div class="top-product-name">${index + 1}. ${escapeSellerProductText(product.title || 'Product')}</div><strong>${Number(product.quantity || 0).toLocaleString()} sold</strong><div class="top-product-bar"><i style="width:${Math.min(100, Number(product.quantity || 0) / best * 100)}%"></i></div></div>`).join('') || '<p class="empty-text">No paid sales data yet</p>';
+        const lowStock = data.inventory?.low_stock || [];
+        const outOfStock = data.inventory?.out_of_stock || [];
+        const stockRows = lowStock.map(product => `<div class="stock-alert-row"><span>${escapeSellerProductText(product.title || 'Product')}</span><strong>${Number(product.stock_quantity || 0)} left</strong></div>`).join('') || '<p class="empty-text">No low-stock products</p>';
 
         return `
         <section class="seller-analytics">
@@ -293,6 +313,8 @@
                 <span>Paid orders only</span>
             </div>
             <p id="info-dashboard" class="info-text">ရောင်းအားအခြေအနေများအား ပြေစာထုတ်ခြင်း ရောင်းအားအကောင်းဆုံးပစ္စည်းများအားလုံးကိုကြည့်နိုင်သည်။</p>
+            <div class="kpi-period-switcher"><span>Period</span><button class="active" onclick="selectKpiPeriod('month', this)">Month</button><button onclick="selectKpiPeriod('week', this)">7 days</button><button onclick="selectKpiPeriod('today', this)">Today</button></div>
+            <div class="seller-kpi-grid">${kpiCards}</div>
             <div class="analytics-card analytics-date-filter" style="margin-top:10px;">
                 <label>ကြည့်မည့်ကာလ</label>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -307,8 +329,25 @@
                 <p id="info-top" class="info-text">အရောင်းရဆုံးစာအုပ်များအား နာမည်နှင့်အရေအတွက်ကိုပြသထားသည်။</p>
                 ${topProducts}
             </div>
+            <div class="inventory-status-grid">
+                <div class="analytics-card stock-alert-card"><h3>Low Stock Alerts</h3>${stockRows}</div>
+                <div class="analytics-card stock-alert-card"><h3>Out of Stock <strong class="stock-count">${outOfStock.length}</strong></h3>${outOfStock.map(product => `<div class="stock-alert-row out"><span>${escapeSellerProductText(product.title || 'Product')}</span><strong>Out of stock</strong></div>`).join('') || '<p class="empty-text">No out-of-stock products</p>'}</div>
+            </div>
             <div id="sales-report-panel"></div>
         </section>`;
+    }
+
+    function selectKpiPeriod(period, button) {
+        const kpi = window._sellerKpis?.[period] || {};
+        const cards = document.querySelectorAll('.seller-kpi-card');
+        if (cards.length < 4) return;
+        cards[0].querySelector('strong').textContent = `${Number(kpi.revenue || 0).toLocaleString()} Ks`;
+        cards[0].querySelector('small').textContent = period === 'today' ? 'Today' : period === 'week' ? 'Last 7 days' : 'This month';
+        cards[1].querySelector('strong').textContent = Number(kpi.orders || 0).toLocaleString();
+        cards[2].querySelector('strong').textContent = `${Number(kpi.aov || 0).toLocaleString()} Ks`;
+        cards[3].querySelector('strong').textContent = `${Number(kpi.conversion_rate || 0).toFixed(1)}%`;
+        cards[3].querySelector('small').textContent = `${Number(kpi.visitors || 0).toLocaleString()} visitors`;
+        document.querySelectorAll('.kpi-period-switcher button').forEach(item => item.classList.toggle('active', item === button));
     }
 
     async function reloadSellerAnalytics() {
@@ -717,7 +756,7 @@
 
                     <div class="form-group full-width">
                         <label style="display:flex; justify-content:space-between; align-items:center;">
-                            <span>Book set,box+book စသဖြင့်</span>
+                            <span>Book set,box+book စသဖြင့်ထည့်ရန်   →</span>
                             <button type="button" class="btn-text" style="font-size:10px; padding:0; min-height:auto;" onclick="addVariation()">+ ထည့်မည်</button>
                         </label>
                         <div id="variations-list" class="compact-variation-list"></div>
@@ -1048,7 +1087,7 @@
             <section data-store-subpage="wallet-withdraw" class="wallet-panel" style="display:none;">
                 <div class="wallet-panel-heading">
                     <h3>ငွေထုတ်ရန် <i class="fas fa-info-circle info-icon" onclick="toggleInfo('info-withdraw')"></i></h3>
-                    <span>Withdrawal is available only after Monthly COD Commission is settled</span>
+                    <span>လစဉ် COD % များမပေးချေရသေးပါက ငွေထုတ်၍မရပါ။</span>
                 </div>
                 <p id="info-withdraw" class="info-text">ဒီနေရာမှာ ငွေထုတ်ခြင်းအကြောင်း ရေးထည့်နိုင်ပါတယ်။</p>
                 <form id="store-wallet-withdraw-form" class="wallet-withdraw-form">
@@ -1181,7 +1220,7 @@
             <div class="store-header">
                 <button class="btn-text" onclick="navigateStore('dashboard')"><i class="fas fa-arrow-left"></i> Back</button>
                 <h2>COD Commission <i class="fas fa-info-circle info-icon" onclick="toggleInfo('info-cod')"></i></h2>
-                <p>Monthly COD commission is payable at the beginning of the following month.</p>
+                <p>တစ်လအတွင်းဝယ်သူမှ မှာယူထားသောအိမ်ရောက်ငွေချေ (COD order)များမှ အောင်မြင်သော order များအတွက် တစ်လအတွင်း % ပေးသွင်းရန် </p>
             </div>
             <p id="info-cod" class="info-text">ဒီနေရာမှာ COD Commission အကြောင်း ရေးထည့်နိုင်ပါတယ်။</p>
 
@@ -1292,8 +1331,16 @@
         alert('Store profile saved successfully');
     }
 
-    function startChat(userId, orderId) {
-        window.location.href = `/index.html#chat?user=${userId}&order=${orderId}`;
+    async function startChat(userId, orderId) {
+        const buyerId = Number(userId);
+        if (!Number.isSafeInteger(buyerId) || buyerId <= 0) return alert('Buyer chat is unavailable for this order.');
+        try {
+            const res = await fetch(`${API_URL}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${storeToken}` }, body: JSON.stringify({ conversation_type: 'buyer_shop', participants: [`U${buyerId}`], related_order_id: Number(orderId) || null }) });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Unable to open chat');
+            navigateStore('chat');
+            openStoreChat(Number(data.conversation_id));
+        } catch (err) { alert(err.message || 'Unable to open chat'); }
     }
 
     function toggleNightMode() {

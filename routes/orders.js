@@ -116,7 +116,7 @@ router.post('/', authenticate, async (req, res) => {
                 args: [finalTotal, req.user.user_id || req.user.id]
             });
             await db.execute({
-                sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id) 
+                sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id)
                       VALUES ('user', ?, 'purchase', ?, 0, (SELECT wallet_balance FROM users WHERE user_id = ?), ?)`,
                 args: [req.user.user_id || req.user.id, -finalTotal, req.user.user_id || req.user.id, orderNumber]
             });
@@ -265,11 +265,11 @@ router.post('/bulk', authenticate, async (req, res) => {
 router.get('/buyer', authenticate, async (req, res) => {
     try {
         const orders = await db.execute({
-            sql: `SELECT o.*, COALESCE(p.title, r.title) AS title, COALESCE(p.images, r.condition_images) AS images, s.store_name 
-                  FROM orders o 
-                  LEFT JOIN products p ON o.product_id = p.book_id 
+            sql: `SELECT o.*, COALESCE(p.title, r.title) AS title, COALESCE(p.images, r.condition_images) AS images, s.store_name
+                  FROM orders o
+                  LEFT JOIN products p ON o.product_id = p.book_id
                   LEFT JOIN resell_listings r ON o.resell_listing_id = r.listing_id
-                  LEFT JOIN sellers s ON o.seller_id = s.seller_id 
+                  LEFT JOIN sellers s ON o.seller_id = s.seller_id
                   WHERE o.buyer_id = ? ORDER BY o.created_at DESC LIMIT 100`,
             args: [req.user.user_id || req.user.id]
         });
@@ -332,10 +332,10 @@ router.get('/buyer/:id/receipt', authenticate, async (req, res) => {
 router.get('/seller', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
     try {
         const { status, date_from, date_to } = req.query;
-        let sql = `SELECT o.*, p.title, u.name as buyer_name, u.phone as buyer_phone 
-                   FROM orders o 
-                   JOIN products p ON o.product_id = p.book_id 
-                   JOIN users u ON o.buyer_id = u.user_id 
+        let sql = `SELECT o.*, p.title, u.name as buyer_name, u.phone as buyer_phone
+                   FROM orders o
+                   JOIN products p ON o.product_id = p.book_id
+                   JOIN users u ON o.buyer_id = u.user_id
                    WHERE o.seller_id = ?`;
         const args = [req.user.seller_id];
 
@@ -360,7 +360,19 @@ router.get('/seller', authenticate, requireRole('publisher', 'bookstore', 'commi
 router.get('/seller/analytics', authenticate, requireRole('publisher', 'bookstore', 'commission_store'), async (req, res) => {
     try {
         const sellerId = req.user.seller_id;
-        const [daily, monthly, weekly, yearly, topProducts] = await Promise.all([
+        const periodSql = {
+            today: `date(o.created_at) = date('now')`,
+            week: `date(o.created_at) >= date('now', '-6 days')`,
+            month: `strftime('%Y-%m', o.created_at) = strftime('%Y-%m', 'now')`
+        };
+        const kpiQueries = Object.entries(periodSql).map(([period, condition]) => db.execute({
+            sql: `SELECT COALESCE(SUM(o.total_amount), 0) AS revenue, COUNT(*) AS orders, COUNT(DISTINCT o.buyer_id) AS buyers,
+                         (SELECT COUNT(*) FROM product_views v JOIN products vp ON vp.book_id = v.book_id
+                          WHERE vp.seller_id = ? AND ${condition.replaceAll('o.', 'v.')}) AS visitors
+                  FROM orders o WHERE o.seller_id = ? AND o.payment_status = 'paid' AND o.order_status <> 'cancelled' AND ${condition}`,
+            args: [sellerId, sellerId]
+        }).then(result => [period, result.rows[0] || {}]));
+        const [daily, monthly, weekly, yearly, topProducts, inventory, ...kpiRows] = await Promise.all([
             db.execute({ sql: `SELECT date(created_at) AS label, COALESCE(SUM(total_amount), 0) AS sales, COALESCE(SUM(quantity), 0) AS quantity
                 FROM orders WHERE seller_id = ? AND payment_status = 'paid' AND order_status <> 'cancelled' AND date(created_at) >= date('now', '-6 days')
                 GROUP BY date(created_at) ORDER BY label`, args: [sellerId] }),
@@ -377,8 +389,21 @@ router.get('/seller/analytics', authenticate, requireRole('publisher', 'bookstor
                 FROM orders o LEFT JOIN products p ON p.book_id = o.product_id
                 WHERE o.seller_id = ? AND o.payment_status = 'paid' AND o.order_status <> 'cancelled'
                 GROUP BY o.product_id ORDER BY quantity DESC, sales DESC LIMIT 5`, args: [sellerId] })
+            ,db.execute({ sql: `SELECT book_id, title, stock_quantity FROM products WHERE seller_id = ? AND is_active = 1 AND approved = 1 AND stock_quantity <= 5 ORDER BY stock_quantity ASC, updated_at DESC LIMIT 10`, args: [sellerId] })
+            ,...kpiQueries
         ]);
-        res.json({ daily: daily.rows, weekly: weekly.rows, monthly: monthly.rows, yearly: yearly.rows, top_products: topProducts.rows });
+        const kpis = Object.fromEntries(kpiRows);
+        for (const key of Object.keys(kpis)) {
+            const row = kpis[key];
+            row.revenue = Number(row.revenue || 0);
+            row.orders = Number(row.orders || 0);
+            row.buyers = Number(row.buyers || 0);
+            row.visitors = Number(row.visitors || 0);
+            row.aov = row.orders ? row.revenue / row.orders : 0;
+            row.conversion_rate = row.visitors ? (row.buyers / row.visitors) * 100 : 0;
+        }
+        res.json({ daily: daily.rows, weekly: weekly.rows, monthly: monthly.rows, yearly: yearly.rows, top_products: topProducts.rows,
+            inventory: { low_stock: inventory.rows.filter(row => Number(row.stock_quantity) > 0), out_of_stock: inventory.rows.filter(row => Number(row.stock_quantity) === 0), out_of_stock_count: inventory.rows.filter(row => Number(row.stock_quantity) === 0).length }, kpis });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -522,7 +547,7 @@ router.patch('/:id/status', authenticate, async (req, res) => {
                     args: [Number(ord.commission_amount || 0), ord.seller_id]
                 });
                 await db.execute({
-                    sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id) 
+                    sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id)
                           VALUES ('seller', ?, 'purchase', ?, ?, (SELECT wallet_balance FROM sellers WHERE seller_id = ?), ?)`,
                     args: [ord.seller_id, sellerAmount, ord.commission_amount, ord.seller_id, ord.order_number]
                 });
@@ -565,7 +590,7 @@ router.patch('/:id/status', authenticate, async (req, res) => {
                     args: [refundAmount, ord.buyer_id]
                 });
                 await db.execute({
-                    sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id) 
+                    sql: `INSERT INTO transactions (wallet_owner_type, wallet_owner_id, type, amount, fee, balance_after, reference_id)
                           VALUES ('user', ?, 'refund', ?, ?, (SELECT wallet_balance FROM users WHERE user_id = ?), ?)`,
                     args: [ord.buyer_id, refundAmount, refundFee, ord.buyer_id, ord.order_number]
                 });

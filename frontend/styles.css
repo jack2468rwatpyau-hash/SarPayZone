@@ -992,6 +992,15 @@ body.night-mode {
     justify-content: center;
     font-size: 24px;
     color: var(--text-secondary);
+    overflow: hidden; /* ပုံကို ဘောင်အတွင်းမှာပဲ ကန့်သတ်ရန် */
+    flex-shrink: 0;   /* Flexbox ထဲမှာ ပုံသေးမသွားစေရန် */
+    border: 2px solid #3b82f6; /* အပြာရောင်ဘောင် ထည့်ရန် */
+}
+
+.conv-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .conv-info {
@@ -1580,7 +1589,26 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .conversation-list { display: grid; gap: 10px; margin-top: 16px; }
 .conversation-item { display: flex; gap: 12px; align-items: center; padding: 14px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; cursor: pointer; }
 .conversation-item:hover { border-color: var(--primary); }
-.conv-avatar { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: white; flex: 0 0 auto; }
+.conv-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--primary);
+    color: white;
+    flex: 0 0 auto;
+    overflow: hidden;
+    border: 2px solid #3b82f6; /* အပြာရောင်ဘောင် ထည့်ရန် */
+}
+
+.conv-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+
 .conv-info { min-width: 0; flex: 1; }
 .conv-info h4, .conv-info p { margin: 0 0 4px; }
 .conv-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
@@ -1860,3 +1888,494 @@ button, .btn-primary, .btn-secondary, .filter-btn, .nav-item { min-height: 40px;
 .wallet-transaction-row strong.negative { color:#b5413c; }
 .wallet-withdraw-form .btn-primary { width:100%; }
 @media (max-width:560px) { .single-view-product-form .product-tab-panel[data-product-tab="0"], .single-view-product-form .product-tab-panel[data-product-tab="1"], .single-view-product-form .sale-extra-fields { grid-template-columns:1fr 1fr; } }
+/* =========================================
+   Sub-navigation Buttons Design Fix
+   ========================================= */
+.store-subnav, .wallet-subnav {
+    display: flex;
+    gap: 6px;
+    padding: 6px;
+    margin: 14px 0 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+}
+.store-subnav::-webkit-scrollbar, .wallet-subnav::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+.store-subnav button, .wallet-subnav button {
+    flex: 1 0 auto;
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s ease-out, color .15s ease-out, box-shadow .15s ease-out;
+}
+.store-subnav button:hover, .wallet-subnav button:hover {
+    color: var(--text);
+    background: rgba(255,255,255,.5);
+}
+.store-subnav button.active, .wallet-subnav button.active {
+    background: var(--card);
+    color: var(--primary);
+    box-shadow: 0 2px 8px rgba(20,42,36,.08);
+}
+
+/* =========================================
+   Fix Sticky Submit Button Overlapping Form
+   ========================================= */
+#store-app .store-profile-form > .btn-primary {
+    position: static !important;
+    margin-top: 16px;
+    width: 100%;
+}
+/* =========================================
+   Chat Tabs Segmented Control Design
+   ========================================= */
+.chat-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 5px;
+    margin: 16px 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+}
+.chat-tabs::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+.chat-tab {
+    flex: 1;
+    padding: 10px 16px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s ease-out, color .15s ease-out, box-shadow .15s ease-out;
+}
+.chat-tab:hover {
+    color: var(--text);
+    background: rgba(255,255,255,.5);
+}
+.chat-tab.active {
+    background: var(--card);
+    color: var(--primary);
+    box-shadow: 0 2px 8px rgba(20,42,36,.08);
+}
+
+/* =========================================
+   Slim & Bottom-Stuck Navigation Bar
+   ========================================= */
+@media (max-width: 700px) {
+    .bottom-nav {
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        transform: none !important;
+        height: 56px !important; /* အမြင့်ကို သေးငယ်စေရန် */
+        border-radius: 16px 16px 0 0 !important; /* အပေါ်ထောင့်သာ ဝိုင်းမည် */
+        border: none !important;
+        border-top: 1px solid var(--border) !important;
+        padding: 4px 8px !important;
+        padding-bottom: env(safe-area-inset-bottom) !important;
+        box-shadow: 0 -4px 12px rgba(20, 42, 36, 0.08) !important;
+        background: var(--card) !important; /* အောက်က စာသားတွေ မမြင်ရအောင် ဖုံးထားမည် */
+    }
+
+    .nav-item {
+        padding: 4px 2px !important;
+        min-height: 44px !important;
+        gap: 2px !important;
+    }
+
+    .nav-item i {
+        font-size: 16px !important; /* အိုင်ကွန် အရွယ်အစား သေးစေရန် */
+    }
+
+    .nav-item span {
+        font-size: 10px !important; /* စာသား အရွယ်အစား သေးစေရန် */
+    }
+
+    /* Content များ အောက်ဘားအောက်ရောက်မသွားစေရန် နေရာလွတ်ချန်ထားခြင်း */
+    #app {
+        padding-bottom: 56px !important;
+    }
+}
+/* =========================================
+   Product Card Image Fix & Color Update
+   ========================================= */
+
+/* ၁။ ကဒ်အရောင် ပြောင်းလဲခြင်း (စိမ်းနုရောင်) */
+.product-card {
+    background: #E9E9E9 !important;/* ဒီနေရာမှာ အရောင်ကုဒ် ပြောင်းလို့ရပါတယ် */
+    border: 1px solid #DDDDE4;
+    border-radius: 14px;
+    padding: 6px;
+    box-shadow: 0 4px 12px rgba(20, 42, 36, 0.04);
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.product-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(20, 42, 36, 0.1);
+}
+
+/* ၂။ စာအုပ်ပုံ အပြည့်မြင်ရအောင် ပြင်ဆင်ခြင်း */
+.product-card .product-image {
+    height: 145px !important;
+    border-radius: 8px;
+    background: #f8f7f4; /* ပုံအောက်ခံ အရောင် */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.product-card .product-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain !important; /* ပုံအား အပြည့်မြင်ရစေရန် (ဖြတ်တောက်မှုမရှိ) */
+}
+
+.product-card .product-info {
+    padding-top: 12px !important; /* Padding ကို ဒီနေရာမှာ ထည့်ပါ */
+    padding-left: 4px;
+    padding-right: 4px;
+    padding-bottom: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px; /* စာသားတွေကြား နေရာလွတ် */
+}
+
+.product-card .product-title {
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    line-height: 1.7 !important;
+    padding-top: 0 !important; /* Title ပေါ်က padding ကို ဖျက်လိုက်ပါ */
+    margin: 0 0 2px 0 !important;
+    color: var(--text);
+
+    /* line-clamp အစား ဒီလိုပြောင်းသုံးပါ */
+    display: block !important;
+    height: 45px; /* စာလုံးနှစ်လိုင်းအတွက် (13px * 1.7 * 2 = 44.2) ခန့် */
+    overflow: hidden;
+}
+
+.product-card .product-author {
+    font-size: 11px !important;
+    color: var(--text-secondary);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.product-card .product-price-row {
+    margin: 2px 0 0 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.product-card .price {
+    font-size: 14px !important;
+    font-weight: 800;
+    color: var(--primary);
+}
+
+.product-card .original-price {
+    font-size: 10px !important;
+    color: #a8a39a;
+    text-decoration: line-through;
+}
+
+/* ၄။ ဆိုင်နာမည်နှင့် အခြားအသေးစိတ်များ */
+.product-card .product-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px !important;
+    color: var(--text-secondary);
+    gap: 4px;
+    margin-top: 2px;
+}
+
+.product-card .product-meta > span {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.product-card .store-link {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    max-width: 65%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-secondary);
+    font-size: 10px !important;
+}
+
+/* ၅။ မလိုအပ်တဲ့ စာသားများ ဖျောက်ခြင်း */
+.product-card .store-status-line,
+.product-card .shipping-estimate-line {
+    display: none !important;
+}
+
+/* =========================================
+   Night Mode Product Card Adjustments
+   ========================================= */
+
+/* ၁။ Night Mode မှာ ကဒ်အရောင်ကို အစိမ်းရင့်ရောင်ပြောင်းခြင်း */
+body.night-mode .product-card {
+    background: #24332c !important; /* သစ်တောအစိမ်းရင့်ရောင် */
+    border: 1px solid #33463d !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+body.night-mode .product-card:hover {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45) !important;
+}
+
+/* ၂။ ပုံအောက်ခံနောက်ခံကို ပိုမှောင်စေခြင်း */
+body.night-mode .product-card .product-image {
+    background: #1a241f !important;
+}
+
+/* ၃။ စာသားအရောင်များကို Night Mode အတွက် ပြန်ညှိခြင်း */
+body.night-mode .product-card .product-title {
+    color: #e2e8e4 !important; /* အလင်းရောင် */
+}
+
+body.night-mode .product-card .product-author,
+body.night-mode .product-card .product-meta,
+body.night-mode .product-card .store-link {
+    color: #9ca8a0 !important; /* မီးခိုးဖျော့ရောင် */
+}
+
+/* ၄။ စျေးနှုန်းကို ထင်ရှားစေခြင်း */
+body.night-mode .product-card .price {
+    color: #4ade80 !important; /* အစိမ်းလင်းရောင် (ဖတ်ရလွယ်စေရန်) */
+}
+
+body.night-mode .product-card .original-price {
+    color: #6c746e !important; /* မီးခိုးရင့်ရောင် */
+}
+/* =========================================
+   Custom Font (A.ttf) for Book Titles
+   ========================================= */
+
+/* ၁။ ကိုယ်ပိုင် Font ကို Browser မှာ သိအောင် သတ်မှတ်ခြင်း */
+@font-face {
+    font-family: 'MyCustomFont'; /* ဒီနေရာမှာ ကြိုက်တဲ့နာမည် ပေးလို့ရပါတယ် */
+    src: url('A.ttf') format('truetype');
+    /* အကယ်၍ fonts folder ထဲထည့်ထားရင် url('fonts/A.ttf') လို့ ပြင်ပါ */
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap; /* Font မရောက်သေးရင် ပုံမှန် Font နဲ့ အရင်ပြထားမယ် */
+}
+
+/* ၂။ စာအုပ်နာမည်တွေမှာ အဲဒီ Font ကို ခေါ်သုံးခြင်း */
+.product-card .product-title {
+    font-family: 'MyCustomFont', sans-serif !important;
+    /* sans-serif က Backup Font ပါ။ Custom Font မပေါ်ရင် ဒါနဲ့ အစားထိုးပြပါမယ် */
+    font-weight: normal; /* A.ttf က ထူထူပါပြီးသားဆိုရင် normal ပဲထားပါ */
+    letter-spacing: 0.3px; /* စာလုံးတွေ ကပ်မနေစေဖို့ နည်းနည်းခြားပေးထားတယ် */
+}
+
+/* =========================================
+   Auth Modal with Full Top GIF Animation
+   ========================================= */
+
+/* ၁။ စာမျက်နှာတစ်ခုလုံးကို အပေါ်အောက် ခွဲခြင်း */
+#auth-modal {
+    background: #FFFFFF !important;
+    display: flex;
+    flex-direction: column; /* အပေါ်အောက် စီမယ် */
+    justify-content: space-between; /* GIF အပေါ်၊ Form အောက် */
+    align-items: center;
+    padding: 0 !important;
+    overflow-y: auto; /* ဖုန်းအမြင့်နည်းရင် scroll ရအောင် */
+}
+
+/* ၂။ GIF အတွက် အပေါ်တစ်ဝက် နေရာချခြင်း */
+.auth-gif-wrapper {
+    flex: 1; /* ကျန်တဲ့ နေရာအားလုံးကို ယူမယ် */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 20px;
+    box-sizing: border-box;
+    min-height: 35vh; /* အနည်းဆုံး အမြင့်ကို သတ်မှတ်ထားမယ် */
+}
+
+.auth-gif-wrapper img {
+    max-width: 100%;
+    max-height: 80%;
+    object-fit: contain;
+    /* GIF က ကိုယ်တိုင် လှုပ်ရှားနေတာမို့ CSS Animation ထပ်ထည့်စရာ မလိုပါ */
+}
+
+/* ၃။ Login/Register Form အတွက် အောက်တစ်ဝက် နေရာချခြင်း */
+#auth-modal .modal-content.auth-modal-content {
+    background: #ffffff !important;
+    color: #18231f !important;
+    border-radius: 24px 24px 0 0 !important;
+    padding: 24px 20px !important;
+    width: 100% !important;
+    max-width: 480px !important;
+    margin: 0 !important;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.2) !important;
+    flex-shrink: 0; /* Form က အပေါ်က GIF ကို မဖိသွားစေရန် */
+    box-sizing: border-box;
+}
+
+/* Night Mode ဖြစ်နေရင်လည်း ဒီစာမျက်နှာက အဖြူရောင်ပဲ ဖြစ်နေစေရန် */
+body.night-mode #auth-modal .modal-content.auth-modal-content {
+    background: #ffffff !important;
+    color: #18231f !important;
+}
+
+.auth-title {
+    text-align: center;
+    font-size: 20px !important;
+    margin-bottom: 24px;
+    color: #2d7d4f;
+    font-family: var(--font-serif);
+}
+
+/* ၄။ Tabs များကို Segmented Control ပုံစံပြောင်းခြင်း */
+#auth-modal .auth-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 6px;
+    background: #f6f3eb !important;
+    border: 1px solid #e3ded1 !important;
+    border-radius: 14px;
+    margin-bottom: 20px;
+}
+
+#auth-modal .auth-tab {
+    flex: 1;
+    padding: 12px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #6c746e !important;
+    font-weight: 700;
+    font-size: 14px !important;
+    cursor: pointer;
+    transition: all 0.2s ease-out;
+}
+
+#auth-modal .auth-tab:hover {
+    color: #18231f !important;
+}
+
+#auth-modal .auth-tab.active {
+    background: #ffffff !important;
+    color: #2d7d4f !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+/* ၅။ Input များကို သပ်ရပ်စေရန် */
+#auth-modal input {
+    width: 100%;
+    padding: 14px 16px !important;
+    border: 1px solid #e3ded1 !important;
+    border-radius: 12px !important;
+    background: #f6f3eb !important;
+    color: #18231f !important;
+    font-size: 14px !important;
+    margin-bottom: 14px;
+    box-sizing: border-box;
+    font-family: var(--font-sans);
+    transition: border-color 0.2s ease-out;
+}
+
+#auth-modal input:focus {
+    border-color: #2d7d4f !important;
+    outline: none;
+    background: #ffffff !important;
+}
+
+/* ၆။ Button ကို လှပစေရန် */
+#auth-modal .btn-primary {
+    margin-top: 8px;
+    border-radius: 12px !important;
+    font-size: 15px !important;
+    padding: 14px !important;
+    background: #2d7d4f !important;
+    color: #ffffff !important;
+}
+#auth-modal .btn-primary:hover {
+    background: #205c39 !important;
+}
+
+/* =========================================
+   Receipt Logo & Image Fixes
+   ========================================= */
+
+/* ၁။ Logo ကို ပိုကြီးစေရန် */
+.receipt-paper .receipt-logo {
+    width: 130px !important; /* အရင်က 70px ရှိတာကို ကြီးလိုက်ပါ */
+    height: auto !important;
+    object-fit: contain;
+    margin-bottom: 10px;
+}
+
+/* ၂။ စာအုပ်ပုံ မချုံ့ခံရအောင် ပြင်ဆင်ရန် */
+.receipt-item img {
+    width: 90px !important;
+    height: 120px !important; /* အမြင့်ကို နည်းနည်းတင်လိုက်ပါ */
+    object-fit: contain !important; /* cover ကနေ contain ကို ပြောင်းလိုက်ပါ (ပုံအပြည့်မြင်ရမယ်) */
+    background: #f8f9fa; /* ပုံအောက်ခံ အရောင်ဖျော့ဖျော့လေး ထည့်ပေးပါ */
+    border-radius: 6px;
+    border: 1px solid #e3ded1;
+}
+/* Seller dashboard KPI and inventory panels */
+.seller-kpi-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:12px 0; }
+.seller-kpi-card { min-width:0; padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--card); box-shadow:var(--shadow); display:flex; flex-direction:column; gap:4px; }
+.seller-kpi-card i { color:var(--primary); font-size:14px; }
+.seller-kpi-card span { color:var(--text-secondary); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.seller-kpi-card strong { font-size:18px; line-height:1.2; overflow-wrap:anywhere; }
+.seller-kpi-card small { color:var(--text-secondary); font-size:10px; }
+.inventory-status-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:10px; }
+.stock-alert-card h3 { display:flex; justify-content:space-between; align-items:center; }
+.stock-count { color:var(--danger,#c0392b); }
+.stock-alert-row { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:9px 0; border-bottom:1px solid var(--border); font-size:12px; }
+.stock-alert-row:last-child { border-bottom:0; }
+.stock-alert-row span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.stock-alert-row strong { color:#b7791f; white-space:nowrap; font-size:11px; }
+.stock-alert-row.out strong { color:var(--danger,#c0392b); }
+@media (max-width:760px) { .seller-kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .inventory-status-grid { grid-template-columns:1fr; } .seller-kpi-card strong { font-size:15px; } }
+@media (max-width:380px) { .seller-kpi-grid { gap:6px; } .seller-kpi-card { padding:9px; } }
+
+.kpi-period-switcher { display:flex; align-items:center; justify-content:flex-end; gap:5px; margin:10px 0 0; color:var(--text-secondary); font-size:11px; }
+.kpi-period-switcher button { border:1px solid var(--border); border-radius:999px; background:var(--card); color:var(--text-secondary); padding:5px 9px; font-size:11px; cursor:pointer; }
+.kpi-period-switcher button.active { background:var(--primary); border-color:var(--primary); color:#fff; }
+.sales-line-chart circle { cursor:pointer; transition: r 160ms ease; }
+.sales-line-chart circle:hover { r:6; }
+@media (max-width:560px) { .kpi-period-switcher { justify-content:flex-start; flex-wrap:wrap; } }

@@ -63,6 +63,14 @@ async function getPeerProfile(participants, user) {
     return null;
 }
 
+async function findExistingConversation(participantList, conversationType) {
+    const result = await db.execute({ sql: `SELECT conversation_id, participants FROM conversations WHERE conversation_type = ?`, args: [conversationType || 'buyer_shop'] });
+    const wanted = [...new Set(participantList)].sort();
+    return result.rows.find(row => {
+        try { return JSON.parse(row.participants || '[]').sort().join('|') === wanted.join('|'); } catch (_) { return false; }
+    }) || null;
+}
+
 // Get conversations
 router.get('/conversations', authenticate, async (req, res) => {
     try {
@@ -73,10 +81,10 @@ router.get('/conversations', authenticate, async (req, res) => {
         const userIdentifier = `${userPrefix}${userId}`;
 
         const convs = await db.execute({
-            sql: `SELECT c.*, 
+            sql: `SELECT c.*,
                   (SELECT content FROM messages WHERE conversation_id = c.conversation_id ORDER BY created_at DESC LIMIT 1) as last_message,
                   (SELECT created_at FROM messages WHERE conversation_id = c.conversation_id ORDER BY created_at DESC LIMIT 1) as last_message_time
-                  FROM conversations c 
+                  FROM conversations c
                   WHERE JSON_EXTRACT(c.participants, '$') LIKE ?
                     AND NOT EXISTS (SELECT 1 FROM conversation_hidden h WHERE h.conversation_id = c.conversation_id AND h.user_id = ?)
                     AND NOT EXISTS (SELECT 1 FROM conversation_hidden_sellers sh WHERE sh.conversation_id = c.conversation_id AND sh.seller_id = ?)
@@ -95,8 +103,8 @@ router.get('/:conversationId', authenticate, async (req, res) => {
     try {
         if (!await getConversationForUser(req.params.conversationId, req.user)) return res.status(403).json({ error: 'Not a conversation participant' });
         const messages = await db.execute({
-            sql: `SELECT m.*, 
-                  CASE 
+            sql: `SELECT m.*,
+                  CASE
                     WHEN m.sender_type = 'user' THEN (SELECT name FROM users WHERE user_id = CAST(SUBSTR(m.sender_id, 2) AS INTEGER))
                     WHEN m.sender_type = 'seller' THEN (SELECT store_name FROM sellers WHERE seller_id = CAST(SUBSTR(m.sender_id, 2) AS INTEGER))
                     ELSE 'Admin'
@@ -111,7 +119,7 @@ router.get('/:conversationId', authenticate, async (req, res) => {
                     WHEN m.sender_type = 'seller' THEN (SELECT logo FROM sellers WHERE seller_id = CAST(SUBSTR(m.sender_id, 2) AS INTEGER))
                     ELSE NULL
                   END as sender_image
-                  FROM messages m 
+                  FROM messages m
                   WHERE m.conversation_id = ? ORDER BY m.created_at ASC`,
             args: [req.params.conversationId]
         });
@@ -163,13 +171,25 @@ router.post('/', authenticate, async (req, res) => {
         let storeReply = null;
         if (!convId) {
             const participantList = Array.from(new Set([senderIdentifier, ...normalizedParticipants]));
-            const participantsJson = JSON.stringify(participantList);
-            const conv = await db.execute({
-                sql: `INSERT INTO conversations (conversation_type, participants, related_order_id) 
-                      VALUES (?, ?, ?)`,
-                args: [conversation_type || 'buyer_shop', participantsJson, related_order_id || null]
-            });
-            convId = Number(conv.lastInsertRowid);
+            const conversationType = conversation_type || 'buyer_shop';
+            const existing = await findExistingConversation(participantList, conversationType);
+            if (existing) {
+                convId = Number(existing.conversation_id);
+                await ensureVisibilityTable();
+                await db.execute({ sql: `DELETE FROM conversation_hidden WHERE conversation_id = ? AND user_id = ?`, args: [convId, req.user.user_id || req.user.id] });
+                if (req.user.seller_id) {
+                    await ensureSellerVisibilityTable();
+                    await db.execute({ sql: `DELETE FROM conversation_hidden_sellers WHERE conversation_id = ? AND seller_id = ?`, args: [convId, req.user.seller_id] });
+                }
+            } else {
+                const participantsJson = JSON.stringify(participantList);
+                const conv = await db.execute({
+                    sql: `INSERT INTO conversations (conversation_type, participants, related_order_id)
+                          VALUES (?, ?, ?)`,
+                    args: [conversationType, participantsJson, related_order_id || null]
+                });
+                convId = Number(conv.lastInsertRowid);
+            }
             const sellerIdentifier = participantList.find((participant) => participant.startsWith('S'));
             if (sellerIdentifier) {
                 const seller = await db.execute({
@@ -184,7 +204,7 @@ router.post('/', authenticate, async (req, res) => {
         }
 
         await db.execute({
-            sql: `INSERT INTO messages (conversation_id, sender_id, sender_type, content) 
+            sql: `INSERT INTO messages (conversation_id, sender_id, sender_type, content)
                   VALUES (?, ?, ?, ?)`,
             args: [convId, senderIdentifier, identity.type, normalizedContent]
         });
@@ -214,11 +234,11 @@ router.post('/image', authenticate, upload.single('image'), async (req, res) => 
         if (!req.file) return res.status(400).json({ error: 'Image file is required' });
         if (!await getConversationForUser(conversation_id, req.user)) return res.status(403).json({ error: 'Not a conversation participant' });
         const url = await uploadToCloudinary(req.file.buffer, `chat/${conversation_id}`, 'chat');
-        
+
         const identity = getIdentity(req.user);
-        
+
         await db.execute({
-            sql: `INSERT INTO messages (conversation_id, sender_id, sender_type, message_type, content) 
+            sql: `INSERT INTO messages (conversation_id, sender_id, sender_type, message_type, content)
                   VALUES (?, ?, ?, 'image', ?)`,
             args: [conversation_id, identity.identifier, identity.type, url]
         });

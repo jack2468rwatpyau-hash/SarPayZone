@@ -25,28 +25,40 @@
         </div>
     </div>
 
-    <!-- Auth Modal -->
-    <div id="auth-modal" class="modal hidden">
-        <div class="modal-content">
-            <div class="auth-tabs">
-                <button class="auth-tab active" onclick="switchAuthTab('login')">Login</button>
-                <button class="auth-tab" onclick="switchAuthTab('register')">Register</button>
-            </div>
-            <div id="auth-login">
-                <input type="tel" id="login-phone" placeholder="Phone Number" maxlength="15">
-                <input type="password" id="login-password" placeholder="Password" minlength="8">
-                <button onclick="login()" class="btn-primary">Login</button>
-            </div>
-            <div id="auth-register" class="hidden">
-                <input type="text" id="reg-name" placeholder="Full Name" maxlength="100">
-                <input type="tel" id="reg-phone" placeholder="Phone Number" maxlength="15">
-                <input type="password" id="reg-password" placeholder="Password (min 8 chars)" minlength="8">
-                <input type="text" id="reg-city" placeholder="City (optional)">
-                <button onclick="register()" class="btn-primary">Create Account</button>
-            </div>
-            <p id="auth-error" class="error-text"></p>
-        </div>
+<!-- Auth Modal -->
+<div id="auth-modal" class="modal hidden">
+
+    <!-- အပေါ်တစ်ဝက်အတွက် GIF Animation နေရာ -->
+    <div class="auth-gif-wrapper">
+        <img src="assets/logo.gif" alt="Sar Pay Zone Animation">
     </div>
+
+    <!-- အောက်တစ်ဝက်အတွက် Login/Register Form -->
+    <div class="modal-content auth-modal-content">
+        <h2 class="auth-title">Welcome to Sar Pay Zone</h2>
+
+        <div class="auth-tabs">
+            <button class="auth-tab active" onclick="switchAuthTab('login')">Login</button>
+            <button class="auth-tab" onclick="switchAuthTab('register')">Register</button>
+        </div>
+
+        <div id="auth-login" class="auth-form">
+            <input type="tel" id="login-phone" placeholder="Phone Number" maxlength="15">
+            <input type="password" id="login-password" placeholder="Password" minlength="8">
+            <button onclick="login()" class="btn-primary">Login</button>
+        </div>
+
+        <div id="auth-register" class="auth-form hidden">
+            <input type="text" id="reg-name" placeholder="Full Name" maxlength="100">
+            <input type="tel" id="reg-phone" placeholder="Phone Number" maxlength="15">
+            <input type="password" id="reg-password" placeholder="Password (min 8 chars)" minlength="8">
+            <input type="text" id="reg-city" placeholder="City (optional)">
+            <button onclick="register()" class="btn-primary">Create Account</button>
+        </div>
+
+        <p id="auth-error" class="error-text"></p>
+    </div>
+</div>
 
     <div id="checkout-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
         <div class="modal-content checkout-form-card">
@@ -228,10 +240,10 @@
             window.location.hash = page;
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
-            
+
             const main = document.getElementById('main-content');
             main.innerHTML = '';
-            
+
             switch(page) {
                 case 'home': renderHome(main); break;
                 case 'categories': renderCategories(main); break;
@@ -256,14 +268,14 @@
         // ===== HOME =====
         async function renderHome(container) {
             container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
-            
+
             const [bannersRes, popularRes, categoriesRes, resellRes] = await Promise.all([
                 fetch(`${API_URL}/products/banners`),
                 fetch(`${API_URL}/products?sort=popular&limit=10`),
                 fetch(`${API_URL}/products/categories/all`),
                 fetch(`${API_URL}/resell/listings`)
             ]);
-            
+
             const bannersPayload = await bannersRes.json().catch(() => []);
             const banners = Array.isArray(bannersPayload) ? bannersPayload : [];
             const popular = await popularRes.json().catch(() => []);
@@ -283,7 +295,7 @@
                             </div>
                         `).join('')}
                     </div>
-                    
+
                     <div class="section-header">
                         <h3>Most Viewed</h3>
                         <button onclick="navigateTo('search', {sort: 'popular'})" class="link-btn">See All</button>
@@ -307,7 +319,7 @@
                     </div>
                 </div>
             `;
-            
+
             initBannerSlider();
         }
 
@@ -350,7 +362,7 @@
             const content = document.getElementById('product-detail-content');
             content.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i></div>';
             modal.classList.remove('hidden');
-            
+
             const res = await fetch(`${API_URL}/products/${bookId}`);
             const p = await res.json();
             let reviewEligibility = { can_review: false, order_id: null };
@@ -358,14 +370,14 @@
                 const eligibilityRes = await fetch(`${API_URL}/orders/buyer/review-eligibility/${Number(bookId)}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
                 reviewEligibility = await eligibilityRes.json().catch(() => reviewEligibility);
             }
-            
+
             const images = p.images ? JSON.parse(p.images) : [];
             const variations = p.variations || [];
             const storeOpen = p.store_is_open !== 0 && p.store_accepting_orders !== 0;
             const preorderClosed = p.sale_type === 'preorder' && p.preorder_end_at && new Date(p.preorder_end_at) <= new Date();
             const preorderUpcoming = p.sale_type === 'preorder' && p.preorder_start_at && new Date(p.preorder_start_at) > new Date();
             const saleLabel = p.sale_type === 'preorder' ? (preorderClosed ? 'PREORDER CLOSED' : preorderUpcoming ? 'PREORDER UPCOMING' : 'PREORDER') : p.sale_type === 'cod' ? 'CASH ON DELIVERY (COD)' : 'PREPAID';
-            
+
             content.innerHTML = `
                 <div class="product-detail">
                     <div class="image-gallery">
@@ -378,7 +390,7 @@
                             `).join('')}
                         </div>
                     </div>
-                    
+
                     <div class="detail-info">
                         <h2>${p.title}</h2><span class="detail-sale-badge ${preorderClosed ? 'closed' : ''}">${saleLabel}</span>
                         <p class="author">${p.author_name || 'Unknown Author'}</p>
@@ -387,9 +399,9 @@
                             ${p.discounted_price ? `<span class="original-price">${p.original_price} Ks</span>` : ''}
                         </div>
                         <div class="shop-response-card ${storeOpen ? 'is-open' : 'is-closed'}"><i class="fas fa-${storeOpen ? 'clock' : 'store-slash'}"></i><div><strong>${storeOpen ? (p.reply_time_text || 'Usually replies within 1 hour') : 'ဆိုင်ခေတ္တပိတ်ထားပါတယ်'}</strong><small>${storeOpen ? 'ဆိုင်ဖွင့်နေပြီး အော်ဒါလက်ခံနေပါတယ်' : (p.closed_message || 'ပြန်ဖွင့်ချိန်တွင် အော်ဒါလက်ခံပါမယ်')}</small></div></div>
-                        
+
                         <div class="variation-selector">
-                            <label>Variation</label>
+                            <label>အမျိုးအစားများ</label>
                             <select id="variation-select" onchange="updateVariationPrice(this)">
                                 ${variations.map(v => `<option value="${v.variation_id}" data-price="${v.price}" data-stock="${v.stock_quantity}">${v.variation_name}</option>`).join('')}
                                 ${variations.length === 0 ? `<option value="0" data-price="${p.discounted_price || p.original_price}" data-stock="${p.stock_quantity}">Standard</option>` : ''}
@@ -453,7 +465,7 @@
             document.getElementById(id).classList.add('hidden');
         }
 
-        
+
         // ===== CATEGORIES =====
         function renderCategories(container) {
             container.innerHTML = `
@@ -481,14 +493,14 @@
         // ===== CHAT =====
         async function renderChat(container) {
             if (!currentUser) { showAuthModal(); return; }
-            
+
             container.innerHTML = `
                 <div class="chat-page">
                     <h2>Messages</h2>
                     <div class="chat-tabs">
                         <button class="chat-tab active" onclick="loadConversations('all')">All</button>
                         <button class="chat-tab" onclick="loadConversations('buyer_shop')">Shops</button>
-                        <button class="chat-tab" onclick="loadConversations('group')">Groups</button>
+
                     </div>
                     <div id="conversation-list" class="conversation-list"></div>
                 </div>
@@ -507,7 +519,7 @@
             const convs = await res.json();
             if (!res.ok || !Array.isArray(convs)) throw new Error(convs.error || 'Unable to load conversations');
             const filtered = type === 'all' ? convs : convs.filter(c => c.conversation_type === type);
-            
+
             document.getElementById('conversation-list').innerHTML = filtered.map(c => `
                 <div class="conversation-item" onclick="openChat(${c.conversation_id})">
                     <div class="conv-avatar">${c.peer_profile?.image ? `<img src="${escapeChatText(c.peer_profile.image)}" alt="">` : `<i class="fas fa-${c.peer_profile?.type === 'seller' ? 'store' : 'user-circle'}"></i>`}</div>
@@ -593,7 +605,7 @@
         // ===== PROFILE =====
         function renderProfile(container) {
             if (!currentUser) { showAuthModal(); return; }
-            
+
             container.innerHTML = `
                 <div class="profile-page">
                     <div class="profile-header">
@@ -603,7 +615,7 @@
                         <h3>${currentUser.name}</h3>
                         <p class="public-id">${currentUser.public_id}</p>
                     </div>
-                    
+
                     <div class="profile-menu">
                         <div class="menu-item" onclick="navigateTo('orders')">
                             <i class="fas fa-shopping-bag"></i>
@@ -655,7 +667,7 @@
             if (transactionRes.ok) data.transactions = await transactionRes.json();
             const withdrawalRes = await fetch(`${API_URL}/wallet/withdrawals`, { headers: { 'Authorization': `Bearer ${authToken}` } });
             const paidWithdrawals = withdrawalRes.ok ? await withdrawalRes.json() : [];
-            
+
             container.innerHTML = `
                 <div class="wallet-page">
                     <button class="btn-text page-back-btn" onclick="navigateTo('profile')"><i class="fas fa-arrow-left"></i> Back to Profile</button><h2>My Wallet</h2>
@@ -664,7 +676,7 @@
                         <div class="balance-amount">${data.balance.toLocaleString()} Ks</div>
                         ${data.resell_balance !== undefined ? `<div class="resell-balance">Resell Balance: ${data.resell_balance.toLocaleString()} Ks</div>` : ''}
                     </div>
-                    
+
                     <div class="wallet-actions">
                         <button onclick="navigateTo('withdraw')" class="btn-primary">Withdraw</button>
                         <button onclick="navigateTo('transfer')" class="btn-secondary">Transfer to User</button>
@@ -702,7 +714,7 @@
                 headers: { 'Authorization': `Bearer ${authToken}` }
             });
             const orders = await res.json();
-            
+
             container.innerHTML = `
                 <div class="orders-page">
                     <button class="btn-text page-back-btn" onclick="navigateTo('profile')"><i class="fas fa-arrow-left"></i> Back to Profile</button><h2>My Orders</h2>
@@ -813,7 +825,7 @@
         async function renderVoting(container) {
             const res = await fetch(`${API_URL}/voting/festivals`);
             const festivals = await res.json();
-            
+
             container.innerHTML = `
                 <div class="voting-page">
                     <h2>Voting Festival</h2>
@@ -833,7 +845,7 @@
         // ===== RESELL =====
         async function renderResell(container) {
             container.innerHTML = `<div class="resell-page"><h2>Resell Center</h2><button onclick="navigateTo('resell-add')" class="btn-primary"><i class="fas fa-plus"></i> List Book for Resell</button>${authToken ? '<h3>My Resell Listings</h3><div id="my-resell-listings" class="my-resell-list"></div>' : ''}<h3>Marketplace</h3><div id="resell-listings" class="product-grid"></div></div>`;
-            
+
             const res = await fetch(`${API_URL}/resell/listings`); const listings = await res.json();
             document.getElementById('resell-listings').innerHTML = Array.isArray(listings) ? listings.map(renderResellCard).join('') || '<p class="empty-text">No resell listings available</p>' : '<p class="error-text">Unable to load resell listings</p>';
             if (authToken) { const mineRes = await fetch(`${API_URL}/resell/mine`, { headers: { 'Authorization': `Bearer ${authToken}` } }); const mine = await mineRes.json(); document.getElementById('my-resell-listings').innerHTML = Array.isArray(mine) ? mine.map(renderMyResellRow).join('') || '<p class="empty-text">You have no resell listings.</p>' : '<p class="error-text">Unable to load your listings</p>'; }
@@ -929,11 +941,11 @@
                     <div id="entity-search-results" class="entity-search-results"></div><div id="search-results" class="product-grid"></div>
                 </div>
             `;
-            
+
             fetch(`${API_URL}/products/categories/all`)
                 .then(r => r.json())
                 .then(cats => {
-                    document.getElementById('search-category').innerHTML += cats.map(c => 
+                    document.getElementById('search-category').innerHTML += cats.map(c =>
                         `<option value="${c.slug}">${c.name}</option>`
                     ).join('');
                 });
@@ -955,12 +967,12 @@
             const query = document.getElementById('search-input').value;
             const category = document.getElementById('search-category').value;
             const sort = document.getElementById('search-sort').value;
-            
+
             const params = new URLSearchParams({ search: query, category, sort });
             const res = await fetch(`${API_URL}/products?${params}`);
             const products = await res.json();
-            
-            document.getElementById('search-results').innerHTML = products.map(p => renderProductCard(p)).join('') 
+
+            document.getElementById('search-results').innerHTML = products.map(p => renderProductCard(p)).join('')
                 || '<p class="empty-text">No books found</p>';
         }
 
@@ -986,7 +998,7 @@
         function renderCartItems() {
             const container = document.getElementById('cart-items');
             if (!container) return;
-            
+
             const groups = cart.reduce((map, item, index) => {
                 const key = item.seller_id || `unknown-${index}`;
                 if (!map[key]) map[key] = { seller_id: key, store_name: item.store_name || 'စာပေဇုန်ဆိုင်', items: [] };
@@ -1019,7 +1031,7 @@
                     </section>
                 `;
             }).join('') || '<p class="empty-text">Your cart is empty</p>';
-            
+
             const totalEl = document.getElementById('cart-total');
             if (totalEl) totalEl.textContent = total.toLocaleString();
         }
@@ -1301,7 +1313,7 @@
             let current = 0;
             slides.forEach((s, i) => s.style.display = i === 0 ? 'block' : 'none');
             if (slides.length <= 1) return;
-            
+
             setInterval(() => {
                 slides.forEach((s, i) => s.style.display = i === current ? 'block' : 'none');
                 current = (current + 1) % slides.length;
@@ -1328,7 +1340,7 @@
                     const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array('BB4adKD_jrSODVxxlh9R4-OOm0Bu8NIAfv507H6ZC0_12nvjVyQO0yjkRwIJnzUHhuQ8YV9W6ZLhdZNVS2dsmx0') });
                     await fetch(`${API_URL}/push/subscribe`, {
                         method: 'POST',
-                        headers: { 
+                        headers: {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${authToken}`
                         },
@@ -1345,7 +1357,7 @@
 
         // Init
         if (localStorage.getItem('spz_night') === 'true') document.body.classList.add('night-mode');
-        
+
         // Check if returning from shared link
         const urlParams = new URLSearchParams(window.location.search);
         const sharedProduct = urlParams.get('product');
