@@ -259,7 +259,7 @@
                 case 'transfer': renderTransfer(main); break;
                 case 'orders': renderOrders(main); break;
                 case 'receipt': renderReceipt(main, params.orderId); break;
-                case 'resell': renderResell(main); break;
+                case 'resell': renderResell(main, params); break;
                 case 'resell-add': renderResellForm(main); break;
                 case 'wishlist': renderWishlist(main); break;
             }
@@ -843,12 +843,20 @@
         }
 
         // ===== RESELL =====
-        async function renderResell(container) {
-            container.innerHTML = `<div class="resell-page"><h2>Resell Center</h2><button onclick="navigateTo('resell-add')" class="btn-primary"><i class="fas fa-plus"></i> List Book for Resell</button>${authToken ? '<h3>My Resell Listings</h3><div id="my-resell-listings" class="my-resell-list"></div>' : ''}<h3>Marketplace</h3><div id="resell-listings" class="product-grid"></div></div>`;
+        async function renderResell(container, params = {}) {
+            const initialSearch = String(params.search || '');
+            container.innerHTML = `<div class="resell-page"><div class="page-heading-row"><div><p class="eyebrow">BUYER MARKETPLACE</p><h2>Resell Books</h2><p class="text-secondary">ဝယ်သူများတင်ထားသော စာအုပ်များကို ရှာဖွေဝယ်ယူနိုင်ပါသည်။</p></div><button onclick="navigateTo('resell-add')" class="btn-primary"><i class="fas fa-plus"></i> List Book for Resell</button></div><div class="search-bar resell-search-bar"><i class="fas fa-search"></i><input id="resell-search-input" value="${escapeChatText(initialSearch)}" placeholder="Resell စာအုပ်၊ စာရေးသူ၊ ရောင်းသူ သို့မဟုတ် ID ရှာရန်" oninput="loadResellListings(this.value)"></div>${authToken ? '<h3>My Resell Listings</h3><div id="my-resell-listings" class="my-resell-list"></div>' : ''}<div class="section-header"><h3>Marketplace</h3><span class="small text-secondary">RESELL badge ပါသော စာအုပ်များ</span></div><div id="resell-listings" class="product-grid"></div></div>`;
 
-            const res = await fetch(`${API_URL}/resell/listings`); const listings = await res.json();
-            document.getElementById('resell-listings').innerHTML = Array.isArray(listings) ? listings.map(renderResellCard).join('') || '<p class="empty-text">No resell listings available</p>' : '<p class="error-text">Unable to load resell listings</p>';
+            loadResellListings(initialSearch);
             if (authToken) { const mineRes = await fetch(`${API_URL}/resell/mine`, { headers: { 'Authorization': `Bearer ${authToken}` } }); const mine = await mineRes.json(); document.getElementById('my-resell-listings').innerHTML = Array.isArray(mine) ? mine.map(renderMyResellRow).join('') || '<p class="empty-text">You have no resell listings.</p>' : '<p class="error-text">Unable to load your listings</p>'; }
+        }
+
+        async function loadResellListings(search = '') {
+            const target = document.getElementById('resell-listings'); if (!target) return;
+            target.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+            const res = await fetch(`${API_URL}/resell/listings?search=${encodeURIComponent(search)}`);
+            const listings = await res.json().catch(() => []);
+            target.innerHTML = Array.isArray(listings) ? listings.map(renderResellCard).join('') || '<p class="empty-text">No matching Resell books found</p>' : '<p class="error-text">Unable to load resell listings</p>';
         }
 
         function renderMyResellRow(l) { return `<div class="my-resell-row"><div><strong>${escapeChatText(l.title)}</strong><span>Stock: ${Number(l.stock_quantity || 0)} · ${escapeChatText(l.status)}</span></div><div class="my-resell-actions">${l.status !== 'sold' ? `<button class="btn-text" onclick="editResellListing(${Number(l.listing_id)}, ${Number(l.stock_quantity || 1)}, ${Number(l.asking_price || 0)})">Edit</button><button class="btn-text danger" onclick="deleteResellListing(${Number(l.listing_id)})">Delete</button>` : '<span class="small text-secondary">Sold</span>'}</div></div>`; }
@@ -904,6 +912,7 @@
         }
 
         async function buyResell(listingId) {
+            if (!currentUser) { showAuthModal(); return; }
             const shippingAddress = prompt('Enter delivery address');
             if (!shippingAddress) return;
             try {
@@ -925,7 +934,7 @@
         function renderSearch(container) {
             container.innerHTML = `
                 <div class="search-page">
-                    <div class="entity-search-controls"><label for="entity-search-type">Search type</label><select id="entity-search-type" onchange="performEntitySearch()"><option value="book">Books</option><option value="seller">Sellers / Shops</option><option value="author">Authors</option><option value="user">Users</option></select></div>
+                    <div class="entity-search-controls"><label for="entity-search-type">Search type</label><select id="entity-search-type" onchange="performEntitySearch()"><option value="book">Books</option><option value="resell">Resell Books</option><option value="seller">Sellers / Shops</option><option value="author">Authors</option><option value="user">Users</option></select></div>
                     <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="search-input" placeholder="စာအုပ်၊ စာရေးသူ၊ ဆိုင် သို့မဟုတ် ID နဲ့ရှာရန်" oninput="performEntitySearch()" onkeyup="performSearch(event)"></div>
                     <div class="search-filters">
                         <select id="search-category" onchange="performSearch()">
@@ -958,7 +967,7 @@
                 if (type === 'book') { suggestions.innerHTML = ''; if (query.length >= 2) performSearch(); return; }
                 if (!query) { suggestions.innerHTML = ''; return; }
                 const res = await fetch(`${API_URL}/search/entities?type=${encodeURIComponent(type)}&q=${encodeURIComponent(query)}`); const rows = await res.json();
-                suggestions.innerHTML = Array.isArray(rows) && rows.length ? rows.map(row => type === 'seller' ? `<button class="entity-result" onclick="navigateTo('shop', {sellerId: '${row.id}'})"><i class="fas fa-store"></i><span>${escapeChatText(row.name || 'Shop')}<small>${escapeChatText(row.public_id || '')}</small></span></button>` : type === 'user' ? `<button class="entity-result" onclick="navigateTo('user', {publicId: '${escapeChatText(row.public_id || '')}'})"><i class="fas fa-user"></i><span>${escapeChatText(row.name || 'User')}<small>${escapeChatText(row.public_id || '')}</small></span></button>` : `<button class="entity-result" onclick="searchByAuthor('${String(row.name || '').replace(/'/g, "\\'")}')"><i class="fas fa-pen-nib"></i><span>${escapeChatText(row.name)}<small>${Number(row.book_count || 0)} books</small></span></button>`).join('') : '<p class="empty-text">No matching results</p>';
+                suggestions.innerHTML = Array.isArray(rows) && rows.length ? rows.map(row => type === 'seller' ? `<button class="entity-result" onclick="navigateTo('shop', {sellerId: '${row.id}'})"><i class="fas fa-store"></i><span>${escapeChatText(row.name || 'Shop')}<small>${escapeChatText(row.public_id || '')}</small></span></button>` : type === 'user' ? `<button class="entity-result" onclick="navigateTo('user', {publicId: '${escapeChatText(row.public_id || '')}'})"><i class="fas fa-user"></i><span>${escapeChatText(row.name || 'User')}<small>${escapeChatText(row.public_id || '')}</small></span></button>` : type === 'resell' ? `<button class="entity-result" onclick="navigateTo('resell', {search: '${String(row.name || '').replace(/'/g, "\\'")}')}"><i class="fas fa-book-open"></i><span>${escapeChatText(row.name || 'Resell book')}<small>${escapeChatText(row.public_id || '')} · ${Number(row.final_price || row.asking_price || 0).toLocaleString()} Ks</small></span></button>` : `<button class="entity-result" onclick="searchByAuthor('${String(row.name || '').replace(/'/g, "\\'")}')"><i class="fas fa-pen-nib"></i><span>${escapeChatText(row.name)}<small>${Number(row.book_count || 0)} books</small></span></button>`).join('') : '<p class="empty-text">No matching results</p>';
             }, 180);
         }
         function searchByAuthor(author) { document.getElementById('entity-search-type').value = 'book'; document.getElementById('search-input').value = author; document.getElementById('entity-search-results').innerHTML = ''; performSearch(); }

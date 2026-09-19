@@ -99,11 +99,20 @@ router.patch('/:id/approve', authenticate, requireRole('admin'), async (req, res
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.get('/listings', async (_req, res) => {
+router.get('/listings', async (req, res) => {
     try {
+        const query = String(req.query.search || '').trim();
+        const args = [];
+        let filter = '';
+        if (query) {
+            filter = ` AND (r.title LIKE ? OR COALESCE(r.author_name, '') LIKE ? OR r.public_id LIKE ? OR u.name LIKE ? OR u.public_id LIKE ?)`;
+            const prefix = `%${query}%`;
+            args.push(prefix, prefix, prefix, prefix, prefix);
+        }
         const listings = await db.execute({
             sql: `SELECT r.*, u.name AS seller_name, u.public_id AS seller_public_id, u.city
-                  FROM resell_listings r JOIN users u ON r.seller_id = u.user_id WHERE r.status = 'approved' AND r.stock_quantity > 0 ORDER BY r.created_at DESC`
+                  FROM resell_listings r JOIN users u ON r.seller_id = u.user_id WHERE r.status = 'approved' AND r.stock_quantity > 0${filter} ORDER BY r.created_at DESC`,
+            args
         });
         res.json(listings.rows);
     } catch (err) { res.status(500).json({ error: err.message }); }
