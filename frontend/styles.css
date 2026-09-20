@@ -1827,6 +1827,19 @@ button, .btn-primary, .btn-secondary, .filter-btn, .nav-item { min-height: 40px;
 .product-card .price { font-size:13px !important; }
 .product-wishlist-btn { position:absolute; top:12px; right:12px; z-index:2; width:30px; height:30px; border:0; border-radius:50%; background:rgba(255,255,255,.92); color:var(--danger); cursor:pointer; box-shadow:0 2px 7px rgba(0,0,0,.14); }
 .product-wishlist-btn.is-saved { background:var(--danger); color:#fff; }
+
+#spz-alert-overlay { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; visibility: hidden; opacity: 0; transition: opacity .18s ease, visibility .18s ease; }
+#spz-alert-overlay.is-visible { visibility: visible; opacity: 1; }
+.spz-alert-backdrop { position: absolute; inset: 0; background: rgba(18, 24, 30, .62); backdrop-filter: blur(3px); }
+.spz-alert-dialog { position: relative; width: min(100%, 390px); padding: 24px 22px 20px; border: 1px solid rgba(255,255,255,.55); border-radius: 22px; background: var(--surface, #fff); color: var(--text, #1d252c); box-shadow: 0 20px 60px rgba(0,0,0,.28); transform: translateY(8px) scale(.98); transition: transform .18s ease; }
+#spz-alert-overlay.is-visible .spz-alert-dialog { transform: translateY(0) scale(1); }
+.spz-alert-brand { display: flex; align-items: center; gap: 9px; color: var(--primary, #0b6b4b); font-weight: 700; font-size: 13px; margin-bottom: 16px; }
+.spz-alert-logo { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 9px; background: var(--primary, #0b6b4b); color: #fff; }
+.spz-alert-dialog h2 { margin: 0 0 10px; font-size: 18px; }
+.spz-alert-dialog p { margin: 0; white-space: pre-wrap; line-height: 1.6; font-size: 14px; color: var(--text-secondary, #66717a); overflow-wrap: anywhere; }
+.spz-alert-dialog button { display: block; width: 100%; margin-top: 22px; padding: 11px 16px; border: 0; border-radius: 12px; background: var(--primary, #0b6b4b); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.spz-alert-dialog button:focus-visible { outline: 3px solid rgba(11,107,75,.25); outline-offset: 2px; }
+@media (max-width: 480px) { .spz-alert-dialog { padding: 20px 18px 17px; border-radius: 18px; } .spz-alert-dialog h2 { font-size: 16px; } .spz-alert-dialog p { font-size: 13px; } }
 #store-app .seller-product-card { grid-template-columns:72px minmax(0,1fr); gap:10px; padding:10px; border-radius:14px; }
 #store-app .seller-product-cover { width:72px; height:94px; }
 #store-app .seller-product-title { font-size:13px !important; }
