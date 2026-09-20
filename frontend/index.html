@@ -287,6 +287,7 @@
                 case 'support': renderSupport(main); break;
                 case 'policies': renderPolicies(main); break;
                 case 'buy-now': renderBuyNow(main, params.bookId); break;
+                case 'notifications': renderNotifications(main); break;
             }
         }
 
@@ -683,6 +684,11 @@
                             <span>Policies</span>
                             <i class="fas fa-chevron-right"></i>
                         </div>
+                        <div class="menu-item" onclick="navigateTo('notifications')">
+                            <i class="fas fa-bell"></i>
+                            <span>Browser Notifications</span>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
                         <div class="menu-item" onclick="toggleNightMode()">
                             <i class="fas fa-moon"></i>
                             <span>Night Mode</span>
@@ -779,6 +785,21 @@
             const data = await res.json();
             if (!res.ok) return alert(data.error || 'Unable to open customer support chat');
             navigateTo('chat'); openChat(Number(data.conversation_id));
+        }
+
+        async function renderNotifications(container) {
+            const permission = 'Notification' in window ? Notification.permission : 'unsupported';
+            const label = permission === 'granted' ? 'Enabled' : permission === 'denied' ? 'Blocked in browser settings' : permission === 'unsupported' ? 'Not supported by this browser' : 'Not enabled yet';
+            container.innerHTML = `<div class="content-page"><button class="btn-text page-back-btn" onclick="navigateTo('profile')"><i class="fas fa-arrow-left"></i> Back to Profile</button><p class="eyebrow">NOTIFICATION SETTINGS</p><h2>Browser Notifications</h2><div class="help-card"><i class="fas fa-bell" style="font-size:30px;color:var(--accent)"></i><h3>Status: ${label}</h3><p>အော်ဒါအခြေအနေ၊ Chat စာအသစ်နှင့် Delivery reminder များကို Browser Notification အဖြစ် လက်ခံနိုင်ပါသည်။</p><button class="btn-primary" onclick="enableBrowserNotifications()" ${permission === 'denied' || permission === 'unsupported' ? 'disabled' : ''}><i class="fas fa-check"></i> Enable Notifications</button><p id="notification-status" class="small text-secondary"></p></div></div>`;
+        }
+
+        async function enableBrowserNotifications() {
+            const status = document.getElementById('notification-status');
+            if (status) status.textContent = 'Setting up notifications...';
+            const result = await requestPushPermission();
+            if (result.ok) { if (status) status.textContent = 'Notifications are enabled on this device.'; return alert('Browser notifications ကို ဖွင့်ပြီးပါပြီ။'); }
+            if (status) status.textContent = `Unable to enable notifications: ${result.reason}`;
+            alert(result.reason === 'blocked' ? 'Browser Settings ထဲမှ Notifications ကို Allow ပြန်လုပ်ပေးပါ။' : `Notification ဖွင့်၍မရပါ: ${result.reason}`);
         }
 
         // ===== ORDERS =====
@@ -1450,27 +1471,27 @@
         }
 
         async function requestPushPermission() {
-            if ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && Notification.permission !== 'denied') {
-                try {
-                    if (Notification.permission === 'default') await Notification.requestPermission();
-                    if (Notification.permission !== 'granted') return;
-                    const reg = await navigator.serviceWorker.register('/service-worker.js');
-                    const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array('BB4adKD_jrSODVxxlh9R4-OOm0Bu8NIAfv507H6ZC0_12nvjVyQO0yjkRwIJnzUHhuQ8YV9W6ZLhdZNVS2dsmx0') });
-                    await fetch(`${API_URL}/push/subscribe`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${authToken}`
-                        },
-                        body: JSON.stringify({
-                            endpoint: sub.endpoint,
-                            keys: { p256dh: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))), auth: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth')))) }
-                        })
-                    });
-                } catch (err) {
-                    console.log('Push notification permission denied');
+            if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return { ok: false, reason: 'unsupported' };
+            if (Notification.permission === 'denied') return { ok: false, reason: 'blocked' };
+            try {
+                if (Notification.permission === 'default') {
+                    const permission = await Notification.requestPermission();
+                    if (permission !== 'granted') return { ok: false, reason: permission };
                 }
-            }
+                const configRes = await fetch(`${API_URL}/push/config`, { cache: 'no-store' });
+                const pushConfig = await configRes.json().catch(() => ({}));
+                if (!configRes.ok || !pushConfig.public_key) return { ok: false, reason: pushConfig.error || 'not-configured' };
+                const reg = await navigator.serviceWorker.register('/service-worker.js', { updateViaCache: 'none' });
+                await reg.update();
+                const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(pushConfig.public_key) });
+                const saveRes = await fetch(`${API_URL}/push/subscribe`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ endpoint: sub.endpoint, keys: { p256dh: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))), auth: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth')))) } })
+                });
+                const saved = await saveRes.json().catch(() => ({}));
+                if (!saveRes.ok) return { ok: false, reason: saved.error || 'subscription-save-failed' };
+                return { ok: true };
+            } catch (err) { console.warn('Push notification setup failed:', err); return { ok: false, reason: err.message || 'setup-failed' }; }
         }
 
         // Init

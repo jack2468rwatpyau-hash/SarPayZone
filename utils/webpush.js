@@ -2,14 +2,16 @@ const webpush = require('web-push');
 const config = require('../config');
 const db = require('../db');
 
-webpush.setVapidDetails(
-    config.VAPID_SUBJECT,
-    config.VAPID_PUBLIC_KEY,
-    config.VAPID_PRIVATE_KEY
-);
+const pushConfigured = Boolean(config.VAPID_SUBJECT && config.VAPID_PUBLIC_KEY && config.VAPID_PRIVATE_KEY);
+if (pushConfigured) {
+    webpush.setVapidDetails(config.VAPID_SUBJECT, config.VAPID_PUBLIC_KEY, config.VAPID_PRIVATE_KEY);
+} else {
+    console.warn('Browser notifications disabled: VAPID environment variables are incomplete.');
+}
 
 const sendPushNotification = async (targetId, targetType, payload) => {
     try {
+        if (!pushConfigured) return;
         const field = targetType === 'buyer' ? 'user_id' : 'seller_id';
         const subs = await db.execute({
             sql: `SELECT * FROM push_subscriptions WHERE ${field} = ?`,
@@ -24,7 +26,7 @@ const sendPushNotification = async (targetId, targetType, payload) => {
             try {
                 await webpush.sendNotification(pushSub, JSON.stringify(payload));
             } catch (err) {
-                if (err.statusCode === 410) {
+                if ([404, 410].includes(err.statusCode)) {
                     await db.execute({
                         sql: 'DELETE FROM push_subscriptions WHERE subscription_id = ?',
                         args: [sub.subscription_id]
@@ -38,4 +40,3 @@ const sendPushNotification = async (targetId, targetType, payload) => {
 };
 
 module.exports = { sendPushNotification, webpush };
-

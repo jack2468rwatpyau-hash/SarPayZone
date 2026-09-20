@@ -81,6 +81,11 @@ app.use('/api/settlements', settlementRoutes);
 app.use('/api/search', searchRoutes);
 
 // Web Push subscription
+app.get('/api/push/config', (_req, res) => {
+    if (!config.VAPID_PUBLIC_KEY) return res.status(503).json({ error: 'Browser notifications are not configured' });
+    res.json({ public_key: config.VAPID_PUBLIC_KEY });
+});
+
 app.post('/api/push/subscribe', authenticate, async (req, res) => {
     try {
         const { endpoint, keys } = req.body;
