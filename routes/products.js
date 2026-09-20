@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roleCheck');
@@ -206,8 +207,9 @@ router.post('/', authenticate, requireRole('publisher', 'bookstore', 'commission
         const isValidWindow = sale_type !== 'preorder' || (preorder_start_at && preorder_end_at && new Date(preorder_end_at) > new Date(preorder_start_at));
         if (!['preorder', 'prepaid', 'cod'].includes(sale_type) || !isValidWindow || numericPreorderDeposit < 0 || numericCodDeposit < 0 || numericShipping < 0 || !String(title || '').trim() || !Number.isFinite(numericOriginal) || numericOriginal < 0 || !Number.isFinite(numericDiscounted) || numericDiscounted < 0 || !Number.isInteger(numericStock) || numericStock < 0) return res.status(400).json({ error: 'Sale type, prices, shipping estimate, and stock must be valid.' });
         
-        const count = await db.execute({ sql: `SELECT COUNT(*) as c FROM products` });
-        const publicId = `SPFbk#${String(count.rows[0].c + 1).padStart(4, '0')}`;
+        // Do not derive public IDs from COUNT(*): deleted rows and concurrent
+        // publishes can produce the same ID and violate the UNIQUE constraint.
+        const publicId = `SPFbk#${Date.now().toString(36).toUpperCase()}${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
         const cloudinaryFolderId = publicId.replace(/[^a-zA-Z0-9_-]/g, '_');
 
         // Upload images
