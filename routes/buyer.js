@@ -3,6 +3,29 @@ const router = express.Router();
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 
+// Public contact cards for buyers who need to add wallet funds through an agent.
+router.get('/cash-in-agents', async (_req, res) => {
+    try {
+        const agents = await db.execute({
+            sql: `SELECT seller_id, public_id, name, phone, store_name
+                  FROM sellers WHERE role = 'agent' AND is_visible = 1 ORDER BY name LIMIT 50`
+        });
+        res.json(agents.rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// The first visible admin is the buyer customer-support contact.
+router.get('/support-contact', async (_req, res) => {
+    try {
+        const admin = await db.execute({
+            sql: `SELECT seller_id, public_id, name, phone, store_name
+                  FROM sellers WHERE role = 'admin' AND is_visible = 1 ORDER BY seller_id LIMIT 1`
+        });
+        if (!admin.rows.length) return res.status(404).json({ error: 'Customer support is unavailable' });
+        res.json(admin.rows[0]);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Public profile data for viewing another buyer from chat. Private account
 // fields are intentionally excluded; purchase count is aggregate only.
 router.get('/public/:publicId', async (req, res) => {

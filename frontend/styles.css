@@ -805,6 +805,18 @@ body.night-mode {
     flex: 1;
 }
 
+.agent-list, .content-page { display: flex; flex-direction: column; gap: 14px; }
+.agent-contact-card { display: flex; align-items: center; justify-content: space-between; gap: 14px; text-align: left; }
+.agent-contact-card p { margin: 4px 0; color: var(--text-secondary); }
+.agent-contact-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.agent-contact-actions a { text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
+.help-card { padding: 18px; border-radius: 16px; background: var(--surface); box-shadow: 0 4px 18px rgba(28, 37, 54, .08); }
+.help-card h3 { margin: 0 0 8px; }
+.help-card p { line-height: 1.65; color: var(--text-secondary); }
+.checkout-page { max-width: 620px; margin: 0 auto; }
+.checkout-page .cart-item { margin: 16px 0; }
+@media (max-width: 560px) { .wallet-actions { flex-wrap: wrap; } .wallet-actions button { min-width: calc(50% - 6px); } .agent-contact-card { align-items: flex-start; flex-direction: column; } }
+
 .transaction-list {
     display: flex;
     flex-direction: column;

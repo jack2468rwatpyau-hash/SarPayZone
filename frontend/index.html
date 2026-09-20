@@ -130,6 +130,24 @@
         let authToken = localStorage.getItem('spz_token');
         let currentPage = 'home';
         let cart = JSON.parse(localStorage.getItem('spz_cart') || '[]');
+        let wishlistBookIds = new Set();
+        let currentBuyNowProduct = null;
+
+        async function loadWishlistState() {
+            if (!authToken) return;
+            try {
+                const res = await fetch(`${API_URL}/buyer/wishlist`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+                const items = await res.json();
+                if (res.ok && Array.isArray(items)) {
+                    wishlistBookIds = new Set(items.map(item => Number(item.book_id)));
+                    document.querySelectorAll('.product-wishlist-btn[data-book-id]').forEach(button => {
+                        const saved = wishlistBookIds.has(Number(button.dataset.bookId));
+                        button.classList.toggle('is-saved', saved);
+                        button.innerHTML = `<i class="${saved ? 'fas' : 'far'} fa-heart"></i>`;
+                    });
+                }
+            } catch (_) { /* Wishlist is optional and must not block the storefront. */ }
+        }
 
         // ===== PASSWORD GATE =====
         async function checkPasswordCode() {
@@ -230,6 +248,7 @@
         function showApp() {
             document.getElementById('auth-modal').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');
+            loadWishlistState();
             requestPushPermission();
             navigateTo('home');
         }
@@ -262,6 +281,11 @@
                 case 'resell': renderResell(main, params); break;
                 case 'resell-add': renderResellForm(main); break;
                 case 'wishlist': renderWishlist(main); break;
+                case 'cash-in': renderCashIn(main); break;
+                case 'help': renderHelp(main); break;
+                case 'support': renderSupport(main); break;
+                case 'policies': renderPolicies(main); break;
+                case 'buy-now': renderBuyNow(main, params.bookId); break;
             }
         }
 
@@ -336,7 +360,7 @@
             const saleLabel = p.sale_type === 'preorder' ? (preorderClosed ? 'PREORDER CLOSED' : preorderUpcoming ? 'PREORDER UPCOMING' : 'PREORDER') : p.sale_type === 'cod' ? 'COD' : 'PREPAID';
             return `
                     <div class="product-card" onclick="openProductDetail(${p.book_id})">
-                    <button class="product-wishlist-btn" type="button" aria-label="Add to wishlist" onclick="event.stopPropagation(); toggleWishlist(${Number(p.book_id)}, this)"><i class="far fa-heart"></i></button><div class="product-image">${p.sale_type ? `<span class="sale-type-badge ${preorderClosed ? 'closed' : ''}">${saleLabel}</span>` : ''}
+                    <button class="product-wishlist-btn ${wishlistBookIds.has(Number(p.book_id)) ? 'is-saved' : ''}" data-book-id="${Number(p.book_id)}" type="button" aria-label="Add to wishlist" onclick="event.stopPropagation(); toggleWishlist(${Number(p.book_id)}, this)"><i class="${wishlistBookIds.has(Number(p.book_id)) ? 'fas' : 'far'} fa-heart"></i></button><div class="product-image">${p.sale_type ? `<span class="sale-type-badge ${preorderClosed ? 'closed' : ''}">${saleLabel}</span>` : ''}
                         <img src="${p.images ? JSON.parse(p.images)[0] : '/assets/logo.png'}" alt="${p.title}">
                     </div>
                     <div class="product-info">
@@ -643,6 +667,21 @@
                             <span>Voting Festival</span>
                             <i class="fas fa-chevron-right"></i>
                         </div>
+                        <div class="menu-item" onclick="navigateTo('help')">
+                            <i class="fas fa-circle-question"></i>
+                            <span>Help</span>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                        <div class="menu-item" onclick="navigateTo('support')">
+                            <i class="fas fa-headset"></i>
+                            <span>Customer Support</span>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                        <div class="menu-item" onclick="navigateTo('policies')">
+                            <i class="fas fa-file-contract"></i>
+                            <span>Policies</span>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
                         <div class="menu-item" onclick="toggleNightMode()">
                             <i class="fas fa-moon"></i>
                             <span>Night Mode</span>
@@ -681,6 +720,7 @@
                     <div class="wallet-actions">
                         <button onclick="navigateTo('withdraw')" class="btn-primary">Withdraw</button>
                         <button onclick="navigateTo('transfer')" class="btn-secondary">Transfer to User</button>
+                        <button onclick="navigateTo('cash-in')" class="btn-secondary"><i class="fas fa-money-bill-transfer"></i> Cash in</button>
                     </div>
 
                     <h3>Recent Transactions</h3>
@@ -708,6 +748,37 @@
 
         async function openWalletTransactionReceipt(reference) { const res = await fetch(`${API_URL}/wallet/p2p/receipt/${encodeURIComponent(reference)}`, { headers: { 'Authorization': `Bearer ${authToken}` } }); const data = await res.json(); if (!res.ok) return alert(data.error || 'Receipt unavailable'); const r = data.receipt; showWalletReceipt({ type: r.direction === 'received' ? 'P2P ငွေလက်ခံခြင်း' : 'P2P ငွေလွှဲခြင်း', amount: r.amount, recipient: r.peer?.name || r.peer?.public_id || '', reference: r.reference_id, fee: r.fee, createdAt: r.created_at, note: r.direction === 'received' ? 'လက်ခံသူ၏ Wallet ထဲသို့ ငွေဝင်ရောက်ပါပြီ' : '', status: r.direction === 'received' ? 'ငွေလက်ခံခြင်း အောင်မြင်ပါသည်' : 'ငွေလွှဲခြင်း အောင်မြင်ပါသည်' }); }
         async function openPaidWithdrawalReceipt(withdrawalId) { const res = await fetch(`${API_URL}/wallet/withdrawals`, { headers: { 'Authorization': `Bearer ${authToken}` } }); const rows = await res.json(); const w = rows.find(row => Number(row.withdrawal_id) === Number(withdrawalId)); if (!w) return alert('Paid withdrawal receipt unavailable'); showWalletReceipt({ type: 'ငွေထုတ်ခြင်း', amount: w.amount, recipient: `${String(w.payment_method).toUpperCase()} — ${w.account_phone}`, reference: w.admin_reference || `WD#${w.withdrawal_id}`, fee: w.fee, createdAt: w.paid_at, note: 'Admin မှ ငွေပေးချေပြီးပါပြီ', status: 'ငွေထုတ်ခြင်း အောင်မြင်ပါသည်' }); }
+
+        async function renderCashIn(container) {
+            container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading cash-in agents...</div>';
+            const res = await fetch(`${API_URL}/buyer/cash-in-agents`);
+            const agents = await res.json().catch(() => []);
+            container.innerHTML = `<div class="wallet-page"><button class="btn-text page-back-btn" onclick="navigateTo('wallet')"><i class="fas fa-arrow-left"></i> Back to Wallet</button><h2>Cash in</h2><p class="text-secondary">Wallet ထဲ ငွေဖြည့်ရန် ပြင်ပအေးဂျင့်တစ်ဦးကို ဆက်သွယ်ပြီး ငွေလွှဲပါ။ ငွေလွှဲပြီးနောက် အေးဂျင့်အား သင့် Account ID ကို ပြောပါ။</p><div class="agent-list">${Array.isArray(agents) && agents.length ? agents.map(agent => { const phone = String(agent.phone || '').replace(/[^0-9+]/g, ''); const wa = phone.replace(/^0/, '95'); return `<div class="admin-card agent-contact-card"><div><strong>${escapeChatText(agent.name || agent.store_name || 'Cash-in Agent')}</strong><p>${escapeChatText(agent.public_id || '')}</p><small>${escapeChatText(agent.phone || '')}</small></div><div class="agent-contact-actions"><a class="btn-secondary" href="tel:${phone}"><i class="fas fa-phone"></i> Call</a><a class="btn-primary" href="https://wa.me/${wa}" target="_blank" rel="noopener noreferrer"><i class="fab fa-whatsapp"></i> Chat</a></div></div>`; }).join('') : '<p class="empty-text">No cash-in agents are available yet. Please contact Customer Support.</p>'}</div><button class="btn-text" onclick="navigateTo('support')"><i class="fas fa-headset"></i> Contact Customer Support</button></div>`;
+        }
+
+        function renderHelp(container) {
+            container.innerHTML = `<div class="content-page"><button class="btn-text page-back-btn" onclick="navigateTo('profile')"><i class="fas fa-arrow-left"></i> Back to Profile</button><p class="eyebrow">HELP CENTER</p><h2>Help</h2><div class="help-card"><h3>အော်ဒါတင်ခြင်း</h3><p>စာအုပ်ကိုရွေးပြီး Add to Cart သို့မဟုတ် Buy Now ကိုနှိပ်ပါ။ COD ပစ္စည်းတွင် စရံရှိပါက စရံကိုသာ Wallet မှ အရင်ဖြတ်ပြီး ကျန်ငွေကို အိမ်အရောက်တွင် ပေးချေရပါမည်။</p></div><div class="help-card"><h3>Wallet</h3><p>Cash in မှ Wallet ထဲ ငွေဖြည့်နိုင်ပြီး Transfer to User နှင့် Withdraw ကိုလည်း အသုံးပြုနိုင်ပါသည်။</p></div><div class="help-card"><h3>အကူအညီလိုပါသလား</h3><button class="btn-primary" onclick="navigateTo('support')"><i class="fas fa-headset"></i> Customer Support ကို ဆက်သွယ်ရန်</button></div></div>`;
+        }
+
+        function renderPolicies(container) {
+            container.innerHTML = `<div class="content-page"><button class="btn-text page-back-btn" onclick="navigateTo('profile')"><i class="fas fa-arrow-left"></i> Back to Profile</button><p class="eyebrow">SAR PAY ZONE</p><h2>Policies</h2><div class="help-card"><h3>ငွေပေးချေမှုမူဝါဒ</h3><p>Prepaid ပစ္စည်းများကို Wallet ဖြင့် အပြည့်ပေးချေရပါမည်။ COD ပစ္စည်းတွင် seller သတ်မှတ်ထားသော စရံရှိပါက စရံကိုသာ အရင်ပေးပြီး ကျန်ငွေကို ပစ္စည်းရောက်မှ ပေးချေရပါမည်။</p></div><div class="help-card"><h3>ပို့ဆောင်မှုမူဝါဒ</h3><p>ပို့ဆောင်ခသည် ခန့်မှန်းငွေဖြစ်ပြီး ပစ္စည်းရောက်ရှိချိန်တွင် ပေးချေရပါမည်။</p></div><div class="help-card"><h3>စကားပြောခြင်းနှင့် လုံခြုံရေး</h3><p>Chat စာများကို လုံခြုံရေးစစ်ဆေးမှုဖြင့် ကာကွယ်ထားပါသည်။</p></div></div>`;
+        }
+
+        async function renderSupport(container) {
+            container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading support...</div>';
+            const res = await fetch(`${API_URL}/buyer/support-contact`);
+            const admin = await res.json().catch(() => ({}));
+            container.innerHTML = `<div class="content-page"><button class="btn-text page-back-btn" onclick="navigateTo('profile')"><i class="fas fa-arrow-left"></i> Back to Profile</button><p class="eyebrow">CUSTOMER CARE</p><h2>Customer Support</h2><div class="help-card"><i class="fas fa-headset" style="font-size:30px;color:var(--accent)"></i><h3>${escapeChatText(admin.name || 'Customer Support')}</h3><p>${escapeChatText(admin.public_id || '')}</p><p class="text-secondary">အော်ဒါ၊ Wallet၊ Cash in နှင့် အခြားအကူအညီများအတွက် Admin ကို တိုက်ရိုက် Chat ပြောနိုင်ပါသည်။</p><button class="btn-primary" onclick="openCustomerSupport(${Number(admin.seller_id || 0)})" ${res.ok ? '' : 'disabled'}><i class="fas fa-comment-dots"></i> Chat with Customer Support</button></div></div>`;
+        }
+
+        async function openCustomerSupport(adminId) {
+            if (!currentUser) { showAuthModal(); return; }
+            if (!Number.isSafeInteger(Number(adminId)) || Number(adminId) <= 0) return alert('Customer support is unavailable');
+            const res = await fetch(`${API_URL}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ conversation_type: 'customer_support', participants: [`U${Number(currentUser.user_id || currentUser.id)}`, `S${Number(adminId)}`] }) });
+            const data = await res.json();
+            if (!res.ok) return alert(data.error || 'Unable to open customer support chat');
+            navigateTo('chat'); openChat(Number(data.conversation_id));
+        }
 
         // ===== ORDERS =====
         async function renderOrders(container) {
@@ -1077,8 +1148,35 @@
         }
 
         async function buyNow(bookId) {
-            await addToCart(bookId);
-            navigateTo('cart');
+            if (!currentUser) { showAuthModal(); return; }
+            navigateTo('buy-now', { bookId: Number(bookId) });
+        }
+
+        async function renderBuyNow(container, bookId) {
+            if (!currentUser) { showAuthModal(); return; }
+            container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading checkout...</div>';
+            const res = await fetch(`${API_URL}/products/${Number(bookId)}`);
+            const p = await res.json().catch(() => ({}));
+            if (!res.ok) { container.innerHTML = `<p class="error-text">${escapeChatText(p.error || 'Unable to load product')}</p>`; return; }
+            currentBuyNowProduct = p;
+            const type = p.sale_type || 'prepaid';
+            const price = Number(p.discounted_price || p.original_price || 0);
+            const deposit = type === 'cod' ? Number(p.cod_deposit_amount || 0) : type === 'preorder' ? Number(p.preorder_deposit_amount || 0) : price;
+            const remaining = Math.max(0, price - deposit);
+            container.innerHTML = `<div class="checkout-page"><button class="btn-text page-back-btn" onclick="navigateTo('home')"><i class="fas fa-arrow-left"></i> Back</button><p class="eyebrow">QUICK CHECKOUT</p><h2>Buy Now</h2><div class="cart-item"><img src="${escapeChatText((p.images ? JSON.parse(p.images)[0] : '') || '/assets/logo.png')}" alt="${escapeChatText(p.title || '')}"><div class="cart-item-info"><h3>${escapeChatText(p.title || '')}</h3><p>${price.toLocaleString()} Ks · ${type.toUpperCase()}</p></div></div><div class="help-card"><strong>${type === 'cod' ? `အခု စရံ ${deposit.toLocaleString()} Ks ကိုသာ Wallet မှ ဖြတ်မည်။ ကျန်ငွေ ${remaining.toLocaleString()} Ks ကို အိမ်အရောက်ပေးမည်။` : type === 'preorder' ? `Preorder စရံ ${deposit.toLocaleString()} Ks ကို Wallet ဖြင့်ပေးချေရမည်။` : `စာအုပ်ဖိုး ${price.toLocaleString()} Ks ကို Wallet ဖြင့်ပေးချေရမည်။`}</strong><p>ပို့ခခန့်မှန်းငွေ ${Number(p.free_shipping) ? 'အခမဲ့' : `${Number(p.estimated_shipping_fee || 0).toLocaleString()} Ks`} ကို ပစ္စည်းရောက်မှပေးရပါမည်။</p></div><form id="buy-now-form" onsubmit="submitBuyNow(event)"><div class="form-group"><label for="buy-now-address">လက်ခံမည့်အသေးစိတ်လိပ်စာ</label><textarea id="buy-now-address" maxlength="500" required placeholder="အိမ်အမှတ်၊ လမ်း၊ မြို့/ပြည်နယ်၊ ဆက်သွယ်ရန်ဖုန်းနံပါတ်"></textarea></div><button class="btn-primary" type="submit">${type === 'cod' ? `စရံ ${deposit.toLocaleString()} Ks ပေးပြီး COD အော်ဒါတင်မည်` : 'ယခုဝယ်မည်'}</button><p id="buy-now-error" class="error-text"></p></form></div>`;
+        }
+
+        async function submitBuyNow(event) {
+            event.preventDefault();
+            const p = currentBuyNowProduct; const error = document.getElementById('buy-now-error'); const button = event.currentTarget.querySelector('button[type="submit"]');
+            if (!p) return;
+            button.disabled = true; error.textContent = '';
+            const payment_method = p.sale_type === 'cod' ? 'cod' : 'wallet';
+            const res = await fetch(`${API_URL}/orders`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ product_id: Number(p.book_id), quantity: 1, shipping_address: document.getElementById('buy-now-address').value.trim(), payment_method }) });
+            const data = await res.json(); button.disabled = false;
+            if (!res.ok) { error.textContent = data.error || 'Unable to place order'; return; }
+            alert(`အော်ဒါတင်ပြီးပါပြီ\nအခု ပေးရမည့်ငွေ ${Number(data.amount_paid || 0).toLocaleString()} Ks\nအိမ်အရောက်ပေးရမည့်ကျန်ငွေ ${Number(data.remaining_due_on_delivery || 0).toLocaleString()} Ks`);
+            currentBuyNowProduct = null; navigateTo('orders');
         }
 
         function checkout() {
@@ -1158,14 +1256,16 @@
 
         async function toggleWishlist(bookId, button) {
             if (!currentUser) { showAuthModal(); return; }
-            const res = await fetch(`${API_URL}/buyer/wishlist`, {
-                method: 'POST',
+            const saved = wishlistBookIds.has(Number(bookId));
+            const res = await fetch(`${API_URL}/buyer/wishlist${saved ? `/${Number(bookId)}` : ''}`, {
+                method: saved ? 'DELETE' : 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify({ book_id: bookId })
+                body: saved ? undefined : JSON.stringify({ book_id: bookId })
             });
             const data = await res.json();
             if (!res.ok) return alert(data.error || 'Unable to update wishlist');
-            button?.classList.add('is-saved'); if (button) button.innerHTML = '<i class="fas fa-heart"></i>';
+            if (saved) wishlistBookIds.delete(Number(bookId)); else wishlistBookIds.add(Number(bookId));
+            if (button) { button.classList.toggle('is-saved', !saved); button.innerHTML = `<i class="${saved ? 'far' : 'fas'} fa-heart"></i>`; }
         }
 
         async function viewFestivalBooks(festivalId) {
