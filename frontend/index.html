@@ -398,6 +398,7 @@
                             <span class="current-price">${p.discounted_price || p.original_price} Ks</span>
                             ${p.discounted_price ? `<span class="original-price">${p.original_price} Ks</span>` : ''}
                         </div>
+                        ${p.sale_type === 'cod' ? `<div class="delivery-estimate-card cod-deposit-card"><i class="fas fa-wallet"></i><div><strong>ကြိုတင်ငွေစရံ: ${Number(p.cod_deposit_amount || 0).toLocaleString()} Ks / စာအုပ်</strong><small>အခု စရံငွေကိုသာ Wallet မှ ဖြတ်ပါမည်။ ကျန်ငွေ ${Math.max(0, Number(p.discounted_price || p.original_price || 0) - Number(p.cod_deposit_amount || 0)).toLocaleString()} Ks ကို ပစ္စည်းရောက်မှ COD ဖြင့် ပေးချေရပါမည်။</small></div></div>` : ''}
                         <div class="shop-response-card ${storeOpen ? 'is-open' : 'is-closed'}"><i class="fas fa-${storeOpen ? 'clock' : 'store-slash'}"></i><div><strong>${storeOpen ? (p.reply_time_text || 'Usually replies within 1 hour') : 'ဆိုင်ခေတ္တပိတ်ထားပါတယ်'}</strong><small>${storeOpen ? 'ဆိုင်ဖွင့်နေပြီး အော်ဒါလက်ခံနေပါတယ်' : (p.closed_message || 'ပြန်ဖွင့်ချိန်တွင် အော်ဒါလက်ခံပါမယ်')}</small></div></div>
 
                         <div class="variation-selector">
@@ -1088,7 +1089,9 @@
             const type = types[0];
             const payment = document.getElementById('checkout-payment');
             payment.innerHTML = type === 'cod' ? '<option value="cod">COD — ကျန်ငွေကို ပစ္စည်းရောက်မှပေးမည်</option>' : '<option value="wallet">Wallet ဖြင့် စာအုပ်ဖိုးပေးချေမည်</option>';
-            document.querySelector('.checkout-note').textContent = `ပို့ခခန့်မှန်းငွေကို ပစ္စည်းရောက်မှပေးရပါမည်။ ${type === 'preorder' ? 'Preorder ကြိုတင်ငွေကို Wallet ဖြင့်ပေးချေရပါမည်။' : type === 'cod' ? 'COD ကြိုတင်ငွေရှိပါက Wallet မှ ဖြတ်ပြီး ကျန်ငွေကို ပစ္စည်းရောက်မှပေးရပါမည်။' : 'Prepaid စာအုပ်ဖိုးကို Wallet ဖြင့် အပြည့်ပေးချေရပါမည်။'}`;
+            const cartMerchandiseTotal = cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 1), 0);
+            const cartDepositTotal = cart.reduce((sum, item) => sum + (type === 'cod' ? Number(item.cod_deposit_amount || 0) : type === 'preorder' ? Number(item.preorder_deposit_amount || 0) : Number(item.price || 0)) * Number(item.qty || 1), 0);
+            document.querySelector('.checkout-note').textContent = `ပို့ခခန့်မှန်းငွေကို ပစ္စည်းရောက်မှပေးရပါမည်။ ${type === 'preorder' ? `Preorder ကြိုတင်ငွေ ${cartDepositTotal.toLocaleString()} Ks ကို Wallet ဖြင့်ပေးချေရပါမည်။` : type === 'cod' ? `အခု ပေးရမည့် COD စရံ ${cartDepositTotal.toLocaleString()} Ks ဖြစ်ပြီး ကျန်ငွေ ${Math.max(0, cartMerchandiseTotal - cartDepositTotal).toLocaleString()} Ks ကို ပစ္စည်းရောက်မှပေးရပါမည်။` : 'Prepaid စာအုပ်ဖိုးကို Wallet ဖြင့် အပြည့်ပေးချေရပါမည်။'}`;
             document.getElementById('checkout-error').textContent = '';
             document.getElementById('checkout-modal').classList.remove('hidden');
         }
